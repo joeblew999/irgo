@@ -82,13 +82,21 @@
           });
         });
       } else if (isAndroid) {
-        const response = window.Irgo.handleRequest(
-          method,
-          url,
-          JSON.stringify(headers),
-          body || "",
-        );
-        return JSON.parse(response);
+        // Async callback pattern (mirrors iOS). The @JavascriptInterface
+        // method returns immediately; Go processes the request on a worker
+        // thread and calls back via window._irgo_http_response / _irgo_http_error.
+        return new Promise((resolve, reject) => {
+          const requestId = generateUUID();
+          pendingHttpRequests.set(requestId, { resolve, reject });
+
+          window.Irgo.httpRequest(
+            requestId,
+            method,
+            url,
+            JSON.stringify(headers),
+            body || "",
+          );
+        });
       }
       throw new Error("Native bridge not available");
     },
@@ -302,8 +310,8 @@
       pendingHttpRequests.delete(requestId);
       pending.resolve({
         status,
-        headers: JSON.parse(headers),
-        body: body ? atob(body) : "",
+        headers: headers ? JSON.parse(headers) : {},
+        body: body ? decodeBase64Utf8(body) : "",
       });
     }
   };
@@ -374,6 +382,85 @@
         return v.toString(16);
       },
     );
+  }
+
+  // Decode a base64 string (produced from raw UTF-8 bytes by the native side)
+  // back into a JS string. Plain atob() yields a Latin-1 "binary string" which
+  // corrupts multi-byte UTF-8 (e.g. curly quotes, emoji), so we re-decode.
+  function decodeBase64Utf8(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  // Normalize fetch() headers (Headers | array | object | undefined) to a
+  // plain string→string object the native bridge can JSON-encode.
+  function headersToObject(h) {
+    const out = {};
+    if (!h) return out;
+    if (typeof Headers !== "undefined" && h instanceof Headers) {
+      h.forEach(function (value, key) {
+        out[key] = value;
+      });
+    } else if (Array.isArray(h)) {
+      for (const pair of h) {
+        out[pair[0]] = pair[1];
+      }
+    } else {
+      for (const key in h) {
+        if (Object.prototype.hasOwnProperty.call(h, key)) {
+          out[key] = h[key];
+        }
+      }
+    }
+    return out;
+  }
+
+  // Convert a fetch() body into a string for the native bridge.
+  async function bodyToString(body) {
+    if (body == null) return "";
+    if (typeof body === "string") return body;
+    if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+      return body.toString();
+    }
+    if (typeof Blob !== "undefined" && body instanceof Blob) {
+      return await body.text();
+    }
+    if (body instanceof ArrayBuffer) {
+      return new TextDecoder("utf-8").decode(body);
+    }
+    if (ArrayBuffer.isView(body)) {
+      return new TextDecoder("utf-8").decode(body);
+    }
+    try {
+      return String(body);
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // Resolve a fetch() URL to an app-relative path (e.g. "/todos?x=1") when the
+  // request targets the native app, or return null for external http(s) URLs
+  // that should use the real network.
+  function toAppPath(rawUrl) {
+    let u;
+    try {
+      u = new URL(rawUrl, window.location.href);
+    } catch (e) {
+      // Unparseable - assume app-relative
+      return rawUrl.startsWith("/") ? rawUrl : "/" + rawUrl;
+    }
+    if (u.protocol === "irgo:") {
+      return u.pathname + u.search;
+    }
+    if (u.origin === window.location.origin) {
+      return u.pathname + u.search;
+    }
+    // External http(s):// request - not handled by the bridge
+    return null;
   }
 
   function normalizeWebSocketUrl(url) {
@@ -465,6 +552,80 @@
         }
       }
       return XHRSend.apply(this, arguments);
+    };
+  }
+
+  // ========================================
+  // ANDROID FETCH INTERCEPTION
+  // ========================================
+
+  // On Android, shouldInterceptRequest cannot see fetch() request bodies and
+  // cannot stream SSE responses, so we route Datastar's fetch() through the
+  // @JavascriptInterface bridge instead. (iOS uses its WKURLSchemeHandler with
+  // the irgo:// base URL, so its fetch() is left untouched here.)
+  if (isAndroid) {
+    window.fetch = async function (input, init) {
+      init = init || {};
+
+      let rawUrl;
+      let method;
+      let headers;
+      let body;
+
+      if (typeof Request !== "undefined" && input instanceof Request) {
+        rawUrl = input.url;
+        method = (init.method || input.method || "GET").toUpperCase();
+        headers = headersToObject(init.headers || input.headers);
+        if (init.body != null) {
+          body = init.body;
+        } else if (method !== "GET" && method !== "HEAD") {
+          // Body lives on the Request object - read a clone so the original
+          // stays usable for the fallback path.
+          try {
+            body = await input.clone().text();
+          } catch (e) {
+            body = null;
+          }
+        } else {
+          body = null;
+        }
+      } else {
+        rawUrl = typeof input === "string" ? input : String(input);
+        method = (init.method || "GET").toUpperCase();
+        headers = headersToObject(init.headers);
+        body = init.body != null ? init.body : null;
+      }
+
+      const path = toAppPath(rawUrl);
+      if (path === null) {
+        // External request - use the real network fetch.
+        return NativeFetch.call(window, input, init);
+      }
+
+      const bodyString = await bodyToString(body);
+
+      const res = await NativeBridge.httpRequest(method, path, headers, bodyString);
+
+      const responseHeaders = new Headers();
+      if (res.headers) {
+        for (const key in res.headers) {
+          if (Object.prototype.hasOwnProperty.call(res.headers, key)) {
+            try {
+              responseHeaders.set(key, res.headers[key]);
+            } catch (e) {
+              // Skip headers the Headers API forbids setting.
+            }
+          }
+        }
+      }
+
+      const status = res.status || 200;
+      // 204/205/304 must have a null body per the Fetch spec.
+      const nullBody = status === 204 || status === 205 || status === 304;
+      return new Response(nullBody ? null : res.body, {
+        status,
+        headers: responseHeaders,
+      });
     };
   }
 

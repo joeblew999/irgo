@@ -1,1 +1,3 @@
-irgo
+# Compiled CLI binary at repo root only — anchored so it does not match
+# directories named "irgo" (e.g. the android com/irgo package or cmd/irgo).
+/irgo

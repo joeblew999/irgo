@@ -8,7 +8,14 @@ import android.webkit.WebViewClient
 import java.io.ByteArrayInputStream
 
 /**
- * Custom WebViewClient that intercepts requests and routes them to Go
+ * Custom WebViewClient that intercepts irgo:// resource loads (navigation and
+ * static assets such as CSS/JS) and routes them to Go.
+ *
+ * NOTE: Datastar's fetch() traffic does NOT flow through here. On Android,
+ * shouldInterceptRequest cannot access request bodies (POST/PUT/etc.) and
+ * cannot stream responses, so irgo-bridge.js patches window.fetch to route
+ * those requests through the IrgoJSInterface (window.Irgo) instead. This client
+ * only handles plain GET resource loads triggered by the WebView itself.
  */
 open class IrgoWebViewClient : WebViewClient() {
 
@@ -50,7 +57,7 @@ open class IrgoWebViewClient : WebViewClient() {
             method = method,
             url = path,
             headers = headers,
-            body = null // WebResourceRequest doesn't provide body access
+            body = null // GET resource loads only; body-bearing requests go through IrgoJSInterface
         )
 
         // Determine MIME type

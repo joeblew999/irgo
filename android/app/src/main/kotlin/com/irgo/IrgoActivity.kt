@@ -15,51 +15,6 @@ open class IrgoActivity : AppCompatActivity() {
     lateinit var webView: WebView
         private set
 
-    private val bridgeScript = """
-        (function() {
-            // Store original fetch
-            const originalFetch = window.fetch;
-
-            // Override fetch to use irgo:// scheme
-            window.fetch = function(input, init) {
-                let url = input;
-                if (typeof input === 'object' && input.url) {
-                    url = input.url;
-                }
-
-                // Convert relative URLs to irgo:// scheme
-                if (typeof url === 'string') {
-                    if (url.startsWith('/')) {
-                        url = 'irgo://app' + url;
-                    } else if (!url.includes('://')) {
-                        url = 'irgo://app/' + url;
-                    }
-                }
-
-                // For external URLs, use original fetch
-                if (!url.startsWith('irgo://')) {
-                    return originalFetch(input, init);
-                }
-
-                return originalFetch(url, init);
-            };
-
-            // Configure HTMX to use irgo:// scheme
-            if (typeof htmx !== 'undefined') {
-                document.body.addEventListener('htmx:configRequest', function(evt) {
-                    let path = evt.detail.path;
-                    if (path.startsWith('/')) {
-                        evt.detail.path = 'irgo://app' + path;
-                    } else if (!path.includes('://')) {
-                        evt.detail.path = 'irgo://app/' + path;
-                    }
-                });
-            }
-
-            console.log('Irgo bridge initialized');
-        })();
-    """.trimIndent()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -104,23 +59,23 @@ open class IrgoActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
             }
 
-            // Add JavaScript interface for WebSocket bridge
-            addJavascriptInterface(IrgoWebSocketInterface(this@IrgoActivity), "IrgoNative")
+            // Expose the unified native bridge to JavaScript as `window.Irgo`.
+            // irgo-bridge.js routes Datastar's fetch() (HTTP) and WebSocket
+            // traffic through this interface.
+            addJavascriptInterface(IrgoJSInterface(this@IrgoActivity), "Irgo")
         }
     }
 
     protected open fun loadInitialPage() {
         val html = IrgoBridge.renderInitialPage()
 
-        // Inject bridge script before loading
-        val fullHtml = html.replace(
-            "<head>",
-            "<head><script>$bridgeScript</script>"
-        )
-
+        // The bridge script (irgo-bridge.js) is loaded by the page itself via
+        // layout.templ and served through shouldInterceptRequest. The base URL
+        // uses the irgo:// scheme so relative asset URLs resolve to the native
+        // bridge.
         webView.loadDataWithBaseURL(
             "irgo://app/",
-            fullHtml,
+            html,
             "text/html",
             "UTF-8",
             null
