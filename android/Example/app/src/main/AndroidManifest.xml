@@ -3,14 +3,22 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Used by the haptics.* native plugin -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Used by the notifications.* native plugin (runtime permission on API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- usesCleartextTraffic is enabled so dev mode can load a plain-http
+         dev server (http://10.0.2.2:8080) via the "irgoDevServer" intent
+         extra. This is a debug-oriented example app; production apps should
+         disable cleartext traffic or restrict it to debug builds with a
+         network security config. -->
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.Light.NoActionBar"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"

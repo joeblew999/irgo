@@ -29,19 +29,7 @@ func NewHTTPAdapter(handler http.Handler) *HTTPAdapter {
 // No sockets are opened. The request is processed entirely in memory
 // using httptest.ResponseRecorder.
 func (a *HTTPAdapter) HandleRequest(req *core.Request) *core.Response {
-	// Convert core.Request to *http.Request
-	var body io.Reader
-	if len(req.Body) > 0 {
-		body = bytes.NewReader(req.Body)
-	}
-
-	httpReq := httptest.NewRequest(req.Method, req.URL, body)
-
-	// Apply headers from core.Request
-	headers := req.GetHeaders()
-	for k, v := range headers {
-		httpReq.Header.Set(k, v)
-	}
+	httpReq := buildHTTPRequest(req)
 
 	// Create ResponseRecorder to capture output
 	recorder := httptest.NewRecorder()
@@ -59,17 +47,29 @@ func (a *HTTPAdapter) HandleRequest(req *core.Request) *core.Response {
 		Status: result.StatusCode,
 		Body:   respBody,
 	}
-
-	// Flatten response headers
-	respHeaders := make(map[string]string)
-	for k, v := range result.Header {
-		if len(v) > 0 {
-			respHeaders[k] = v[0]
-		}
-	}
-	resp.SetHeaders(respHeaders)
+	resp.SetHTTPHeaders(result.Header)
 
 	return resp
+}
+
+// buildHTTPRequest converts a core.Request into an *http.Request, preserving
+// multi-valued headers. Shared by the buffered and streaming paths so request
+// semantics cannot drift between them. Panics on malformed method/URL
+// (httptest.NewRequest's contract) — callers recover where appropriate.
+func buildHTTPRequest(req *core.Request) *http.Request {
+	var body io.Reader
+	if len(req.Body) > 0 {
+		body = bytes.NewReader(req.Body)
+	}
+
+	httpReq := httptest.NewRequest(req.Method, req.URL, body)
+
+	for k, values := range req.HTTPHeaders() {
+		for _, v := range values {
+			httpReq.Header.Add(k, v)
+		}
+	}
+	return httpReq
 }
 
 // Handler returns the underlying http.Handler.

@@ -17,9 +17,6 @@ func runDev() error {
 	if err := checkTool("templ", "go install github.com/a-h/templ/cmd/templ@latest"); err != nil {
 		return err
 	}
-	if err := checkTool("entr", "brew install entr"); err != nil {
-		return err
-	}
 
 	// Check if dev.sh exists (user project) or we're in framework
 	if _, err := os.Stat("dev.sh"); err == nil {
@@ -107,9 +104,27 @@ func buildIOS(modulePath string) error {
 	if err := runGomobileCommand("bind", "-target", "ios", "-o", outPath, mobilePackage); err != nil {
 		return fmt.Errorf("gomobile bind failed: %w", err)
 	}
+	writeArtifactStamp("build/ios")
 
 	fmt.Printf("iOS framework built: %s\n", outPath)
 	return nil
+}
+
+// Artifact version stamps: dev mode reuses previously built frameworks/AARs,
+// but a framework built by an older irgo exposes an older bridge API and the
+// native shells fail to compile against it. The stamp forces a rebuild after
+// an irgo upgrade.
+
+func writeArtifactStamp(dir string) {
+	_ = os.WriteFile(filepath.Join(dir, ".irgo-version"), []byte(version), 0644)
+}
+
+func artifactUpToDate(artifact, stampDir string) bool {
+	if _, err := os.Stat(artifact); err != nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(stampDir, ".irgo-version"))
+	return err == nil && strings.TrimSpace(string(data)) == version
 }
 
 func buildAndroid(modulePath string) error {
@@ -132,6 +147,7 @@ func buildAndroid(modulePath string) error {
 	if err := runGomobileCommand("bind", "-target", "android", "-o", outPath, mobilePackage); err != nil {
 		return fmt.Errorf("gomobile bind failed: %w", err)
 	}
+	writeArtifactStamp("build/android")
 
 	fmt.Printf("Android AAR built: %s\n", outPath)
 
@@ -205,7 +221,6 @@ func installTools() error {
 
 	fmt.Println()
 	fmt.Println("Tools installed! You may also want to install:")
-	fmt.Println("  - entr: brew install entr (for file watching)")
 	fmt.Println("  - Xcode: from App Store (for iOS development)")
 	fmt.Println("  - Android Studio: https://developer.android.com/studio (for Android development)")
 
@@ -218,7 +233,7 @@ func runMobile(platform string, devMode bool) error {
 	case "ios":
 		return runIOS(devMode)
 	case "android":
-		return runAndroid()
+		return runAndroid(devMode)
 	default:
 		return fmt.Errorf("unknown platform: %s (use ios or android)", platform)
 	}
@@ -256,15 +271,22 @@ func runIOS(devMode bool) error {
 			return err
 		}
 
-		// Still need to build the framework for the Xcode project
-		modulePath, err := getModulePath()
-		if err != nil {
-			return fmt.Errorf("could not determine module path: %w", err)
-		}
+		// Dev mode serves the app from localhost:8080, so a fresh gomobile
+		// build isn't needed. The Xcode project still links against
+		// build/ios/Irgo.xcframework, so build it only when missing or built
+		// by a different irgo version (stale bridge API).
+		if !artifactUpToDate("build/ios/Irgo.xcframework", "build/ios") {
+			modulePath, err := getModulePath()
+			if err != nil {
+				return fmt.Errorf("could not determine module path: %w", err)
+			}
 
-		fmt.Println("Building iOS framework...")
-		if err := buildIOS(modulePath); err != nil {
-			return err
+			fmt.Println("Building iOS framework (missing or built by another irgo version)...")
+			if err := buildIOS(modulePath); err != nil {
+				return err
+			}
+		} else {
+			fmt.Println("Using existing build/ios/Irgo.xcframework (delete it to force a rebuild)")
 		}
 
 		// Update Info.plist to enable dev mode
@@ -408,20 +430,9 @@ func findAvailableIPhoneSimulator() string {
 	return ""
 }
 
-func runAndroid() error {
+func runAndroid(devMode bool) error {
 	// Check for Android tools
 	if err := checkTool("adb", "Install Android SDK and add platform-tools to PATH"); err != nil {
-		return err
-	}
-
-	// Build the AAR first
-	modulePath, err := getModulePath()
-	if err != nil {
-		return fmt.Errorf("could not determine module path: %w", err)
-	}
-
-	fmt.Println("Building Android AAR...")
-	if err := buildAndroid(modulePath); err != nil {
 		return err
 	}
 
@@ -435,9 +446,73 @@ func runAndroid() error {
 			"  4. Copy android/app/src/main/kotlin/com/irgo/*.kt to your project", androidProjectPath)
 	}
 
+	// Dev server URL as seen from the emulator (10.0.2.2 is the host loopback)
+	devServerURL := "http://10.0.2.2:8080"
+	var devServerCmd *exec.Cmd
+
+	if devMode {
+		fmt.Println("Running in DEV MODE with hot reload...")
+		fmt.Println()
+
+		// Check for required dev tools
+		if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
+			return err
+		}
+
+		// Dev mode serves the app from the dev server, so a fresh gomobile
+		// build isn't needed. The Gradle project still links against
+		// app/libs/irgo.aar, so build it only when missing or built by a
+		// different irgo version (stale bridge API).
+		aarPath := filepath.Join(androidProjectPath, "app/libs/irgo.aar")
+		if !artifactUpToDate(aarPath, "build/android") {
+			modulePath, err := getModulePath()
+			if err != nil {
+				return fmt.Errorf("could not determine module path: %w", err)
+			}
+
+			fmt.Println("Building Android AAR (missing or built by another irgo version)...")
+			if err := buildAndroid(modulePath); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("Using existing %s (delete it to force a rebuild)\n", aarPath)
+		}
+
+		// Start dev server in background
+		fmt.Println("Starting dev server at http://localhost:8080...")
+		devServerCmd = exec.Command("air")
+		devServerCmd.Stdout = os.Stdout
+		devServerCmd.Stderr = os.Stderr
+		if err := devServerCmd.Start(); err != nil {
+			return fmt.Errorf("failed to start dev server: %w", err)
+		}
+
+		// Give server time to start
+		fmt.Println("Waiting for dev server to start...")
+		exec.Command("sleep", "3").Run()
+	} else {
+		// Production mode: build the AAR
+		modulePath, err := getModulePath()
+		if err != nil {
+			return fmt.Errorf("could not determine module path: %w", err)
+		}
+
+		fmt.Println("Building Android AAR...")
+		if err := buildAndroid(modulePath); err != nil {
+			return err
+		}
+	}
+
+	killDevServer := func() {
+		if devServerCmd != nil {
+			devServerCmd.Process.Kill()
+		}
+	}
+
 	// Build with Gradle
 	gradlew := filepath.Join(androidProjectPath, "gradlew")
 	if _, err := os.Stat(gradlew); os.IsNotExist(err) {
+		killDevServer()
 		return fmt.Errorf("gradlew not found in %s", androidProjectPath)
 	}
 
@@ -447,18 +522,21 @@ func runAndroid() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		killDevServer()
 		return fmt.Errorf("gradle build failed: %w", err)
 	}
 
 	// Find the built APK
 	apkPath := filepath.Join(androidProjectPath, "app/build/outputs/apk/debug/app-debug.apk")
 	if _, err := os.Stat(apkPath); os.IsNotExist(err) {
+		killDevServer()
 		return fmt.Errorf("built APK not found at %s", apkPath)
 	}
 
 	// Check for running emulator
 	fmt.Println("Installing on Android device/emulator...")
 	if err := runCommand("adb", "install", "-r", apkPath); err != nil {
+		killDevServer()
 		return fmt.Errorf("failed to install APK (is an emulator running?): %w", err)
 	}
 
@@ -466,11 +544,33 @@ func runAndroid() error {
 	fmt.Println("Launching app...")
 	packageName := "com.irgo.example"
 	activityName := ".MainActivity"
-	if err := runCommand("adb", "shell", "am", "start", "-n", packageName+"/"+packageName+activityName); err != nil {
+	launchArgs := []string{"shell", "am", "start", "-n", packageName + "/" + packageName + activityName}
+	if devMode {
+		// IrgoActivity reads the irgoDevServer extra and loads that URL
+		// instead of the embedded bridge.
+		launchArgs = append(launchArgs, "-e", "irgoDevServer", devServerURL)
+	}
+	if err := runCommand("adb", launchArgs...); err != nil {
+		killDevServer()
 		return fmt.Errorf("failed to launch app: %w", err)
 	}
 
-	fmt.Println("\nApp running on Android!")
+	if devMode {
+		fmt.Println()
+		fmt.Println("===========================================")
+		fmt.Println("Android app running in DEV MODE with hot reload!")
+		fmt.Printf("Dev server: %s (localhost:8080 on this machine)\n", devServerURL)
+		fmt.Println("Edit your Go code and see changes instantly.")
+		fmt.Println("Press Ctrl+C to stop.")
+		fmt.Println("===========================================")
+		fmt.Println()
+
+		// Wait for dev server to exit (user presses Ctrl+C)
+		devServerCmd.Wait()
+	} else {
+		fmt.Println("\nApp running on Android!")
+	}
+
 	return nil
 }
 

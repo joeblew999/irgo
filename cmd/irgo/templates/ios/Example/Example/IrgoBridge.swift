@@ -69,16 +69,69 @@ public struct IrgoResponse {
         self.body = body
     }
 
-    init(from response: MobileResponse) {
+    init(from response: CoreResponse) {
         self.status = Int(response.status)
         self.body = response.body ?? Data()
+        self.headers = IrgoResponse.parseHeaders(response.headers)
+    }
 
-        // Parse headers from JSON
-        if let headersData = response.headers.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: headersData) as? [String: String] {
-            self.headers = parsed
-        } else {
-            self.headers = [:]
+    /// Parse the bridge's headers wire format. Values may be a string or an
+    /// array of strings (multi-value headers such as Set-Cookie); arrays are
+    /// joined with ", " for this flat [String: String] view. A plain
+    /// [String: String] cast would fail wholesale — dropping ALL headers,
+    /// including Content-Type — as soon as any value is an array.
+    static func parseHeaders(_ headersJSON: String) -> [String: String] {
+        guard let data = headersJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
         }
+        var headers: [String: String] = [:]
+        for (key, value) in object {
+            if let single = value as? String {
+                headers[key] = single
+            } else if let many = value as? [Any] {
+                let strings = many.compactMap { $0 as? String }
+                if !strings.isEmpty {
+                    headers[key] = strings.joined(separator: ", ")
+                }
+            }
+        }
+        return headers
+    }
+}
+
+/// Helpers for building JavaScript source passed to evaluateJavaScript.
+public enum IrgoJS {
+    /// Encode a Swift string as a double-quoted JavaScript string literal.
+    /// The output is also a valid JSON string literal, so it can be used both
+    /// for JS call arguments and for JSON payload strings.
+    public static func stringLiteral(_ value: String) -> String {
+        var out = "\""
+        for scalar in value.unicodeScalars {
+            switch scalar {
+            case "\"":
+                out += "\\\""
+            case "\\":
+                out += "\\\\"
+            case "\n":
+                out += "\\n"
+            case "\r":
+                out += "\\r"
+            case "\t":
+                out += "\\t"
+            case "\u{2028}":
+                out += "\\u2028"
+            case "\u{2029}":
+                out += "\\u2029"
+            default:
+                if scalar.value < 0x20 {
+                    out += String(format: "\\u%04x", scalar.value)
+                } else {
+                    out.append(Character(scalar))
+                }
+            }
+        }
+        out += "\""
+        return out
     }
 }

@@ -1,7 +1,8 @@
 package com.irgo
 
 import android.webkit.WebView
-import irgo.Irgo
+import mobile.Mobile as Irgo
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -55,6 +56,37 @@ object IrgoBridge {
     }
 
     /**
+     * Enable on-disk persistence for bridge state (the Go cookie jar, so
+     * login sessions survive app restarts). Call at startup with an
+     * app-private writable directory, e.g. context.filesDir.absolutePath.
+     */
+    fun setStateDir(dir: String) {
+        Irgo.setStateDir(dir)
+    }
+
+    /**
+     * Remove all cookies, including persisted ones. Useful for logout.
+     */
+    fun clearCookies() {
+        Irgo.clearCookies()
+    }
+
+    /**
+     * Notify Go that the app moved to the background (call from onPause).
+     * Persists bridge state and fires Go-side lifecycle handlers.
+     */
+    fun onBackground() {
+        Irgo.onBackground()
+    }
+
+    /**
+     * Notify Go that the app returned to the foreground (call from onResume).
+     */
+    fun onForeground() {
+        Irgo.onForeground()
+    }
+
+    /**
      * Shutdown the bridge
      */
     fun shutdown() {
@@ -74,12 +106,24 @@ data class IrgoResponse(
         get() = String(body, Charsets.UTF_8)
 
     companion object {
-        fun from(response: irgo.Core.Response): IrgoResponse {
+        fun from(response: core.Response): IrgoResponse {
+            // Header values may be strings or arrays (multi-value headers
+            // such as Set-Cookie); arrays are joined with ", " for this flat
+            // map view. Naive getString would corrupt or drop array values.
             val headers = mutableMapOf<String, String>()
             try {
                 val headersJson = JSONObject(response.headers)
                 headersJson.keys().forEach { key ->
-                    headers[key] = headersJson.getString(key)
+                    when (val value = headersJson.get(key)) {
+                        is JSONArray -> {
+                            val parts = mutableListOf<String>()
+                            for (i in 0 until value.length()) {
+                                parts.add(value.optString(i))
+                            }
+                            headers[key] = parts.joinToString(", ")
+                        }
+                        else -> headers[key] = value.toString()
+                    }
                 }
             } catch (e: Exception) {
                 // Ignore JSON parsing errors
