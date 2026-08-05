@@ -559,11 +559,33 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 	if !isDir(filepath.Dir(emu)) {
 		return fmt.Errorf("emulator not found at %s (run 'irgo install-tools android --emulator' first)", emu)
 	}
-	// Verify the AVD exists via the filesystem — `emulator -list-avds` can fail
-	// on headless CI (missing display libs) even when the AVD itself is fine.
-	if !isDir(filepath.Join(avdHomeDir(), avdName+".avd")) {
-		return fmt.Errorf("AVD %q not found (run 'irgo install-tools android --emulator --avd %s')", avdName, avdName)
+	// AVD must exist (created by installEmulator). Check the candidate homes —
+	// avdmanager/emulator can disagree on the AVD home depending on env vars
+	// (ANDROID_AVD_HOME vs ~/.android/avd vs the deprecated ANDROID_SDK_HOME).
+	avdDir := ""
+	for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
+		if d := filepath.Join(base, avdName+".avd"); isDir(d) {
+			avdDir = d
+			break
+		}
 	}
+	if avdDir == "" {
+		var lines []string
+		for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
+			entries, err := os.ReadDir(base)
+			if err != nil {
+				lines = append(lines, fmt.Sprintf("%s: <unreadable: %v>", base, err))
+				continue
+			}
+			names := make([]string, 0, len(entries))
+			for _, e := range entries {
+				names = append(names, e.Name())
+			}
+			lines = append(lines, fmt.Sprintf("%s: [%s]", base, strings.Join(names, ", ")))
+		}
+		return fmt.Errorf("AVD %q not found — ANDROID_AVD_HOME=%q, ANDROID_SDK_HOME=%q; checked:\n  %s\n(run 'irgo install-tools android --emulator --avd %s')", avdName, os.Getenv("ANDROID_AVD_HOME"), os.Getenv("ANDROID_SDK_HOME"), strings.Join(lines, "\n  "), avdName)
+	}
+	fmt.Printf("Using AVD at %s\n", avdDir)
 	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
 	args := []string{"-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim"}
 	if headless || (runtime.GOOS != "darwin" && os.Getenv("DISPLAY") == "") {
@@ -726,7 +748,11 @@ func installEmulator(sdk, avdName, sdkm string) error {
 		s = strings.ReplaceAll(s, "avd.name=<build>", "avd.name="+avdName)
 		_ = os.WriteFile(cfg, []byte(s), 0o644)
 	}
-	fmt.Printf("AVD %q created.\n", avdName)
+	avdDir := filepath.Join(avdHomeDir(), avdName+".avd")
+	if !isDir(avdDir) {
+		avdDir = filepath.Join(homeDir(), ".android", "avd", avdName+".avd")
+	}
+	fmt.Printf("AVD %q created at %s\n", avdName, avdDir)
 	return nil
 }
 
