@@ -72,6 +72,43 @@ func main() {
 			err = runMobile(platform, devMode, avd, headless)
 		}
 
+	case "package":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: irgo package <ios|android|windows> [--team ID] [--export-method METHOD] [-o PATH]")
+			os.Exit(1)
+		}
+		target := os.Args[2]
+		team, exportMethod, out := "", "app-store", ""
+		for i := 3; i < len(os.Args); i++ {
+			switch os.Args[i] {
+			case "--team":
+				if i+1 < len(os.Args) {
+					team = os.Args[i+1]
+					i++
+				}
+			case "--export-method":
+				if i+1 < len(os.Args) {
+					exportMethod = os.Args[i+1]
+					i++
+				}
+			case "-o", "--output":
+				if i+1 < len(os.Args) {
+					out = os.Args[i+1]
+					i++
+				}
+			}
+		}
+		switch target {
+		case "ios":
+			err = packageIOS(team, exportMethod, out)
+		case "android":
+			err = fmt.Errorf("irgo package android: not implemented yet (plan: gradlew bundleRelease + signingConfig → signed .aab)")
+		case "windows":
+			err = fmt.Errorf("irgo package windows: not implemented yet (plan: MSIX via AppxManifest + MakeAppx + sign)")
+		default:
+			err = fmt.Errorf("unknown package target: %s (use ios, android, or windows)", target)
+		}
+
 	case "templ":
 		err = runTempl()
 
@@ -140,6 +177,7 @@ Commands:
   serve            Run server without file watching
   build <target>   Build for mobile/desktop (ios, android, desktop, or all)
   run <platform>   Build and run on simulator or desktop
+  package <target> Package for app stores (ios: signed .ipa; android/windows WIP)
   templ            Generate templ files
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
