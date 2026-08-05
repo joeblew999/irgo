@@ -515,7 +515,14 @@ func ensureEmulatorRunning(avdName string) error {
 		return fmt.Errorf("AVD %q not found (run 'irgo install-tools android --emulator --avd %s')", avdName, avdName)
 	}
 	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
-	cmd := exec.Command(emu, "-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim")
+	args := []string{"-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim"}
+	// Headless (CI) — no X display and no GPU: use a windowless emulator with
+	// software rendering. macOS keeps its native window.
+	if runtime.GOOS != "darwin" && os.Getenv("DISPLAY") == "" {
+		args = append(args, "-no-window", "-gpu", "swiftshader_indirect")
+		fmt.Println("Headless mode (no DISPLAY).")
+	}
+	cmd := exec.Command(emu, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
