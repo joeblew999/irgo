@@ -653,6 +653,38 @@ func hasKVM() bool {
 	return true
 }
 
+// isCI reports whether we are running under CI. Practically every provider
+// sets CI; GITHUB_ACTIONS covers Actions specifically.
+func isCI() bool {
+	return os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != ""
+}
+
+// ensureEmulatorSupported fails fast when this host cannot run an Android
+// emulator at all. Without it the same two situations surface as a bare
+// sdkmanager "Failed to find package 'emulator'", or as a boot that quietly
+// times out many minutes later — neither of which says what is actually wrong
+// or what to do instead.
+func ensureEmulatorSupported() error {
+	if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+		return fmt.Errorf("no Android emulator for linux/arm64: Google publishes no `emulator` package for linux-aarch64, " +
+			"so sdkmanager reports \"Failed to find package 'emulator'\". Use an x86_64 Linux host, " +
+			"or build without running: irgo build android")
+	}
+	if runtime.GOOS == "linux" && !hasKVM() {
+		msg := "the Android emulator needs KVM on Linux, but /dev/kvm is missing or not readable/writable by this user"
+		if isCI() {
+			msg += ".\n  GitHub-hosted x64 runners ship /dev/kvm but leave the runner user out of the kvm group." +
+				"\n  Add a step before this one:" +
+				"\n    echo 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0666\", OPTIONS+=\"static_node=kvm\"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules" +
+				"\n    sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm"
+		} else {
+			msg += ".\n  Add your user to the kvm group, or widen the device permissions"
+		}
+		return fmt.Errorf("%s.\n  To skip the emulator entirely, build only: irgo build android", msg)
+	}
+	return nil
+}
+
 // bootTimeout returns the emulator boot deadline, from IRGO_BOOT_TIMEOUT_MIN
 // (default 5). Software-emulated runners (no KVM) boot far more slowly.
 func bootTimeout() time.Duration {
@@ -771,6 +803,9 @@ func installAndroidTools(withEmulator bool, avdName string) error {
 }
 
 func installEmulator(sdk, avdName, sdkm string) error {
+	if err := ensureEmulatorSupported(); err != nil {
+		return err
+	}
 	abi := "x86_64"
 	if runtime.GOARCH == "arm64" {
 		abi = "arm64-v8a" // Apple Silicon, ARM64 CI runners (e.g. GitHub ubuntu-*-arm)
