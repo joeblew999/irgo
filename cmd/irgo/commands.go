@@ -195,11 +195,19 @@ func installTools() error {
 	fmt.Println("Installing irgo development tools...")
 	fmt.Println()
 
+	// Pin the templ generator to the templ library version in the project's
+	// go.mod (they must stay in sync — @latest drift breaks generated code).
+	templPkg := "github.com/a-h/templ/cmd/templ@latest"
+	if v := templVersionFromGoMod(); v != "" {
+		templPkg = "github.com/a-h/templ/cmd/templ@v" + v
+		fmt.Printf("  templ: pinning to go.mod version v%s\n", v)
+	}
+
 	tools := []struct {
 		name string
 		pkg  string
 	}{
-		{"templ", "github.com/a-h/templ/cmd/templ@latest"},
+		{"templ", templPkg},
 		{"air", "github.com/air-verse/air@latest"},
 		{"gomobile", "golang.org/x/mobile/cmd/gomobile@latest"},
 	}

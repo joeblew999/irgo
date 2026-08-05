@@ -464,6 +464,22 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
+// templVersionFromGoMod returns the version of github.com/a-h/templ required
+// by the project's go.mod, or "" when absent/unparseable. install-tools uses
+// it to pin the templ generator to the templ library version — @latest drift
+// breaks generated code when the two get out of sync.
+func templVersionFromGoMod() string {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return ""
+	}
+	re := regexp.MustCompile(`(?m)^\s*github\.com/a-h/templ\s+v([0-9][^\s]*)`)
+	if m := re.FindSubmatch(data); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
 // adbBin returns the adb executable: one on PATH, else the SDK's
 // platform-tools (installed by install-tools android). Falls back to "adb"
 // so callers surface a normal exec error.
