@@ -39,10 +39,23 @@ func reviewsApple(platform string, limit int, onlyNew bool, replyTo, replyText s
 	if err := writeDefaultPackageConfig(); err != nil {
 		return err
 	}
+	store := "reviews-apple-ios"
+	if platform == "mac" {
+		store = "reviews-apple-mac"
+	}
+	if err := ensureStoreConfig(store); err != nil {
+		return err
+	}
 	cfg := parsePackageConfig()
 	appID := cfg.ReviewsIOSAppID
+	if appID == "" {
+		appID = os.Getenv("IRGO_IOS_APP_ID")
+	}
 	if platform == "mac" {
 		appID = cfg.ReviewsMacAppID
+		if appID == "" {
+			appID = os.Getenv("IRGO_MAC_APP_ID")
+		}
 	}
 	if appID == "" {
 		return fmt.Errorf("set [reviews] %s_app_id in %s (numeric App Store id from the app's apps.apple.com URL, e.g. apps.apple.com/app/id123456789)", platform, packageConfigFile)
@@ -231,8 +244,17 @@ func ascReplyReview(appID, reviewID, text, token string) error {
 // the [reviews] config (ios_key_id / ios_issuer_id / ios_private_key .p8 path).
 func ascToken(cfg packageConfig) (string, error) {
 	keyID := cfg.ReviewsIOSKeyID
+	if keyID == "" {
+		keyID = os.Getenv("IRGO_ASC_KEY_ID")
+	}
 	issuer := cfg.ReviewsIOSIssuerID
+	if issuer == "" {
+		issuer = os.Getenv("IRGO_ASC_ISSUER_ID")
+	}
 	p8 := cfg.ReviewsIOSPrivateKey
+	if p8 == "" {
+		p8 = os.Getenv("IRGO_ASC_PRIVATE_KEY")
+	}
 	if keyID == "" || issuer == "" || p8 == "" {
 		return "", fmt.Errorf("set [reviews] ios_key_id, ios_issuer_id and ios_private_key in %s (App Store Connect API key — see `irgo package setup`; the key needs Customer Reviews access)", packageConfigFile)
 	}

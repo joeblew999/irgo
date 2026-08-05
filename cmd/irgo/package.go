@@ -314,6 +314,12 @@ macOS — notarized distribution (.app/.dmg)
 
 TIPS
   - ` + "`irgo package ios --team X`" + ` etc. overrides the config file for one run.
+  - Every value has an IRGO_* env var (e.g. IRGO_IOS_TEAM), so CI supplies
+    secrets as env vars / GitHub secrets — irgo.package.toml is gitignored.
+  - ` + "`irgo package setup <store>`" + ` interactively walks you through that store's
+    required values (opens the right pages); ` + "`irgo package setup --check`" + ` shows
+    what's set/missing for every store. In CI (no terminal) commands fail fast
+    with the exact env var + URL for each missing value.
   - iOS/macOS packaging must run on macOS; MSIX must run on Windows;
     Android runs anywhere. The CLI enforces this per target.
   - Each target outputs to its own dist/<target>/ folder, never touching
@@ -341,16 +347,6 @@ func projectBaseName() string {
 func distPath(target string) string {
 	return filepath.Join("dist", target)
 }
-
-// ---------------------------------------------------------------------------
-// shared package helpers
-// ---------------------------------------------------------------------------
-
-// expandHome expands a leading "~" or "~/".
-
-// ---------------------------------------------------------------------------
-// shared package helpers
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // shared package helpers

@@ -22,6 +22,9 @@ func packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, iconPath
 	if err := gateOS("android"); err != nil {
 		return err
 	}
+	if err := ensureStoreConfig("android"); err != nil {
+		return err
+	}
 	if err := ensureAndroidToolchain(false, "irgo"); err != nil {
 		return err
 	}
@@ -45,6 +48,19 @@ func packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, iconPath
 	}
 	if version == "" {
 		version = cfg.Version
+	}
+	// IRGO_* env vars (CI secrets) beat the toml but lose to flags.
+	if keystore == "" {
+		keystore = os.Getenv("IRGO_ANDROID_KEYSTORE")
+	}
+	if keystorePass == "" {
+		keystorePass = os.Getenv("IRGO_ANDROID_KEYSTORE_PASS")
+	}
+	if keyAlias == "" {
+		keyAlias = os.Getenv("IRGO_ANDROID_KEY_ALIAS")
+	}
+	if keyPass == "" {
+		keyPass = os.Getenv("IRGO_ANDROID_KEY_PASS")
 	}
 
 	if err := scaffoldExamples(); err != nil {

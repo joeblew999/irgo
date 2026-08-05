@@ -20,6 +20,9 @@ func packageWindows(publisher, version, iconPath, cert, certPass, out string) er
 	if err := gateOS("windows"); err != nil {
 		return err
 	}
+	if err := ensureStoreConfig("windows"); err != nil {
+		return err
+	}
 	if err := writeDefaultPackageConfig(); err != nil {
 		return err
 	}
@@ -38,6 +41,16 @@ func packageWindows(publisher, version, iconPath, cert, certPass, out string) er
 	}
 	if iconPath == "" {
 		iconPath = cfg.WindowsIcon
+	}
+	// IRGO_* env vars (CI secrets) beat the toml but lose to flags.
+	if publisher == "" {
+		publisher = os.Getenv("IRGO_WINDOWS_PUBLISHER")
+	}
+	if cert == "" {
+		cert = os.Getenv("IRGO_WINDOWS_CERT")
+	}
+	if certPass == "" {
+		certPass = os.Getenv("IRGO_WINDOWS_CERT_PASS")
 	}
 
 	appName := projectBaseName()

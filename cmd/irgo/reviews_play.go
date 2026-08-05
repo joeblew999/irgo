@@ -34,9 +34,18 @@ func reviewsAndroid(limit int, onlyNew bool, replyTo, replyText string) error {
 	if err := writeDefaultPackageConfig(); err != nil {
 		return err
 	}
+	if err := ensureStoreConfig("reviews-android"); err != nil {
+		return err
+	}
 	cfg := parsePackageConfig()
 	pkg := cfg.ReviewsAndroidPackage
+	if pkg == "" {
+		pkg = os.Getenv("IRGO_ANDROID_PACKAGE")
+	}
 	sa := cfg.ReviewsAndroidServiceAcc
+	if sa == "" {
+		sa = os.Getenv("IRGO_PLAY_SERVICE_ACCOUNT")
+	}
 	if pkg == "" {
 		return fmt.Errorf("set [reviews] android_package in %s (your Play package name, e.g. com.example.myapp)", packageConfigFile)
 	}

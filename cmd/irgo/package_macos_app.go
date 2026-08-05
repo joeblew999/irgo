@@ -19,6 +19,9 @@ func packageMacOS(identity string, notarize bool, appleID, team, password string
 	if err := gateOS("macos"); err != nil {
 		return err
 	}
+	if err := ensureStoreConfig("macos"); err != nil {
+		return err
+	}
 	if err := writeDefaultPackageConfig(); err != nil {
 		return err
 	}
@@ -40,6 +43,22 @@ func packageMacOS(identity string, notarize bool, appleID, team, password string
 	}
 	if !dmg {
 		dmg = cfg.MacDMG
+	}
+	// IRGO_* env vars (CI secrets) beat the toml but lose to flags.
+	if identity == "" {
+		identity = os.Getenv("IRGO_MACOS_IDENTITY")
+	}
+	if !notarize {
+		notarize = os.Getenv("IRGO_MACOS_NOTARIZE") != ""
+	}
+	if appleID == "" {
+		appleID = os.Getenv("IRGO_APPLE_ID")
+	}
+	if team == "" {
+		team = os.Getenv("IRGO_IOS_TEAM")
+	}
+	if password == "" {
+		password = os.Getenv("IRGO_APPLE_PASSWORD")
 	}
 
 	appName := projectBaseName()

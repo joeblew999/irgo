@@ -83,57 +83,95 @@ func main() {
 		version, publisher, icon, cert, certPass := "", "", "", "", ""
 		identity, appleID, password := "", "", ""
 		notarize, dmg := false, false
-		for i := 3; i < len(os.Args); i++ {
-			next := func() string {
-				if i+1 < len(os.Args) {
-					i++
-					return os.Args[i]
+		// setup has its own args (store / --check) — don't parse package flags.
+		if target != "setup" {
+			for i := 3; i < len(os.Args); i++ {
+				next := func() string {
+					if i+1 < len(os.Args) {
+						i++
+						return os.Args[i]
+					}
+					return ""
 				}
-				return ""
-			}
-			switch os.Args[i] {
-			case "--team":
-				team = next()
-			case "--export-method":
-				exportMethod = next()
-			case "--keystore":
-				keystore = next()
-			case "--keystore-pass":
-				keystorePass = next()
-			case "--key-alias":
-				keyAlias = next()
-			case "--key-pass":
-				keyPass = next()
-			case "--version":
-				version = next()
-			case "--publisher":
-				publisher = next()
-			case "--icon":
-				icon = next()
-			case "--cert":
-				cert = next()
-			case "--cert-pass":
-				certPass = next()
-			case "--identity":
-				identity = next()
-			case "--apple-id":
-				appleID = next()
-			case "--password":
-				password = next()
-			case "--notarize":
-				notarize = true
-			case "--dmg":
-				dmg = true
-			case "-o", "--output":
-				out = next()
-			default:
-				fmt.Printf("Unknown flag: %s\n", os.Args[i])
-				os.Exit(1)
+				switch os.Args[i] {
+				case "--team":
+					team = next()
+				case "--export-method":
+					exportMethod = next()
+				case "--keystore":
+					keystore = next()
+				case "--keystore-pass":
+					keystorePass = next()
+				case "--key-alias":
+					keyAlias = next()
+				case "--key-pass":
+					keyPass = next()
+				case "--version":
+					version = next()
+				case "--publisher":
+					publisher = next()
+				case "--icon":
+					icon = next()
+				case "--cert":
+					cert = next()
+				case "--cert-pass":
+					certPass = next()
+				case "--identity":
+					identity = next()
+				case "--apple-id":
+					appleID = next()
+				case "--password":
+					password = next()
+				case "--notarize":
+					notarize = true
+				case "--dmg":
+					dmg = true
+				case "-o", "--output":
+					out = next()
+				default:
+					fmt.Printf("Unknown flag: %s\n", os.Args[i])
+					os.Exit(1)
+				}
 			}
 		}
 		switch target {
 		case "setup":
-			packageSetupGuide()
+			// irgo package setup              → static guide (where to get every value)
+			// irgo package setup <store>      → interactive wizard for that store
+			// irgo package setup --check      → status report for every store
+			// irgo package setup --check <s>  → status report for one store
+			check := false
+			store := ""
+			for _, a := range os.Args[3:] {
+				switch a {
+				case "--check", "-c":
+					check = true
+				default:
+					store = a
+				}
+			}
+			if check {
+				stores := []string{"ios", "android", "windows", "macos", "reviews-apple-ios", "reviews-apple-mac", "reviews-android"}
+				if store != "" {
+					stores = []string{store}
+				}
+				for _, s := range stores {
+					checkStoreConfig(s)
+				}
+			} else if store != "" {
+				if storeConfigValues(store) == nil {
+					fmt.Printf("unknown setup target: %s (use ios, android, windows, macos, or reviews-*)\n", store)
+					os.Exit(1)
+				}
+				missing := missingStoreConfig(store)
+				if len(missing) == 0 {
+					fmt.Printf("Nothing missing for %s — defaults cover it. Run `irgo package setup` for the full guide.\n", store)
+				} else if wErr := runSetupWizard(store, missing); wErr != nil {
+					err = wErr
+				}
+			} else {
+				packageSetupGuide()
+			}
 		case "ios":
 			err = packageIOS(team, exportMethod, out)
 		case "android":
