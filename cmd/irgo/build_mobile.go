@@ -13,7 +13,7 @@ import (
 
 // runBuild builds for mobile platforms. sim additionally builds the runnable
 // iOS Simulator app (ios target only).
-func runBuild(target string, sim bool) error {
+func runBuild(target string, sim, device bool, team string) error {
 	// No gomobile check here: buildIOS/buildAndroid both run
 	// ensureMobileBuildSetup, which installs gomobile + gobind when missing.
 	// Gating up front would fail the build before that could happen.
@@ -41,8 +41,8 @@ func runBuild(target string, sim bool) error {
 		if err := requireMacOS("iOS"); err != nil {
 			return err
 		}
-		if sim {
-			return buildIOSSim(modulePath)
+		if sim || device {
+			return buildIOSApp(modulePath, device, team)
 		}
 		return buildIOS(modulePath)
 	case "android":

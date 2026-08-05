@@ -35,11 +35,10 @@ func buildIOS(modulePath string) error {
 	return nil
 }
 
-// buildIOSSim builds the runnable simulator app: it scaffolds ios/Example when
-// missing, builds the framework, then drives xcodebuild. Callers (mise tasks,
-// CI) therefore never need to shell out to xcodebuild — or pre-scaffold — for
-// themselves.
-func buildIOSSim(modulePath string) error {
+// buildIOSApp builds the runnable app for the simulator or a device. It
+// scaffolds ios/Example when missing, builds the framework, then drives
+// xcodebuild — so callers never shell out to xcodebuild or pre-scaffold.
+func buildIOSApp(modulePath string, device bool, team string) error {
 	if err := checkTool("xcodebuild", "Install Xcode from the App Store"); err != nil {
 		return err
 	}
@@ -54,41 +53,62 @@ func buildIOSSim(modulePath string) error {
 	// a plain build must produce a self-contained app.
 	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
 
-	appPath, err := buildSimulatorApp("ios/Example")
+	appPath, err := buildXcodeApp("ios/Example", device, team)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("iOS simulator app built: %s\n", appPath)
+	kind := "simulator"
+	if device {
+		kind = "device (Release)"
+	}
+	fmt.Printf("iOS %s app built: %s\n", kind, appPath)
 	return nil
 }
 
-// buildSimulatorApp runs xcodebuild against the example project and returns the
-// path to the built .app. Shared by `irgo build ios --sim` (build only) and
-// `irgo run ios` (build, then boot/install/launch).
-func buildSimulatorApp(iosProjectPath string) (string, error) {
-	// Find the workspace or project
-	var buildCmd []string
-	// Use generic simulator destination to work with any available iPhone
-	destination := "generic/platform=iOS Simulator"
+// buildXcodeApp drives xcodebuild for the example project and returns the path
+// to the built .app.
+//
+// device=false is the Debug simulator build used by `irgo build ios --sim` and
+// by `irgo run ios` before it boots the simulator. device=true is the Release
+// build for physical devices and the App Store, which needs a signing team —
+// supplied by --team or DEVELOPMENT_TEAM/IOS_TEAM_ID in the environment.
+func buildXcodeApp(iosProjectPath string, device bool, team string) (string, error) {
+	config, destination, derived, productDir := "Debug", "generic/platform=iOS Simulator",
+		"build/ios/DerivedData", "Debug-iphonesimulator"
+	if device {
+		config, destination, derived, productDir = "Release", "generic/platform=iOS",
+			"build/ios/DerivedData-Release", "Release-iphoneos"
+	}
+
+	var args []string
 	if _, err := os.Stat(filepath.Join(iosProjectPath, "Example.xcworkspace")); err == nil {
-		buildCmd = []string{"xcodebuild", "-workspace", filepath.Join(iosProjectPath, "Example.xcworkspace"),
-			"-scheme", "Example", "-destination", destination,
-			"-derivedDataPath", "build/ios/DerivedData"}
+		args = []string{"-workspace", filepath.Join(iosProjectPath, "Example.xcworkspace")}
 	} else if _, err := os.Stat(filepath.Join(iosProjectPath, "Example.xcodeproj")); err == nil {
-		buildCmd = []string{"xcodebuild", "-project", filepath.Join(iosProjectPath, "Example.xcodeproj"),
-			"-scheme", "Example", "-destination", destination,
-			"-derivedDataPath", "build/ios/DerivedData"}
+		args = []string{"-project", filepath.Join(iosProjectPath, "Example.xcodeproj")}
 	} else {
 		return "", fmt.Errorf("no Xcode project found in %s", iosProjectPath)
 	}
+	args = append(args, "-scheme", "Example", "-configuration", config,
+		"-destination", destination, "-derivedDataPath", derived)
 
-	fmt.Println("Building iOS app...")
-	if err := runCommand(buildCmd[0], buildCmd[1:]...); err != nil {
+	if device {
+		if team == "" {
+			team = firstNonEmpty(os.Getenv("DEVELOPMENT_TEAM"), os.Getenv("IOS_TEAM_ID"))
+		}
+		if team == "" {
+			return "", fmt.Errorf("a device build must be signed: pass --team <TEAM_ID>, " +
+				"or set DEVELOPMENT_TEAM / IOS_TEAM_ID. For an unsigned build use --sim")
+		}
+		args = append(args, "-DEVELOPMENT_TEAM="+team)
+	}
+	args = append(args, "build")
+
+	fmt.Printf("Building iOS app (%s)...\n", config)
+	if err := runCommand("xcodebuild", args...); err != nil {
 		return "", fmt.Errorf("xcodebuild failed: %w", err)
 	}
 
-	// Find the built app
-	appPath := "build/ios/DerivedData/Build/Products/Debug-iphonesimulator/Example.app"
+	appPath := filepath.Join(derived, "Build", "Products", productDir, "Example.app")
 	if _, err := os.Stat(appPath); os.IsNotExist(err) {
 		return "", fmt.Errorf("built app not found at %s", appPath)
 	}
@@ -188,7 +208,7 @@ func runIOS(devMode bool) error {
 		clearDevServerInPlist(infoPlistPath)
 	}
 
-	appPath, err := buildSimulatorApp(iosProjectPath)
+	appPath, err := buildXcodeApp(iosProjectPath, false, "")
 	if err != nil {
 		if devServerCmd != nil {
 			devServerCmd.Process.Kill()

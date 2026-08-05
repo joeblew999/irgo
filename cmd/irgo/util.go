@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 func runCommand(name string, args ...string) error {
@@ -58,4 +61,55 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0644)
+}
+
+// toolBinDirs lists the directories a `go install` may have placed a binary in.
+// The resolved GOBIN and the default $GOPATH/bin differ when GOBIN was empty at
+// install time, so a tool can be in either — both must be searched on removal.
+func toolBinDirs() []string {
+	dirs := []string{gobinDir()}
+	if out, err := exec.Command(goBin(), "env", "GOPATH").Output(); err == nil {
+		if gp := strings.TrimSpace(string(out)); gp != "" {
+			if p := filepath.Join(gp, "bin"); p != dirs[0] {
+				dirs = append(dirs, p)
+			}
+		}
+	}
+	return dirs
+}
+
+// exeName appends the platform executable suffix.
+func exeName(tool string) string {
+	if runtime.GOOS == "windows" {
+		return tool + ".exe"
+	}
+	return tool
+}
+
+// removeTool deletes a go-installed binary from every candidate bin dir,
+// reporting each path removed. Returns whether anything was found.
+func removeTool(tool string, verbose bool) bool {
+	found := false
+	for _, dir := range toolBinDirs() {
+		p := filepath.Join(dir, exeName(tool))
+		if _, err := os.Stat(p); err == nil {
+			if err := os.Remove(p); err == nil {
+				if verbose {
+					fmt.Printf("  %s: removed (%s)\n", tool, p)
+				}
+				found = true
+			}
+		}
+	}
+	return found
+}
+
+// firstNonEmpty returns the first non-empty string, or "".
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

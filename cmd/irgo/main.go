@@ -42,7 +42,16 @@ func main() {
 			}
 			err = buildDesktop(platform)
 		} else {
-			err = runBuild(target, hasFlag(os.Args[3:], "--sim", "-s"))
+			team := ""
+			for i := 3; i < len(os.Args)-1; i++ {
+				if os.Args[i] == "--team" {
+					team = os.Args[i+1]
+				}
+			}
+			err = runBuild(target,
+				hasFlag(os.Args[3:], "--sim", "-s"),
+				hasFlag(os.Args[3:], "--device", "-D"),
+				team)
 		}
 
 	case "run":
@@ -279,6 +288,8 @@ Examples:
   irgo run desktop --dev Desktop app with devtools enabled
   irgo build ios         Build iOS framework only
   irgo build ios --sim   Build the runnable iOS Simulator app
+  irgo build ios --device --team ID
+                         Build the Release app for a device / App Store
   irgo build desktop     Build desktop app for current platform
   irgo build desktop all Build every desktop app this host supports
                          (macOS -> macOS + Windows; installs mingw-w64 if needed)`)

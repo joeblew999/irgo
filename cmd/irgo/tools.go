@@ -201,17 +201,6 @@ func installTools() error {
 func uninstallTools(all bool) error {
 	fmt.Println("Removing irgo-installed Go tools...")
 
-	// A tool can sit in the resolved GOBIN and/or the default $GOPATH/bin —
-	// they differ when GOBIN was empty at install time. Check both.
-	binDirs := []string{gobinDir()}
-	if out, err := exec.Command(goBin(), "env", "GOPATH").Output(); err == nil {
-		if gp := strings.TrimSpace(string(out)); gp != "" {
-			if p := filepath.Join(gp, "bin"); p != binDirs[0] {
-				binDirs = append(binDirs, p)
-			}
-		}
-	}
-
 	removed, kept, missing := 0, 0, 0
 	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
 		if !all && !toolInstalledByIrgo(tool) {
@@ -223,23 +212,9 @@ func uninstallTools(all bool) error {
 			}
 			continue
 		}
-		found := false
-		for _, dir := range binDirs {
-			name := tool
-			if runtime.GOOS == "windows" {
-				name += ".exe"
-			}
-			p := filepath.Join(dir, name)
-			if _, err := os.Stat(p); err == nil {
-				if err := os.Remove(p); err != nil {
-					return fmt.Errorf("removing %s: %w", p, err)
-				}
-				fmt.Printf("  %s: removed (%s)\n", tool, p)
-				found = true
-				removed++
-			}
-		}
-		if !found {
+		if removeTool(tool, true) {
+			removed++
+		} else {
 			missing++
 		}
 		_ = os.Remove(filepath.Join(irgoToolsDir(), tool))

@@ -929,28 +929,8 @@ func uninstallAndroidTools(removeJDK bool) error {
 	home := homeDir()
 	sdk := androidHome()
 
-	// gomobile/gobind may live in the resolved GOBIN and/or the default
-	// $GOPATH/bin (they differ when GOBIN was empty at install time) — check both.
-	binDirs := []string{gobinDir()}
-	if out, err := exec.Command(goBin(), "env", "GOPATH").Output(); err == nil {
-		if gp := strings.TrimSpace(string(out)); gp != "" {
-			if p := filepath.Join(gp, "bin"); p != binDirs[0] {
-				binDirs = append(binDirs, p)
-			}
-		}
-	}
-	for _, dir := range binDirs {
-		for _, t := range []string{"gomobile", "gobind"} {
-			name := t
-			if runtime.GOOS == "windows" {
-				name += ".exe"
-			}
-			p := filepath.Join(dir, name)
-			if _, err := os.Stat(p); err == nil {
-				fmt.Printf("Removing %s\n", p)
-				_ = os.Remove(p)
-			}
-		}
+	for _, t := range []string{"gomobile", "gobind"} {
+		removeTool(t, true)
 	}
 	// Temp x/mobile clone + local go.work created by mobile builds.
 	_ = os.RemoveAll(filepath.Join(os.TempDir(), "golang-mobile"))
