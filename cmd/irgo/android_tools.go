@@ -642,8 +642,15 @@ func hasKVM() bool {
 	if runtime.GOOS != "linux" {
 		return true // darwin uses Hypervisor.framework; windows uses WHPX
 	}
-	fi, err := os.Stat("/dev/kvm")
-	return err == nil && fi.Mode()&os.ModeDevice != 0
+	// Existence is not enough: GitHub-hosted x64 runners ship /dev/kvm but the
+	// runner user isn't in the kvm group, so the emulator dies at startup and
+	// never appears on adb. Probe for actual read/write access instead.
+	f, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
 }
 
 // bootTimeout returns the emulator boot deadline, from IRGO_BOOT_TIMEOUT_MIN
