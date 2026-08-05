@@ -191,6 +191,16 @@ func main() {
 	case "clean":
 		err = runClean(hasFlag(os.Args[2:], "--all", "-a"))
 
+	case "uninstall":
+		// The inverse of `irgo run`: remove the app from the simulator,
+		// emulator or this machine. Distinct from uninstall-tools, which
+		// removes the toolchain rather than the app.
+		target := "all"
+		if len(os.Args) > 2 {
+			target = os.Args[2]
+		}
+		err = runAppUninstall(target)
+
 	case "templ":
 		err = runTempl()
 
@@ -275,6 +285,7 @@ Commands:
   package setup    Guide: how to get every store config value
   reviews <ios|android>   Monitor app store reviews (reply on android)
   clean [--all]    Remove generated output (--all: also node_modules/caches)
+  uninstall <p>    Remove the installed app (ios, android, desktop, or all)
   templ            Generate templ files
   assets           Regenerate embedded assets (templ + Tailwind CSS)
   test             Run tests
@@ -476,6 +487,22 @@ Usage: irgo serve
 
 Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
 hot reload (that path needs entr; this one has no extra dependency).`)
+
+	case "uninstall":
+		fmt.Println(`irgo uninstall - Remove the installed app
+
+Usage:
+  irgo uninstall ios       From the booted simulator
+  irgo uninstall android   From the attached device or emulator
+  irgo uninstall desktop   From /Applications (macOS)
+  irgo uninstall           All of the above
+
+The inverse of irgo run. Not to be confused with irgo uninstall-tools, which
+removes the toolchain rather than the app.
+
+An app that is not installed is not an error — the goal is that it is gone.
+Reach for this when a stale install is the suspect: the app keeps launching
+with old assets or an old bridge API and nothing explains why.`)
 
 	case "clean":
 		fmt.Println(`irgo clean - Remove generated output

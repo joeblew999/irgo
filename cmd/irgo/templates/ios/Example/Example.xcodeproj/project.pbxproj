@@ -15,7 +15,7 @@
 		A1000006 /* IrgoWebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* IrgoWebSocketBridge.swift */; };
 		A1000007 /* IrgoNative.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* IrgoNative.swift */; };
 		A1000008 /* IrgoPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* IrgoPlugins.swift */; };
-		A1000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000020 /* Assets.xcassets */; };
+		AD000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AD000002 /* Assets.xcassets */; };
 		A1000010 /* Irgo.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A2000010 /* Irgo.xcframework */; };
 		A1000011 /* Irgo.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A2000010 /* Irgo.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -45,16 +45,16 @@
 		A2000008 /* IrgoPlugins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IrgoPlugins.swift; sourceTree = "<group>"; };
 		A2000010 /* Irgo.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Irgo.xcframework; path = ../../build/ios/Irgo.xcframework; sourceTree = "<group>"; };
 		A2000020 /* Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A2000020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AD000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000030 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A9000001 /* Resources */ = {
+		AD000003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000020 /* Assets.xcassets in Resources */,
+				AD000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,8 +65,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000020 /* Assets.xcassets */; };
-		A1000010 /* Irgo.xcframework in Frameworks */,
+				A1000010 /* Irgo.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,7 +92,7 @@
 				A2000006 /* IrgoWebSocketBridge.swift */,
 				A2000007 /* IrgoNative.swift */,
 				A2000008 /* IrgoPlugins.swift */,
-				A2000020 /* Assets.xcassets */,
+				AD000002 /* Assets.xcassets */,
 				A2000030 /* Info.plist */,
 			);
 			path = Example;
@@ -123,7 +122,7 @@
 			buildConfigurationList = A7000001 /* Build configuration list for PBXNativeTarget "Example" */;
 			buildPhases = (
 				A8000001 /* Sources */,
-				A9000001 /* Resources */,
+				AD000003 /* Resources */,
 				A4000001 /* Frameworks */,
 				A3000001 /* Embed Frameworks */,
 			);

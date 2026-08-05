@@ -126,3 +126,9 @@ func runHint(lines ...string) {
 		fmt.Printf("    %s\n", l)
 	}
 }
+
+func pathExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+func removeAllPath(p string) error { return os.RemoveAll(p) }
+
+func baseName(modulePath string) string { return filepath.Base(modulePath) }
