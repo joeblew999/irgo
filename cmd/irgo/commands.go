@@ -143,6 +143,12 @@ func buildAndroid(modulePath string) error {
 		return fmt.Errorf("mobile build setup failed: %w", err)
 	}
 
+	// Ensure gomobile bind finds the pinned NDK even when ANDROID_NDK_HOME is
+	// not exported — self-contained after `irgo install-tools android`.
+	if ndk := filepath.Join(androidHome(), "ndk", pinNDK); isDir(ndk) {
+		applyNDKToEnv(ndk)
+	}
+
 	mobilePackage := modulePath + "/mobile"
         // Pin the Android API level explicitly: gomobile defaults to API 16,
         // which modern NDKs (r26/r27) reject with "unsupported API version 16".
@@ -231,12 +237,12 @@ func installTools() error {
 }
 
 // runMobile builds and runs on mobile simulator
-func runMobile(platform string, devMode bool) error {
+func runMobile(platform string, devMode bool, avdName string) error {
 	switch platform {
 	case "ios":
 		return runIOS(devMode)
 	case "android":
-		return runAndroid(devMode)
+		return runAndroid(devMode, avdName)
 	default:
 		return fmt.Errorf("unknown platform: %s (use ios or android)", platform)
 	}
@@ -433,14 +439,14 @@ func findAvailableIPhoneSimulator() string {
 	return ""
 }
 
-func runAndroid(devMode bool) error {
+func runAndroid(devMode bool, avdName string) error {
 	// gradle needs java — resolve the managed ~/.irgo/jdks JDK (or an existing
 	// one) so the toolchain is self-contained after `irgo install-tools android`.
 	applyBestJDKToEnv()
 
-	// Check for Android tools
-	if err := checkTool("adb", "Install Android SDK and add platform-tools to PATH"); err != nil {
-		return err
+	// adb comes from the installed SDK (platform-tools); accept PATH too.
+	if !haveAdb() {
+		return fmt.Errorf("adb not found — run 'irgo install-tools android' (installs platform-tools) or add platform-tools to PATH")
 	}
 
 	// Check if android/Example project exists
@@ -543,9 +549,13 @@ func runAndroid(devMode bool) error {
 		return fmt.Errorf("built APK not found at %s", apkPath)
 	}
 
-	// Check for running emulator
+	// Boot the emulator if none is running, then install.
+	if err := ensureEmulatorRunning(avdName); err != nil {
+		killDevServer()
+		return err
+	}
 	fmt.Println("Installing on Android device/emulator...")
-	if err := runCommand("adb", "install", "-r", apkPath); err != nil {
+	if err := runCommand(adbBin(), "install", "-r", apkPath); err != nil {
 		killDevServer()
 		return fmt.Errorf("failed to install APK (is an emulator running?): %w", err)
 	}
@@ -560,7 +570,7 @@ func runAndroid(devMode bool) error {
 		// instead of the embedded bridge.
 		launchArgs = append(launchArgs, "-e", "irgoDevServer", devServerURL)
 	}
-	if err := runCommand("adb", launchArgs...); err != nil {
+	if err := runCommand(adbBin(), launchArgs...); err != nil {
 		killDevServer()
 		return fmt.Errorf("failed to launch app: %w", err)
 	}

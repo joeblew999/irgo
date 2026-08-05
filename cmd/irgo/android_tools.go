@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // --- Android toolchain management -------------------------------------------
@@ -456,6 +457,85 @@ func applyBestJDKToEnv() {
 	if jh, ok := detectJDK17(false); ok {
 		applyJDK17ToEnv(jh)
 	}
+}
+
+func isDir(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
+// adbBin returns the adb executable: one on PATH, else the SDK's
+// platform-tools (installed by install-tools android). Falls back to "adb"
+// so callers surface a normal exec error.
+func adbBin() string {
+	if p, err := exec.LookPath("adb"); err == nil {
+		return p
+	}
+	p := filepath.Join(androidHome(), "platform-tools", "adb")
+	if runtime.GOOS == "windows" {
+		p += ".exe"
+	}
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return "adb"
+}
+
+// haveAdb reports whether a usable adb is resolvable (PATH or the SDK).
+func haveAdb() bool {
+	if p, err := exec.LookPath("adb"); err == nil {
+		_ = p
+		return true
+	}
+	return adbBin() != "adb"
+}
+
+// adbRunning reports whether a device/emulator is already connected.
+func adbRunning() bool {
+	out, err := exec.Command(adbBin(), "get-state").CombinedOutput()
+	return err == nil && strings.TrimSpace(string(out)) == "device"
+}
+
+// ensureEmulatorRunning boots the AVD (created by install-tools android
+// --emulator) when no device is connected, then waits for boot to complete.
+// Safe to call repeatedly: it is a no-op while an emulator/device is up.
+func ensureEmulatorRunning(avdName string) error {
+	if adbRunning() {
+		return nil
+	}
+	emu := filepath.Join(androidHome(), "emulator", "emulator")
+	if runtime.GOOS == "windows" {
+		emu += ".exe"
+	}
+	if !isDir(filepath.Dir(emu)) {
+		return fmt.Errorf("emulator not found at %s (run 'irgo install-tools android --emulator' first)", emu)
+	}
+	out, err := exec.Command(emu, "-list-avds").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), avdName) {
+		return fmt.Errorf("AVD %q not found (run 'irgo install-tools android --emulator --avd %s')", avdName, avdName)
+	}
+	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
+	cmd := exec.Command(emu, "-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start emulator: %w", err)
+	}
+	// Intentionally not cmd.Wait() — the emulator runs until killed.
+	fmt.Println("Waiting for emulator...")
+	if err := runCommand(adbBin(), "wait-for-device"); err != nil {
+		return fmt.Errorf("adb wait-for-device failed: %w", err)
+	}
+	deadline := time.Now().Add(5 * time.Minute)
+	for time.Now().Before(deadline) {
+		out, err := exec.Command(adbBin(), "shell", "getprop", "sys.boot_completed").CombinedOutput()
+		if err == nil && strings.TrimSpace(string(out)) == "1" {
+			fmt.Println("Emulator booted.")
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+	}
+	return fmt.Errorf("emulator did not finish booting within 5 minutes")
 }
 
 func acceptLicenses(sdkm, androidHome string) {
