@@ -499,7 +499,9 @@ func adbRunning() bool {
 // ensureEmulatorRunning boots the AVD (created by install-tools android
 // --emulator) when no device is connected, then waits for boot to complete.
 // Safe to call repeatedly: it is a no-op while an emulator/device is up.
-func ensureEmulatorRunning(avdName string) error {
+// headless=true runs without a window (CI/scripting); otherwise headed unless
+// there is no display available (non-macOS without DISPLAY).
+func ensureEmulatorRunning(avdName string, headless bool) error {
 	if adbRunning() {
 		return nil
 	}
@@ -516,11 +518,9 @@ func ensureEmulatorRunning(avdName string) error {
 	}
 	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
 	args := []string{"-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim"}
-	// Headless (CI) — no X display and no GPU: use a windowless emulator with
-	// software rendering. macOS keeps its native window.
-	if runtime.GOOS != "darwin" && os.Getenv("DISPLAY") == "" {
+	if headless || (runtime.GOOS != "darwin" && os.Getenv("DISPLAY") == "") {
 		args = append(args, "-no-window", "-gpu", "swiftshader_indirect")
-		fmt.Println("Headless mode (no DISPLAY).")
+		fmt.Println("Headless mode (no window).")
 	}
 	cmd := exec.Command(emu, args...)
 	cmd.Stdout = os.Stdout

@@ -47,11 +47,12 @@ func main() {
 
 	case "run":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo run <ios|android|desktop> [--dev] [--avd NAME]")
+			fmt.Println("Usage: irgo run <ios|android|desktop> [--dev] [--avd NAME] [--no-window]")
 			os.Exit(1)
 		}
 		platform := os.Args[2]
 		devMode := hasFlag(os.Args[3:], "--dev", "-d")
+		headless := hasFlag(os.Args[3:], "--no-window", "-nw")
 		avd := "irgo"
 		for i := 3; i < len(os.Args); i++ {
 			if os.Args[i] == "--avd" && i+1 < len(os.Args) {
@@ -62,7 +63,7 @@ func main() {
 		if platform == "desktop" {
 			err = runDesktop(devMode)
 		} else {
-			err = runMobile(platform, devMode, avd)
+			err = runMobile(platform, devMode, avd, headless)
 		}
 
 	case "templ":

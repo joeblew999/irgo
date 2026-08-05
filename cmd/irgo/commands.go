@@ -237,12 +237,12 @@ func installTools() error {
 }
 
 // runMobile builds and runs on mobile simulator
-func runMobile(platform string, devMode bool, avdName string) error {
+func runMobile(platform string, devMode bool, avdName string, headless bool) error {
 	switch platform {
 	case "ios":
 		return runIOS(devMode)
 	case "android":
-		return runAndroid(devMode, avdName)
+		return runAndroid(devMode, avdName, headless)
 	default:
 		return fmt.Errorf("unknown platform: %s (use ios or android)", platform)
 	}
@@ -439,7 +439,7 @@ func findAvailableIPhoneSimulator() string {
 	return ""
 }
 
-func runAndroid(devMode bool, avdName string) error {
+func runAndroid(devMode bool, avdName string, headless bool) error {
 	// gradle needs java — resolve the managed ~/.irgo/jdks JDK (or an existing
 	// one) so the toolchain is self-contained after `irgo install-tools android`.
 	applyBestJDKToEnv()
@@ -550,7 +550,7 @@ func runAndroid(devMode bool, avdName string) error {
 	}
 
 	// Boot the emulator if none is running, then install.
-	if err := ensureEmulatorRunning(avdName); err != nil {
+	if err := ensureEmulatorRunning(avdName, headless); err != nil {
 		killDevServer()
 		return err
 	}
