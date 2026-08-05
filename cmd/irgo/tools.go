@@ -59,6 +59,14 @@ func markToolInstalled(name string) {
 	_ = os.WriteFile(filepath.Join(dir, name), []byte("irgo "+version+"\n"), 0o644)
 }
 
+// clearToolMarker forgets that irgo installed something. Markers left behind
+// keep ~/.irgo populated, which makes an otherwise-clean machine look
+// provisioned — and a machine that cannot reach a known-clean state hides
+// provisioning bugs.
+func clearToolMarker(name string) {
+	_ = os.Remove(filepath.Join(irgoToolsDir(), name))
+}
+
 func toolInstalledByIrgo(name string) bool {
 	_, err := os.Stat(filepath.Join(irgoToolsDir(), name))
 	return err == nil
@@ -207,7 +215,7 @@ func uninstallTools(all bool) error {
 		} else {
 			missing++
 		}
-		_ = os.Remove(filepath.Join(irgoToolsDir(), tool))
+		clearToolMarker(tool)
 	}
 
 	// Build residue from mobile builds: the temp x/mobile clone and the local

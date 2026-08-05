@@ -211,6 +211,7 @@ func uninstallOSPackages(all bool) error {
 		if err := runCommand(pkgRemoveCmd(mgr, name)[0], pkgRemoveCmd(mgr, name)[1:]...); err != nil {
 			fmt.Printf("  Warning: removing %s failed: %v\n", p.key, err)
 		}
+		clearToolMarker(p.key)
 	}
 	return nil
 }
