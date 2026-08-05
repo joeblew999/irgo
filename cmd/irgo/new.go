@@ -344,6 +344,21 @@ func newProject(name string) error {
 		}
 	}
 
+	// Generate templ files BEFORE tidy. Only the generated _templ.go files
+	// import templ directly; tidy run first sees no importer and records templ
+	// as `// indirect`, which the first `irgo templ` then flips back to direct
+	// — dirtying go.mod, a generated file, on the very first build.
+	if _, err := exec.LookPath("templ"); err == nil {
+		fmt.Println("Generating templ files...")
+		cmd := exec.Command("templ", "generate")
+		cmd.Dir = projectDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Warning: templ generate failed: %v\n", err)
+		}
+	}
+
 	// Run go mod tidy to download dependencies
 	// Skip if it's a remote module path that doesn't exist yet
 	if isRemoteModulePath(modulePath) {
@@ -356,18 +371,6 @@ func newProject(name string) error {
 		tidyCmd.Stderr = os.Stderr
 		if err := tidyCmd.Run(); err != nil {
 			fmt.Printf("Warning: go mod tidy failed: %v\n", err)
-		}
-	}
-
-	// Generate templ files if templ is available
-	if _, err := exec.LookPath("templ"); err == nil {
-		fmt.Println("Generating templ files...")
-		cmd := exec.Command("templ", "generate")
-		cmd.Dir = projectDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Warning: templ generate failed: %v\n", err)
 		}
 	}
 
