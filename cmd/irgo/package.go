@@ -19,24 +19,31 @@ import (
 // ---------------------------------------------------------------------------
 
 type packageConfig struct {
-	Version           string // common.version (android versionName, windows version)
-	Icon              string // common.icon (single source icon for all stores)
-	IOSTeam           string // ios.team
-	IOSExportMethod   string // ios.export_method
-	AndroidKeystore   string // android.keystore
-	AndroidKeystorePw string // android.keystore_pass
-	AndroidKeyAlias   string // android.key_alias
-	AndroidKeyPass    string // android.key_pass
-	WindowsPublisher  string // windows.publisher
-	WindowsCert       string // windows.cert
-	WindowsCertPass   string // windows.cert_pass
-	WindowsIcon       string // windows.icon
-	MacIdentity       string // macos.identity
-	MacNotarize       bool   // macos.notarize
-	MacAppleID        string // macos.apple_id
-	MacTeam           string // macos.team
-	MacPassword       string // macos.password
-	MacDMG            bool   // macos.dmg
+	Version                  string // common.version (android versionName, windows version)
+	Icon                     string // common.icon (single source icon for all stores)
+	IOSTeam                  string // ios.team
+	IOSExportMethod          string // ios.export_method
+	AndroidKeystore          string // android.keystore
+	AndroidKeystorePw        string // android.keystore_pass
+	AndroidKeyAlias          string // android.key_alias
+	AndroidKeyPass           string // android.key_pass
+	WindowsPublisher         string // windows.publisher
+	WindowsCert              string // windows.cert
+	WindowsCertPass          string // windows.cert_pass
+	WindowsIcon              string // windows.icon
+	MacIdentity              string // macos.identity
+	MacNotarize              bool   // macos.notarize
+	MacAppleID               string // macos.apple_id
+	MacTeam                  string // macos.team
+	MacPassword              string // macos.password
+	MacDMG                   bool   // macos.dmg
+	ReviewsIOSAppID          string // reviews.ios_app_id (numeric iOS App Store id)
+	ReviewsMacAppID          string // reviews.mac_app_id (numeric Mac App Store id)
+	ReviewsIOSKeyID          string // reviews.ios_key_id (App Store Connect API key id)
+	ReviewsIOSIssuerID       string // reviews.ios_issuer_id (ASC API issuer id)
+	ReviewsIOSPrivateKey     string // reviews.ios_private_key (.p8 path)
+	ReviewsAndroidPackage    string // reviews.android_package (Play package name)
+	ReviewsAndroidServiceAcc string // reviews.android_service_account (JSON path)
 }
 
 const packageConfigFile = "irgo.package.toml"
@@ -126,6 +133,23 @@ func parsePackageConfig() packageConfig {
 			case "dmg":
 				cfg.MacDMG = val == "true" || val == "1" || val == "yes"
 			}
+		case "reviews":
+			switch key {
+			case "ios_app_id":
+				cfg.ReviewsIOSAppID = val
+			case "mac_app_id":
+				cfg.ReviewsMacAppID = val
+			case "ios_key_id":
+				cfg.ReviewsIOSKeyID = val
+			case "ios_issuer_id":
+				cfg.ReviewsIOSIssuerID = val
+			case "ios_private_key":
+				cfg.ReviewsIOSPrivateKey = val
+			case "android_package":
+				cfg.ReviewsAndroidPackage = val
+			case "android_service_account":
+				cfg.ReviewsAndroidServiceAcc = val
+			}
 		}
 	}
 	return cfg
@@ -192,6 +216,29 @@ team = ""
 password = ""
 # Also produce a .dmg
 dmg = false
+
+[reviews]
+# App Store review monitoring (` + "`irgo reviews <ios|mac|android>`" + `).
+# Apple (iOS + Mac) uses the official App Store Connect API — a key with
+# Customer Reviews access. Android uses the Play Developer API (service
+# account) and can also reply from the terminal.
+# iOS/Mac: numeric App Store ids. Get them: the app's apps.apple.com URL
+# (apps.apple.com/app/id<THIS NUMBER>) — iOS and Mac ids differ.
+ios_app_id = ""
+mac_app_id = ""
+# Apple: App Store Connect API key. Get it: App Store Connect → Users and
+# Access → Integrations → API keys → generate a key with access to Customer
+# Reviews, then download the .p8 (it can only be downloaded once).
+ios_key_id = ""
+ios_issuer_id = ""
+ios_private_key = ""
+# Android: Play package name, e.g. "com.example.myapp".
+android_package = ""
+# Android: path to a Google Play Developer API service-account JSON. Get it:
+# Google Play Console → Setup → API access → create a service account →
+# grant "View app information" (read) or "Reply to reviews" (write) →
+# download the JSON key.
+android_service_account = ""
 `
 	if err := os.WriteFile(packageConfigFile, []byte(content), 0o644); err != nil {
 		return err

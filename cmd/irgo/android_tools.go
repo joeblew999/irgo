@@ -602,10 +602,20 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 	}
 	// Intentionally not cmd.Wait() — the emulator runs until killed.
 	fmt.Println("Waiting for emulator...")
-	if err := runCommand(adbBin(), "wait-for-device"); err != nil {
-		return fmt.Errorf("adb wait-for-device failed: %w", err)
-	}
+	// adb wait-for-device blocks forever if the emulator never appears, so poll
+	// adb devices against a deadline instead (mirrors the boot_completed poll).
 	deadline := time.Now().Add(5 * time.Minute)
+	for {
+		out, err := exec.Command(adbBin(), "devices").CombinedOutput()
+		if err == nil && strings.Contains(string(out), "emulator-") {
+			break
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("emulator never appeared on adb within 5 minutes")
+		}
+		time.Sleep(2 * time.Second)
+	}
+	deadline = time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
 		out, err := exec.Command(adbBin(), "shell", "getprop", "sys.boot_completed").CombinedOutput()
 		if err == nil && strings.TrimSpace(string(out)) == "1" {

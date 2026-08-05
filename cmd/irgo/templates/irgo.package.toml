@@ -54,3 +54,26 @@ password = ""
 # Also produce a .dmg
 dmg = false
 
+[reviews]
+# App Store review monitoring (` + "`irgo reviews <ios|mac|android>`" + `).
+# Apple (iOS + Mac) uses the official App Store Connect API — a key with
+# Customer Reviews access. Android uses the Play Developer API (service
+# account) and can also reply from the terminal.
+# iOS/Mac: numeric App Store ids. Get them: the app's apps.apple.com URL
+# (apps.apple.com/app/id<THIS NUMBER>) — iOS and Mac ids differ.
+ios_app_id = ""
+mac_app_id = ""
+# Apple: App Store Connect API key. Get it: App Store Connect → Users and
+# Access → Integrations → API keys → generate a key with access to Customer
+# Reviews, then download the .p8 (it can only be downloaded once).
+ios_key_id = ""
+ios_issuer_id = ""
+ios_private_key = ""
+# Android: Play package name, e.g. "com.example.myapp".
+android_package = ""
+# Android: path to a Google Play Developer API service-account JSON. Get it:
+# Google Play Console → Setup → API access → create a service account →
+# grant "View app information" (read) or "Reply to reviews" (write) →
+# download the JSON key.
+android_service_account = ""
+

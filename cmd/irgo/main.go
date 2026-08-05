@@ -179,6 +179,9 @@ func main() {
 		}
 		err = doctorAndroid()
 
+	case "reviews":
+		err = reviewsCommand(os.Args[2:])
+
 	case "version", "-v", "--version":
 		fmt.Printf("irgo %s\n", version)
 
@@ -216,6 +219,7 @@ Commands:
   run <platform>   Build and run on simulator or desktop
   package <target> Package for stores (ios .ipa, android .aab, macos .app/.dmg, windows .msix)
   package setup    Guide: how to get every store config value
+  reviews <ios|android>   Monitor app store reviews (reply on android)
   templ            Generate templ files
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
