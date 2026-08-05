@@ -1,0 +1,107 @@
+# Store packages for every target, built on the OS each one requires and
+# attached to a GitHub Release.
+#
+# Scaffolded by `irgo ci`. Each job is skipped unless its signing secrets are
+# configured, so this is useful before you have any of them: what is set gets
+# packaged, what is not is skipped rather than failing the run.
+#
+# Configure the values with `irgo package setup <store>`, then add them as
+# repository secrets. `irgo package setup --check` reports what is missing.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  IRGO_VERSION: "{{IRGO_VERSION}}"
+
+jobs:
+  android:
+    name: Android (.aab)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Package
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          irgo package android --keystore release.keystore \
+            --keystore-pass "$KEYSTORE_PASS" --key-alias "$KEY_ALIAS" --key-pass "$KEY_PASS"
+          rm -f release.keystore
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        with:
+          name: android-aab
+          path: dist/
+          if-no-files-found: error
+
+  ios:
+    name: iOS (.ipa)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      # Signing needs a Distribution cert and provisioning profile in the
+      # runner keychain — e.g. apple-actions/import-codesign-certs.
+      - name: Package
+        if: ${{ secrets.IOS_TEAM_ID != '' }}
+        run: irgo package ios --team ${{ secrets.IOS_TEAM_ID }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.IOS_TEAM_ID != '' }}
+        with:
+          name: ios-ipa
+          path: dist/
+          if-no-files-found: error
+
+  macos:
+    name: macOS (.app/.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Package
+        if: ${{ secrets.MACOS_IDENTITY != '' }}
+        run: irgo package macos --identity "${{ secrets.MACOS_IDENTITY }}" --dmg
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.MACOS_IDENTITY != '' }}
+        with:
+          name: macos-dmg
+          path: dist/
+          if-no-files-found: error
+
+  windows:
+    name: Windows (.msix)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
+      - name: Package
+        if: ${{ secrets.WINDOWS_PUBLISHER != '' }}
+        run: irgo package windows --publisher "${{ secrets.WINDOWS_PUBLISHER }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.WINDOWS_PUBLISHER != '' }}
+        with:
+          name: windows-msix
+          path: dist/
+          if-no-files-found: error

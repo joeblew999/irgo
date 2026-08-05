@@ -1,0 +1,109 @@
+# Builds every target irgo supports, on the OS each one requires.
+#
+# Scaffolded by `irgo ci` — regenerate with `irgo ci --force`. The jobs mirror
+# what `irgo doctor` reports locally: iOS needs macOS, the Linux desktop needs
+# Linux, and Windows desktop builds natively here rather than cross-compiling.
+#
+# The CLI provisions its own toolchains, so there are no SDK/NDK/JDK setup
+# steps: `irgo build android` installs what it needs on a bare runner.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin the CLI so CI and developers build with the same version.
+  IRGO_VERSION: "{{IRGO_VERSION}}"
+
+jobs:
+  check:
+    name: Check (tests + web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install irgo
+        run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      # _templ.go and output.css are generated and gitignored, but embedded in
+      # the binary. `irgo build` regenerates them; a plain `go build` needs this.
+      - run: irgo assets
+      - run: go test ./...
+      - run: go build -o build/{{PROJECT_NAME}} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: build/{{PROJECT_NAME}}
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # webview links webkit2gtk-4.0, which ubuntu-24.04 no longer ships.
+          - { name: Linux,   os: ubuntu-22.04,   target: linux,   artifact: desktop-linux }
+          - { name: macOS,   os: macos-latest,   target: darwin,  artifact: desktop-macos }
+          - { name: Windows, os: windows-latest, target: windows, artifact: desktop-windows }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install irgo
+        run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
+      - run: irgo install-tools
+      - run: irgo build desktop ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/desktop/${{ matrix.target == 'darwin' && 'macos' || matrix.target }}/
+          if-no-files-found: error
+
+  ios:
+    name: iOS (framework + simulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install irgo
+        run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - run: irgo build ios --sim
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator
+          path: build/ios/DerivedData/Build/Products/Debug-iphonesimulator/
+          if-no-files-found: error
+
+  android:
+    name: Android (AAR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install irgo
+        run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
+      - run: irgo build android
+      - run: irgo doctor android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-framework
+          path: build/android/
+          if-no-files-found: error

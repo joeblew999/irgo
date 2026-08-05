@@ -207,6 +207,9 @@ func main() {
 	case "assets":
 		err = ensureAssets()
 
+	case "ci":
+		err = runCI(hasFlag(os.Args[2:], "--force", "-f"))
+
 	case "test":
 		err = runTest()
 
@@ -288,6 +291,7 @@ Commands:
   uninstall <p>    Remove the installed app (ios, android, desktop, or all)
   templ            Generate templ files
   assets           Regenerate embedded assets (templ + Tailwind CSS)
+  ci [--force]     Scaffold GitHub Actions workflows for every target
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
@@ -503,6 +507,28 @@ removes the toolchain rather than the app.
 An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
 with old assets or an old bridge API and nothing explains why.`)
+
+	case "ci":
+		fmt.Println(`irgo ci - Scaffold GitHub Actions workflows
+
+Usage:
+  irgo ci           Write .github/workflows (existing files are kept)
+  irgo ci --force   Overwrite them
+
+Writes two workflows:
+
+  build.yml    Tests, web binary, desktop for Linux/macOS/Windows, the iOS
+               framework and simulator app, and the Android AAR — each on a
+               runner of the OS it requires. No secrets needed.
+  release.yml  Store packages on tag push. Every job is skipped unless its
+               signing secrets exist, so this is useful before you have any.
+
+There are no SDK/NDK/JDK setup steps: the CLI provisions its own toolchains,
+so 'irgo build android' works on a bare runner.
+
+The irgo version is pinned into the workflows so CI and developers build with
+the same CLI. When the project pins a fork through IRGO_REPLACE, that version
+is used instead.`)
 
 	case "clean":
 		fmt.Println(`irgo clean - Remove generated output

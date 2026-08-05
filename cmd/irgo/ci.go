@@ -1,0 +1,92 @@
+// Scaffolding CI into a project.
+//
+// Every target irgo supports needs a runner of the right OS — iOS needs macOS,
+// the Linux desktop needs Linux, Windows desktop builds natively. Working that
+// out, and keeping it correct as the CLI changes, is not a job each project
+// should redo. The workflows ship as templates for the same reason the native
+// shells do: they are output of the CLI, not something to hand-maintain.
+package main
+
+import (
+	"embed"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+//go:embed templates/github
+var ciTemplates embed.FS
+
+// runCI writes .github/workflows into the current project. Existing files are
+// left alone unless force is set, so re-running after an upgrade is safe and
+// local edits are never silently discarded.
+func runCI(force bool) error {
+	if _, err := os.Stat("go.mod"); err != nil {
+		return fmt.Errorf("no go.mod here — run irgo ci from your project root")
+	}
+	modulePath, err := getModulePath()
+	if err != nil {
+		return fmt.Errorf("could not determine module path: %w", err)
+	}
+
+	var written, skipped int
+	err = fs.WalkDir(ciTemplates, "templates/github", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel := strings.TrimPrefix(path, "templates/github/")
+		dest := filepath.Join(".github", rel)
+
+		if _, err := os.Stat(dest); err == nil && !force {
+			fmt.Printf("  exists (skipped): %s\n", dest)
+			skipped++
+			return nil
+		}
+		data, err := ciTemplates.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		body := strings.ReplaceAll(string(data), "{{PROJECT_NAME}}", filepath.Base(modulePath))
+		body = strings.ReplaceAll(body, "{{IRGO_VERSION}}", ciPinnedVersion())
+
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("  created: %s\n", dest)
+		written++
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\n%d workflow(s) written, %d skipped.\n", written, skipped)
+	if skipped > 0 {
+		fmt.Println("Re-run with --force to overwrite.")
+	}
+	fmt.Println()
+	fmt.Println("The build workflow needs no secrets. For release packaging, see")
+	fmt.Println("what each store wants:  irgo package setup --check")
+	return nil
+}
+
+// ciPinnedVersion is the irgo version CI installs. Pinning it keeps CI and
+// developers on the same CLI; an unpinned @latest silently changes the build
+// under you.
+func ciPinnedVersion() string {
+	// A project pinned to a fork should track that fork in CI too.
+	if r := strings.TrimSpace(os.Getenv("IRGO_REPLACE")); r != "" {
+		if i := strings.LastIndex(r, " "); i > 0 {
+			return strings.TrimSpace(r[i+1:])
+		}
+		if i := strings.LastIndex(r, "@"); i > 0 {
+			return strings.TrimSpace(r[i+1:])
+		}
+	}
+	return "v" + version
+}
