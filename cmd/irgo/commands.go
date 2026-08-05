@@ -519,7 +519,10 @@ func runAndroid(devMode bool) error {
 	}
 
 	fmt.Println("Building Android app...")
-	cmd := exec.Command(gradlew, "assembleDebug")
+	// Run ./gradlew relative to cmd.Dir: exec.Command with a path relative to
+	// the ORIGINAL cwd would not resolve once cmd.Dir switches the working
+	// directory to androidProjectPath.
+	cmd := exec.Command("./gradlew", "assembleDebug")
 	cmd.Dir = androidProjectPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
