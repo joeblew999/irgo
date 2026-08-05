@@ -65,7 +65,7 @@ func downloadDatastar(projectDir string) error {
 
 // getGoVersion returns the current Go version (e.g., "1.24.12")
 func getGoVersion() string {
-	out, err := exec.Command("go", "version").Output()
+	out, err := exec.Command(goBin(), "version").Output()
 	if err != nil {
 		return "1.23"
 	}
@@ -329,7 +329,7 @@ func newProject(name string) error {
 		fmt.Println("Skipping go mod tidy (remote module path - run manually after pushing to remote)")
 	} else {
 		fmt.Println("Running go mod tidy...")
-		tidyCmd := exec.Command("go", "mod", "tidy")
+			tidyCmd := exec.Command(goBin(), "mod", "tidy")
 		tidyCmd.Dir = projectDir
 		tidyCmd.Stdout = os.Stdout
 		tidyCmd.Stderr = os.Stderr

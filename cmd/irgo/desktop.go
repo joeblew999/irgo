@@ -18,7 +18,7 @@ func runDesktop(devMode bool) error {
 		args = append(args, "--dev")
 	}
 
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command(goBin(), args...)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -71,7 +71,7 @@ func buildDesktopMacOS(modulePath string) error {
 
 	// Build the binary with CGO enabled (required for webview)
 	binaryPath := filepath.Join(appBundle, "Contents", "MacOS", appName)
-	cmd := exec.Command("go", "build", "-tags", "desktop", "-o", binaryPath, ".")
+	cmd := exec.Command(goBin(), "build", "-tags", "desktop", "-o", binaryPath, ".")
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -106,7 +106,7 @@ func buildDesktopWindows(modulePath string) error {
 	}
 
 	binaryPath := filepath.Join(outDir, appName+".exe")
-	cmd := exec.Command("go", "build",
+		cmd := exec.Command(goBin(), "build",
 		"-tags", "desktop",
 		"-ldflags", "-H windowsgui", // Hide console window
 		"-o", binaryPath,
@@ -139,7 +139,7 @@ func buildDesktopLinux(modulePath string) error {
 	}
 
 	binaryPath := filepath.Join(outDir, appName)
-	cmd := exec.Command("go", "build",
+		cmd := exec.Command(goBin(), "build",
 		"-tags", "desktop",
 		"-o", binaryPath,
 		".",

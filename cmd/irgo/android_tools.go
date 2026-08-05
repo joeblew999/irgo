@@ -464,6 +464,35 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
+// goBin returns the go executable: one on PATH, else $GOROOT/bin/go[.exe]
+// (mise and standard installs set GOROOT — this survives git-bash on Windows
+// stripping the Path var, where native exec.LookPath("go") fails). Falls back
+// to "go" so callers surface a normal exec error.
+func goBin() string {
+	if p, err := exec.LookPath("go"); err == nil {
+		return p
+	}
+	if gr := os.Getenv("GOROOT"); gr != "" {
+		p := filepath.Join(gr, "bin", "go")
+		if runtime.GOOS == "windows" {
+			p += ".exe"
+		}
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "go"
+}
+
+// avdHomeDir returns where AVDs live — respects ANDROID_AVD_HOME (matching
+// avdmanager/emulator), else ~/.android/avd.
+func avdHomeDir() string {
+	if h := os.Getenv("ANDROID_AVD_HOME"); h != "" {
+		return h
+	}
+	return filepath.Join(homeDir(), ".android", "avd")
+}
+
 // templVersionFromGoMod returns the version of github.com/a-h/templ required
 // by the project's go.mod, or "" when absent/unparseable. install-tools uses
 // it to pin the templ generator to the templ library version — @latest drift
@@ -530,8 +559,9 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 	if !isDir(filepath.Dir(emu)) {
 		return fmt.Errorf("emulator not found at %s (run 'irgo install-tools android --emulator' first)", emu)
 	}
-	out, err := exec.Command(emu, "-list-avds").CombinedOutput()
-	if err != nil || !strings.Contains(string(out), avdName) {
+	// Verify the AVD exists via the filesystem — `emulator -list-avds` can fail
+	// on headless CI (missing display libs) even when the AVD itself is fine.
+	if !isDir(filepath.Join(avdHomeDir(), avdName+".avd")) {
 		return fmt.Errorf("AVD %q not found (run 'irgo install-tools android --emulator --avd %s')", avdName, avdName)
 	}
 	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
@@ -629,7 +659,7 @@ func ensureAndroidToolchain(withEmulator bool, avdName string) error {
 
 	if _, err := exec.LookPath("gomobile"); err != nil {
 		fmt.Println("Installing gomobile...")
-		if err := runCommand("go", "install", "golang.org/x/mobile/cmd/gomobile@latest"); err != nil {
+		if err := runCommand(goBin(), "install", "golang.org/x/mobile/cmd/gomobile@latest"); err != nil {
 			fmt.Printf("  ! gomobile install failed: %v\n", err)
 		}
 		// `go install` lands in GOBIN (default $GOPATH/bin), which may not be
@@ -690,7 +720,7 @@ func installEmulator(sdk, avdName, sdkm string) error {
 		return fmt.Errorf("avdmanager create avd failed: %w", err)
 	}
 	// avdmanager may write <build> placeholders for the name/id; normalize them.
-	cfg := filepath.Join(homeDir(), ".android", "avd", avdName+".avd", "config.ini")
+	cfg := filepath.Join(avdHomeDir(), avdName+".avd", "config.ini")
 	if data, err := os.ReadFile(cfg); err == nil {
 		s := strings.ReplaceAll(string(data), "avd.id=<build>", "avd.id="+avdName)
 		s = strings.ReplaceAll(s, "avd.name=<build>", "avd.name="+avdName)
@@ -711,12 +741,12 @@ func avdExists(avdmgr, avdName string) bool {
 // --- uninstall ---------------------------------------------------------------
 
 func gobinDir() string {
-	if out, err := exec.Command("go", "env", "GOBIN").Output(); err == nil {
+	if out, err := exec.Command(goBin(), "env", "GOBIN").Output(); err == nil {
 		if p := strings.TrimSpace(string(out)); p != "" {
 			return p
 		}
 	}
-	out, err := exec.Command("go", "env", "GOPATH").Output()
+	out, err := exec.Command(goBin(), "env", "GOPATH").Output()
 	gp := strings.TrimSpace(string(out))
 	if err != nil || gp == "" {
 		gp = filepath.Join(homeDir(), "go")
@@ -731,7 +761,7 @@ func uninstallAndroidTools(removeJDK bool) error {
 	// gomobile/gobind may live in the resolved GOBIN and/or the default
 	// $GOPATH/bin (they differ when GOBIN was empty at install time) — check both.
 	binDirs := []string{gobinDir()}
-	if out, err := exec.Command("go", "env", "GOPATH").Output(); err == nil {
+	if out, err := exec.Command(goBin(), "env", "GOPATH").Output(); err == nil {
 		if gp := strings.TrimSpace(string(out)); gp != "" {
 			if p := filepath.Join(gp, "bin"); p != binDirs[0] {
 				binDirs = append(binDirs, p)

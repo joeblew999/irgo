@@ -40,12 +40,12 @@ func runServe() error {
 	// Check if main.go exists
 	if _, err := os.Stat("main.go"); err == nil {
 		// User project
-		return runCommand("go", "run", ".", "serve")
+		return runCommand(goBin(), "run", ".", "serve")
 	}
 
 	// Framework - run example
 	if _, err := os.Stat("examples/todo/main.go"); err == nil {
-		return runCommand("go", "run", "./examples/todo", "serve")
+		return runCommand(goBin(), "run", "./examples/todo", "serve")
 	}
 
 	return fmt.Errorf("no main.go found - are you in an irgo project?")
@@ -187,7 +187,7 @@ func runTempl() error {
 // runTest runs the test suite
 func runTest() error {
 	fmt.Println("Running tests...")
-	return runCommand("go", "test", "-v", "./...")
+	return runCommand(goBin(), "test", "-v", "./...")
 }
 
 // installTools installs required development tools
@@ -215,7 +215,7 @@ func installTools() error {
 	for _, tool := range tools {
 		if _, err := exec.LookPath(tool.name); err != nil {
 			fmt.Printf("Installing %s...\n", tool.name)
-			cmd := exec.Command("go", "install", tool.pkg)
+			cmd := exec.Command(goBin(), "install", tool.pkg)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
@@ -713,7 +713,7 @@ func ensureMobileBuildSetup() error {
 
 		// Install gomobile and gobind from local source
 		fmt.Println("Installing gomobile from source...")
-		cmd := exec.Command("go", "install", "./cmd/gomobile")
+			cmd := exec.Command(goBin(), "install", "./cmd/gomobile")
 		cmd.Dir = mobileDir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -721,7 +721,7 @@ func ensureMobileBuildSetup() error {
 			return fmt.Errorf("failed to install gomobile: %w", err)
 		}
 
-		cmd = exec.Command("go", "install", "./cmd/gobind")
+		cmd = exec.Command(goBin(), "install", "./cmd/gobind")
 		cmd.Dir = mobileDir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
