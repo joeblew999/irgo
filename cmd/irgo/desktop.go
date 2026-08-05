@@ -148,9 +148,9 @@ func buildDesktop(target string) error {
 		return err
 	}
 
-	// Generate templ files first
-	if err := runTempl(); err != nil {
-		fmt.Printf("Warning: templ generate failed: %v\n", err)
+	// Regenerate the gitignored-but-embedded assets (templ + CSS) first.
+	if err := ensureAssets(); err != nil {
+		return err
 	}
 
 	modulePath, err := getModulePath()

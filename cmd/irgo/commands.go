@@ -65,10 +65,10 @@ func runBuild(target string, sim bool) error {
 		return fmt.Errorf("could not determine module path: %w", err)
 	}
 
-	// _templ.go is generated and gitignored, but the mobile package imports it,
-	// so a fresh clone cannot bind until templ has run. Do it here rather than
-	// making every caller remember the ordering.
-	if err := runTempl(); err != nil {
+	// _templ.go and output.css are generated and gitignored, yet the mobile
+	// package imports the former and every build embeds the latter. Regenerate
+	// both here rather than making callers remember the ordering.
+	if err := ensureAssets(); err != nil {
 		return err
 	}
 
@@ -278,6 +278,50 @@ func runTempl() error {
 
 	fmt.Println("Generating templ files...")
 	return runCommand("templ", "generate")
+}
+
+// jsRunner returns the package runner to drive package.json scripts with,
+// preferring bun and falling back to npm. Empty when neither is installed.
+func jsRunner() string {
+	for _, r := range []string{"bun", "npm"} {
+		if _, err := exec.LookPath(r); err == nil {
+			return r
+		}
+	}
+	return ""
+}
+
+// runCSS rebuilds the Tailwind stylesheet. static/css/output.css is generated
+// and gitignored, but it is embedded into every build — so skipping it ships an
+// unstyled app. No-op for projects without a "css" script.
+func runCSS() error {
+	data, err := os.ReadFile("package.json")
+	if err != nil || !strings.Contains(string(data), `"css"`) {
+		return nil // not a Tailwind project
+	}
+	runner := jsRunner()
+	if runner == "" {
+		fmt.Println("  (skipping CSS: neither bun nor npm found)")
+		return nil
+	}
+	if _, err := os.Stat("node_modules"); os.IsNotExist(err) {
+		fmt.Printf("Installing frontend dependencies (%s install)...\n", runner)
+		if err := runCommand(runner, "install"); err != nil {
+			return fmt.Errorf("%s install failed: %w", runner, err)
+		}
+	}
+	fmt.Println("Building CSS...")
+	return runCommand(runner, "run", "css")
+}
+
+// ensureAssets regenerates everything that is gitignored yet embedded into a
+// build: _templ.go and the Tailwind stylesheet. Every build path runs this, so
+// a fresh clone builds correctly without the caller sequencing it by hand.
+func ensureAssets() error {
+	if err := runTempl(); err != nil {
+		return err
+	}
+	return runCSS()
 }
 
 // runTest runs the test suite

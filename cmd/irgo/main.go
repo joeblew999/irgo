@@ -181,6 +181,9 @@ func main() {
 	case "templ":
 		err = runTempl()
 
+	case "assets":
+		err = ensureAssets()
+
 	case "test":
 		err = runTest()
 
@@ -252,6 +255,7 @@ Commands:
   package setup    Guide: how to get every store config value
   reviews <ios|android>   Monitor app store reviews (reply on android)
   templ            Generate templ files
+  assets           Regenerate embedded assets (templ + Tailwind CSS)
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
