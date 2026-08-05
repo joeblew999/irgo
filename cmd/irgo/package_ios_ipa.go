@@ -27,6 +27,9 @@ func packageIOS(team, exportMethod, out string) error {
 	if err := ensureStoreConfig("ios"); err != nil {
 		return err
 	}
+	if err := requireMacOS("iOS packaging"); err != nil {
+		return err
+	}
 	if err := checkTool("xcodebuild", "Install Xcode from the App Store"); err != nil {
 		return err
 	}

@@ -12,10 +12,10 @@ import (
 // runDev starts the development server with hot reload
 func runDev() error {
 	// Check for required tools
-	if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
+	if err := ensureGoTool("air"); err != nil {
 		return err
 	}
-	if err := checkTool("templ", "go install github.com/a-h/templ/cmd/templ@latest"); err != nil {
+	if err := ensureGoTool("templ"); err != nil {
 		return err
 	}
 
@@ -272,12 +272,58 @@ func buildAndroid(modulePath string) error {
 
 // runTempl generates templ files
 func runTempl() error {
-	if err := checkTool("templ", "go install github.com/a-h/templ/cmd/templ@latest"); err != nil {
+	if err := ensureGoTool("templ"); err != nil {
 		return err
 	}
 
 	fmt.Println("Generating templ files...")
 	return runCommand("templ", "generate")
+}
+
+// goToolPkg maps a tool name to the module to `go install`. templ is pinned to
+// the project's go.mod version: the generator and the library must match, and
+// @latest drift breaks generated code.
+func goToolPkg(name string) string {
+	switch name {
+	case "templ":
+		if v := templVersionFromGoMod(); v != "" {
+			return "github.com/a-h/templ/cmd/templ@v" + v
+		}
+		return "github.com/a-h/templ/cmd/templ@latest"
+	case "air":
+		return "github.com/air-verse/air@latest"
+	case "gomobile":
+		return "golang.org/x/mobile/cmd/gomobile@latest"
+	case "gobind":
+		return "golang.org/x/mobile/cmd/gobind@latest"
+	}
+	return ""
+}
+
+// ensureGoTool installs a Go-based tool when missing rather than printing an
+// install command for someone to copy. `go install` behaves the same on macOS,
+// Linux and Windows, so this needs no per-OS branching.
+func ensureGoTool(name string) error {
+	if _, err := exec.LookPath(name); err == nil {
+		return nil
+	}
+	pkg := goToolPkg(name)
+	if pkg == "" {
+		return fmt.Errorf("%s not found, and no install source is known for it", name)
+	}
+	fmt.Printf("%s not found — installing %s...\n", name, pkg)
+	if err := runCommand(goBin(), "install", pkg); err != nil {
+		return fmt.Errorf("installing %s: %w", name, err)
+	}
+	// `go install` lands in GOBIN (default $GOPATH/bin), which is often absent
+	// from PATH — prepend it so the tool resolves for the rest of this process.
+	if dir := gobinDir(); dir != "" {
+		_ = os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	if _, err := exec.LookPath(name); err != nil {
+		return fmt.Errorf("%s still not found after installing it — is %s on your PATH?", name, gobinDir())
+	}
+	return nil
 }
 
 // jsRunner returns the package runner to drive package.json scripts with,
@@ -426,7 +472,7 @@ func runIOS(devMode bool) error {
 		fmt.Println()
 
 		// Check for required dev tools
-		if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
+		if err := ensureGoTool("air"); err != nil {
 			return err
 		}
 
@@ -599,7 +645,7 @@ func runAndroid(devMode bool, avdName string, headless bool) error {
 		fmt.Println()
 
 		// Check for required dev tools
-		if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
+		if err := ensureGoTool("air"); err != nil {
 			return err
 		}
 
