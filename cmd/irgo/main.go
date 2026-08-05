@@ -271,7 +271,9 @@ Examples:
   irgo run desktop --dev Desktop app with devtools enabled
   irgo build ios         Build iOS framework only
   irgo build ios --sim   Build the runnable iOS Simulator app
-  irgo build desktop     Build desktop app for current platform`)
+  irgo build desktop     Build desktop app for current platform
+  irgo build desktop all Build every desktop app this host supports
+                         (macOS -> macOS + Windows; installs mingw-w64 if needed)`)
 }
 
 func printCommandHelp(cmd string) {

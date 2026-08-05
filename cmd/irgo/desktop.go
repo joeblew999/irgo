@@ -51,11 +51,10 @@ func ensureDesktopToolchain(target string) error {
 		}
 	case "windows":
 		if runtime.GOOS == "darwin" {
-			// macOS cross-compiles via mingw-w64 (brew).
-			for _, tool := range []string{"x86_64-w64-mingw32-gcc", "x86_64-w64-mingw32-g++"} {
-				if _, err := exec.LookPath(tool); err != nil {
-					return fmt.Errorf("%s not found — install mingw-w64: brew install mingw-w64", tool)
-				}
+			// macOS cross-compiles via mingw-w64 — install it rather than
+			// telling the caller to.
+			if err := ensureMinGW(); err != nil {
+				return err
 			}
 		} else if runtime.GOOS == "windows" {
 			for _, tool := range []string{"gcc", "g++"} {
@@ -82,10 +81,64 @@ func ensureDesktopToolchain(target string) error {
 	return nil
 }
 
+// ensureMinGW installs the mingw-w64 cross-compiler on macOS when it is
+// missing. Consumers were each re-implementing this brew call in shell before
+// invoking irgo; the toolchain a build needs is the build's own business.
+func ensureMinGW() error {
+	_, gccErr := exec.LookPath("x86_64-w64-mingw32-gcc")
+	_, gxxErr := exec.LookPath("x86_64-w64-mingw32-g++")
+	if gccErr == nil && gxxErr == nil {
+		return nil
+	}
+	if _, err := exec.LookPath("brew"); err != nil {
+		return fmt.Errorf("mingw-w64 not found and Homebrew is unavailable — install mingw-w64 to cross-compile for Windows")
+	}
+	fmt.Println("Installing mingw-w64 (Windows cross-compiler) via brew...")
+	if err := runCommand("brew", "install", "mingw-w64"); err != nil {
+		return fmt.Errorf("brew install mingw-w64 failed: %w", err)
+	}
+	for _, tool := range []string{"x86_64-w64-mingw32-gcc", "x86_64-w64-mingw32-g++"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			return fmt.Errorf("%s still missing after installing mingw-w64", tool)
+		}
+	}
+	return nil
+}
+
+// desktopTargetsForHost lists the desktop targets this host can actually
+// produce. macOS needs Xcode and Linux needs GTK3 + WebKit2GTK, so neither
+// cross-compiles; Windows is the only one that does, from macOS via mingw-w64.
+func desktopTargetsForHost() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"darwin", "windows"}
+	case "linux":
+		return []string{"linux"}
+	case "windows":
+		return []string{"windows"}
+	default:
+		return nil
+	}
+}
+
 // buildDesktop builds desktop app for target platform
 func buildDesktop(target string) error {
 	if target == "" {
 		target = runtime.GOOS
+	}
+
+	if target == "all" {
+		targets := desktopTargetsForHost()
+		if len(targets) == 0 {
+			return fmt.Errorf("no desktop targets can be built from %s", runtime.GOOS)
+		}
+		fmt.Printf("Building desktop apps for: %s\n", strings.Join(targets, ", "))
+		for _, t := range targets {
+			if err := buildDesktop(t); err != nil {
+				return fmt.Errorf("%s: %w", t, err)
+			}
+		}
+		return nil
 	}
 
 	fmt.Printf("Building desktop app for %s...\n", target)
