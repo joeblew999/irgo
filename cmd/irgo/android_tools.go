@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -594,6 +595,13 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 		args = append(args, "-no-window", "-gpu", "swiftshader_indirect")
 		fmt.Println("Headless mode (no window).")
 	}
+	if runtime.GOOS == "linux" && !hasKVM() {
+		// GitHub-hosted runners have no /dev/kvm — x86_64 refuses to start and
+		// arm64 needs explicit software emulation (TCG). Slow boot, hence the
+		// generous (configurable) deadline below.
+		args = append(args, "-accel", "off")
+		fmt.Println("No KVM available — using software emulation (boot will be slow).")
+	}
 	cmd := exec.Command(emu, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -604,18 +612,19 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 	fmt.Println("Waiting for emulator...")
 	// adb wait-for-device blocks forever if the emulator never appears, so poll
 	// adb devices against a deadline instead (mirrors the boot_completed poll).
-	deadline := time.Now().Add(5 * time.Minute)
+	boot := bootTimeout()
+	deadline := time.Now().Add(boot)
 	for {
 		out, err := exec.Command(adbBin(), "devices").CombinedOutput()
 		if err == nil && strings.Contains(string(out), "emulator-") {
 			break
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("emulator never appeared on adb within 5 minutes")
+			return fmt.Errorf("emulator never appeared on adb within %s", boot)
 		}
 		time.Sleep(2 * time.Second)
 	}
-	deadline = time.Now().Add(5 * time.Minute)
+	deadline = time.Now().Add(boot)
 	for time.Now().Before(deadline) {
 		out, err := exec.Command(adbBin(), "shell", "getprop", "sys.boot_completed").CombinedOutput()
 		if err == nil && strings.TrimSpace(string(out)) == "1" {
@@ -624,7 +633,29 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 		}
 		time.Sleep(3 * time.Second)
 	}
-	return fmt.Errorf("emulator did not finish booting within 5 minutes")
+	return fmt.Errorf("emulator did not finish booting within %s", boot)
+}
+
+// hasKVM reports whether hardware acceleration is available on Linux (the
+// Android emulator refuses to run x86_64 without it; arm64 needs -accel off).
+func hasKVM() bool {
+	if runtime.GOOS != "linux" {
+		return true // darwin uses Hypervisor.framework; windows uses WHPX
+	}
+	fi, err := os.Stat("/dev/kvm")
+	return err == nil && fi.Mode()&os.ModeDevice != 0
+}
+
+// bootTimeout returns the emulator boot deadline, from IRGO_BOOT_TIMEOUT_MIN
+// (default 5). Software-emulated runners (no KVM) boot far more slowly.
+func bootTimeout() time.Duration {
+	m := 5
+	if v := os.Getenv("IRGO_BOOT_TIMEOUT_MIN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			m = n
+		}
+	}
+	return time.Duration(m) * time.Minute
 }
 
 func acceptLicenses(sdkm, androidHome string) {
@@ -734,8 +765,8 @@ func installAndroidTools(withEmulator bool, avdName string) error {
 
 func installEmulator(sdk, avdName, sdkm string) error {
 	abi := "x86_64"
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
-		abi = "arm64-v8a"
+	if runtime.GOARCH == "arm64" {
+		abi = "arm64-v8a" // Apple Silicon, ARM64 CI runners (e.g. GitHub ubuntu-*-arm)
 	}
 	sysImg := pinSysImg + ";" + abi
 	fmt.Printf("Installing emulator + system image (%s) (large download)...\n", sysImg)
