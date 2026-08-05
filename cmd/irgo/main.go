@@ -66,7 +66,31 @@ func main() {
 		err = runTest()
 
 	case "install-tools":
-		err = installTools()
+		if len(os.Args) > 2 && os.Args[2] == "android" {
+			avd := "irgo"
+			for i := 3; i < len(os.Args); i++ {
+				if os.Args[i] == "--avd" && i+1 < len(os.Args) {
+					avd = os.Args[i+1]
+				}
+			}
+			err = installAndroidTools(hasFlag(os.Args[3:], "--emulator", "-e"), avd)
+		} else {
+			err = installTools()
+		}
+
+	case "uninstall-tools":
+		if len(os.Args) < 3 || os.Args[2] != "android" {
+			fmt.Println("Usage: irgo uninstall-tools android [--remove-jdk]")
+			os.Exit(1)
+		}
+		err = uninstallAndroidTools(hasFlag(os.Args[3:], "--remove-jdk"))
+
+	case "doctor":
+		if len(os.Args) < 3 || os.Args[2] != "android" {
+			fmt.Println("Usage: irgo doctor android")
+			os.Exit(1)
+		}
+		err = doctorAndroid()
 
 	case "version", "-v", "--version":
 		fmt.Printf("irgo %s\n", version)
@@ -105,6 +129,9 @@ Commands:
   templ            Generate templ files
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
+  install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
+  uninstall-tools android Remove everything install-tools android installed
+  doctor android   Check the Android toolchain is correctly installed
   version          Print version information
   help [command]   Show help for a command
 
@@ -150,6 +177,47 @@ Starts:
   - Tailwind CSS watcher (if configured)
 
 Server runs at http://localhost:8080`)
+
+	case "install-tools":
+		fmt.Println(`irgo install-tools - Install required development tools
+
+Usage:
+  irgo install-tools             Install Go tools (gomobile, templ, air)
+  irgo install-tools android     Install Android SDK + NDK + cmdline-tools
+  irgo install-tools android --emulator
+                                 Also install the emulator + system image + AVD
+  irgo install-tools android --emulator --avd <name>
+                                 AVD name (default "irgo")
+
+Android toolchain (pinned, known-good, fully cross-platform):
+  - JDK 17 — auto-downloaded (Temurin via Adoptium) into ~/.irgo/jdks, no
+    brew/apt/winget needed; respects an existing JAVA_HOME when it is JDK 17
+  - cmdline-tools, platform-tools, platforms android-34/35, build-tools
+  - NDK r26 (required: gomobile's bind defaults to API 16, NDK r27+ rejects it)
+
+Respects ANDROID_HOME (defaults: ~/Library/Android/sdk on macOS,
+~/Android/Sdk on Linux, %LOCALAPPDATA%\Android\Sdk on Windows).`)
+
+	case "uninstall-tools":
+		fmt.Println(`irgo uninstall-tools android - Remove the Android toolchain
+
+Usage:
+  irgo uninstall-tools android [--remove-jdk]
+
+Removes everything install-tools android put in place: gomobile/gobind, the
+SDK directory (only if irgo provisioned it), ~/.android, ~/.gradle, temp
+clones, and (macOS) emulator prefs. --remove-jdk also removes the managed
+JDK at ~/.irgo/jdks.`)
+
+	case "doctor":
+		fmt.Println(`irgo doctor android - Verify the Android toolchain
+
+Usage:
+  irgo doctor android
+
+Checks ANDROID_HOME, JDK 17, sdkmanager, NDK, emulator and AVDs, printing
+what is OK and what is MISSING. Exits non-zero if anything critical is
+missing — safe to run in CI to assert an install worked.`)
 
 	case "build":
 		fmt.Println(`irgo build - Build for mobile and desktop platforms

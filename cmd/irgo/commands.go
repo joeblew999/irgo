@@ -148,6 +148,7 @@ func buildAndroid(modulePath string) error {
         // which modern NDKs (r26/r27) reject with "unsupported API version 16".
         // API 21 is the floor every current NDK supports.
         if err := runGomobileCommand("bind", "-target", "android", "-androidapi", "21", "-o", outPath, mobilePackage); err != nil {
+		return fmt.Errorf("gomobile bind failed: %w", err)
 	}
 	writeArtifactStamp("build/android")
 
@@ -433,6 +434,10 @@ func findAvailableIPhoneSimulator() string {
 }
 
 func runAndroid(devMode bool) error {
+	// gradle needs java — resolve the managed ~/.irgo/jdks JDK (or an existing
+	// one) so the toolchain is self-contained after `irgo install-tools android`.
+	applyBestJDKToEnv()
+
 	// Check for Android tools
 	if err := checkTool("adb", "Install Android SDK and add platform-tools to PATH"); err != nil {
 		return err
@@ -715,6 +720,11 @@ func ensureMobileBuildSetup() error {
 // runGomobileCommand runs a gomobile command with the correct GOTOOLCHAIN
 func runGomobileCommand(args ...string) error {
 	goVersion := getGoVersion()
+
+	// gomobile bind for Android shells out to javac, which needs a JDK on
+	// PATH — resolve the managed ~/.irgo/jdks JDK (or an existing one) so the
+	// toolchain is self-contained after `irgo install-tools android`.
+	applyBestJDKToEnv()
 
 	cmd := exec.Command("gomobile", args...)
 	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=go"+goVersion)
