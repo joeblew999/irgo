@@ -329,7 +329,7 @@ func newProject(name string) error {
 		fmt.Println("Skipping go mod tidy (remote module path - run manually after pushing to remote)")
 	} else {
 		fmt.Println("Running go mod tidy...")
-			tidyCmd := exec.Command(goBin(), "mod", "tidy")
+		tidyCmd := exec.Command(goBin(), "mod", "tidy")
 		tidyCmd.Dir = projectDir
 		tidyCmd.Stdout = os.Stdout
 		tidyCmd.Stderr = os.Stderr
@@ -357,12 +357,104 @@ func newProject(name string) error {
 	fmt.Printf("  cd %s\n", projectDir)
 	fmt.Println("  bun install        # or: npm install")
 	fmt.Println("  irgo dev           # start development server")
-	fmt.Println()
-	fmt.Println("Run on a device or desktop:")
-	fmt.Println("  irgo run ios       # iOS Simulator")
-	fmt.Println("  irgo run android   # Android Emulator")
+	fmt.Println("  irgo run ios       # iOS Simulator (scaffolds ios/Example)")
+	fmt.Println("  irgo run android   # Android Emulator (scaffolds android/Example)")
 	fmt.Println("  irgo run desktop   # native desktop window")
 	fmt.Println()
 
+	return nil
+}
+
+// scaffoldExamples writes the canonical mobile example apps (ios/Example and
+// android/Example) into the CURRENT directory from the embedded templates.
+// It is missing-only and idempotent — an existing Example project is never
+// overwritten, so build/run can call it unconditionally. This is what makes
+// `irgo build/run android|ios` work on a bare project (devs and CI never
+// hand-copy the native shells), and `irgo new mobile` re-scaffolds an
+// existing project when an example was deleted.
+func scaffoldExamples() error {
+	modulePath, err := getModulePath()
+	if err != nil {
+		return fmt.Errorf("could not determine module path: %w", err)
+	}
+	projectName := filepath.Base(modulePath)
+	if projectName == "." || projectName == "" || projectName == "/" {
+		wd, _ := os.Getwd()
+		projectName = filepath.Base(wd)
+	}
+	if projectName == "." || projectName == "" {
+		projectName = "irgo"
+	}
+
+	fmt.Println("Ensuring mobile example projects (ios/Example, android/Example)...")
+	for _, sub := range []string{"ios/Example", "android/Example"} {
+		if err := scaffoldExampleDir(sub, projectName, modulePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// scaffoldExampleDir copies one example subtree (rel, e.g. "ios/Example") from
+// the embedded templates into the current directory, resolving the same
+// placeholders as irgo new. Skips (without error) when the destination already
+// exists so it is safe to call on every build/run.
+func scaffoldExampleDir(rel, projectName, modulePath string) error {
+	if _, err := os.Stat(rel); err == nil {
+		fmt.Printf("  exists (skipped): %s\n", rel)
+		return nil
+	}
+
+	written := 0
+	srcPrefix := "templates/" + rel
+	err := fs.WalkDir(templateFS, srcPrefix, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		destPath := strings.TrimPrefix(path, "templates/")
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0o755)
+		}
+
+		content, err := templateFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading template %s: %w", path, err)
+		}
+
+		// Handle .tmpl extension (remove it), like irgo new.
+		if strings.HasSuffix(destPath, ".tmpl") {
+			destPath = strings.TrimSuffix(destPath, ".tmpl")
+		}
+
+		// Resolve placeholders. Only {{PROJECT_NAME}} appears in the example
+		// templates today (Android app_name), but resolve the full set so the
+		// two scaffolders stay in sync.
+		contentStr := string(content)
+		contentStr = strings.ReplaceAll(contentStr, "{{PROJECT_NAME}}", projectName)
+		contentStr = strings.ReplaceAll(contentStr, "{{MODULE_PATH}}", modulePath)
+		contentStr = strings.ReplaceAll(contentStr, "{{GO_VERSION}}", getGoVersion())
+		contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", "")
+
+		// Shell scripts and gradle wrappers must be executable.
+		fileMode := os.FileMode(0o644)
+		base := filepath.Base(destPath)
+		if strings.HasSuffix(base, ".sh") || base == "gradlew" {
+			fileMode = 0o755
+		}
+
+		if err := os.WriteFile(destPath, []byte(contentStr), fileMode); err != nil {
+			return fmt.Errorf("writing %s: %w", destPath, err)
+		}
+		written++
+		fmt.Printf("  created: %s\n", destPath)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if written == 0 {
+		return fmt.Errorf("no files scaffolded for %s (template missing?)", rel)
+	}
+	fmt.Printf("  scaffolded %d files into %s\n", written, rel)
 	return nil
 }

@@ -144,16 +144,22 @@ func buildAndroid(modulePath string) error {
 		return fmt.Errorf("Android toolchain setup failed: %w", err)
 	}
 
+	// Ensure the canonical android/Example app exists so the AAR has a
+	// consumer out of the box (scaffolded from embedded templates).
+	if err := scaffoldExamples(); err != nil {
+		return fmt.Errorf("Android example scaffold failed: %w", err)
+	}
+
 	// Ensure go.work and gomobile setup
 	if err := ensureMobileBuildSetup(); err != nil {
 		return fmt.Errorf("mobile build setup failed: %w", err)
 	}
 
 	mobilePackage := modulePath + "/mobile"
-        // Pin the Android API level explicitly: gomobile defaults to API 16,
-        // which modern NDKs (r26/r27) reject with "unsupported API version 16".
-        // API 21 is the floor every current NDK supports.
-        if err := runGomobileCommand("bind", "-target", "android", "-androidapi", "21", "-o", outPath, mobilePackage); err != nil {
+	// Pin the Android API level explicitly: gomobile defaults to API 16,
+	// which modern NDKs (r26/r27) reject with "unsupported API version 16".
+	// API 21 is the floor every current NDK supports.
+	if err := runGomobileCommand("bind", "-target", "android", "-androidapi", "21", "-o", outPath, mobilePackage); err != nil {
 		return fmt.Errorf("gomobile bind failed: %w", err)
 	}
 	writeArtifactStamp("build/android")
@@ -265,14 +271,16 @@ func runIOS(devMode bool) error {
 		return err
 	}
 
+	// Ensure the canonical ios/Example app exists (scaffolded from the
+	// embedded templates when missing — devs and CI never hand-copy it).
+	if err := scaffoldExamples(); err != nil {
+		return fmt.Errorf("iOS example scaffold failed: %w", err)
+	}
+
 	// Check if ios/Example project exists
 	iosProjectPath := "ios/Example"
 	if _, err := os.Stat(iosProjectPath); os.IsNotExist(err) {
-		return fmt.Errorf("iOS project not found at %s\n\nTo set up iOS development:\n"+
-			"  1. Create an Xcode project at ios/Example/\n"+
-			"  2. Add build/ios/Irgo.xcframework to the project\n"+
-			"  3. Copy ios/Irgo/*.swift files to your project\n"+
-			"  4. Set IrgoWebViewController as the root view controller", iosProjectPath)
+		return fmt.Errorf("iOS project not found at %s", iosProjectPath)
 	}
 
 	// Dev server URL for simulator to connect to
@@ -455,14 +463,16 @@ func runAndroid(devMode bool, avdName string, headless bool) error {
 		return err
 	}
 
+	// Ensure the canonical android/Example app exists (scaffolded from the
+	// embedded templates when missing — devs and CI never hand-copy it).
+	if err := scaffoldExamples(); err != nil {
+		return fmt.Errorf("Android example scaffold failed: %w", err)
+	}
+
 	// Check if android/Example project exists
 	androidProjectPath := "android/Example"
 	if _, err := os.Stat(androidProjectPath); os.IsNotExist(err) {
-		return fmt.Errorf("Android project not found at %s\n\nTo set up Android development:\n"+
-			"  1. Create an Android Studio project at android/Example/\n"+
-			"  2. Copy build/android/irgo.aar to app/libs/\n"+
-			"  3. Add implementation files('libs/irgo.aar') to build.gradle\n"+
-			"  4. Copy android/app/src/main/kotlin/com/irgo/*.kt to your project", androidProjectPath)
+		return fmt.Errorf("Android project not found at %s", androidProjectPath)
 	}
 
 	// Dev server URL as seen from the emulator (10.0.2.2 is the host loopback)
@@ -713,7 +723,7 @@ func ensureMobileBuildSetup() error {
 
 		// Install gomobile and gobind from local source
 		fmt.Println("Installing gomobile from source...")
-			cmd := exec.Command(goBin(), "install", "./cmd/gomobile")
+		cmd := exec.Command(goBin(), "install", "./cmd/gomobile")
 		cmd.Dir = mobileDir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

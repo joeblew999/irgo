@@ -17,8 +17,14 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "new":
+		if len(os.Args) >= 3 && os.Args[2] == "mobile" {
+			// Scaffold the ios/Example + android/Example apps into the
+			// current project (idempotent: missing-only).
+			err = scaffoldExamples()
+			break
+		}
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo new <project-name>")
+			fmt.Println("Usage: irgo new <project-name> | irgo new mobile")
 			os.Exit(1)
 		}
 		err = newProject(os.Args[2])
@@ -129,6 +135,7 @@ Usage:
 
 Commands:
   new <name>       Create a new irgo project
+  new mobile       Scaffold ios/Example + android/Example into current project
   dev              Run development server with hot reload
   serve            Run server without file watching
   build <target>   Build for mobile/desktop (ios, android, desktop, or all)
@@ -144,6 +151,7 @@ Commands:
 
 Examples:
   irgo new myapp         Create a new project
+  irgo new mobile        Scaffold the mobile example apps in the current project
   irgo dev               Start dev server with hot reload
   irgo run ios           Build and run on iOS Simulator
   irgo run ios --dev     Hot-reload mode (connects to dev server)

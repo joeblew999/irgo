@@ -562,13 +562,7 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 	// AVD must exist (created by installEmulator). Check the candidate homes —
 	// avdmanager/emulator can disagree on the AVD home depending on env vars
 	// (ANDROID_AVD_HOME vs ~/.android/avd vs the deprecated ANDROID_SDK_HOME).
-	avdDir := ""
-	for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
-		if d := filepath.Join(base, avdName+".avd"); isDir(d) {
-			avdDir = d
-			break
-		}
-	}
+	avdDir := findAvdDir(avdName)
 	if avdDir == "" {
 		var lines []string
 		for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
@@ -583,9 +577,17 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 			}
 			lines = append(lines, fmt.Sprintf("%s: [%s]", base, strings.Join(names, ", ")))
 		}
+		// Ask the emulator itself where it thinks AVDs live — the tool's own
+		// view is the ground truth for where it will look at boot time.
+		if out, err := exec.Command(emu, "-list-avds").CombinedOutput(); err == nil {
+			lines = append(lines, fmt.Sprintf("emulator -list-avds: %q", strings.TrimSpace(string(out))))
+		}
 		return fmt.Errorf("AVD %q not found — ANDROID_AVD_HOME=%q, ANDROID_SDK_HOME=%q; checked:\n  %s\n(run 'irgo install-tools android --emulator --avd %s')", avdName, os.Getenv("ANDROID_AVD_HOME"), os.Getenv("ANDROID_SDK_HOME"), strings.Join(lines, "\n  "), avdName)
 	}
 	fmt.Printf("Using AVD at %s\n", avdDir)
+	// Pin ANDROID_AVD_HOME so the emulator resolves the exact AVD we verified —
+	// create and boot must agree even when the host env disagrees with us.
+	_ = os.Setenv("ANDROID_AVD_HOME", filepath.Dir(avdDir))
 	fmt.Printf("Booting emulator (AVD: %s)...\n", avdName)
 	args := []string{"-avd", avdName, "-no-snapshot", "-no-audio", "-no-boot-anim"}
 	if headless || (runtime.GOOS != "darwin" && os.Getenv("DISPLAY") == "") {
@@ -729,6 +731,21 @@ func installEmulator(sdk, avdName, sdkm string) error {
 	if avdmgr == "" {
 		return fmt.Errorf("avdmanager not found after cmdline-tools install")
 	}
+
+	// Pin the AVD home explicitly BEFORE avdmanager runs. avdmanager and the
+	// emulator can resolve the AVD home differently (ANDROID_AVD_HOME vs
+	// ~/.android/avd vs XDG/ANDROID_USER_HOME on Linux CI), which made "create"
+	// and "boot" disagree. Forcing ANDROID_AVD_HOME makes both use the same
+	// directory deterministically, cross-platform.
+	avdHome := avdHomeDir()
+	if err := os.MkdirAll(avdHome, 0o755); err != nil {
+		return fmt.Errorf("creating AVD home %s: %w", avdHome, err)
+	}
+	if err := os.Setenv("ANDROID_AVD_HOME", avdHome); err != nil {
+		return fmt.Errorf("setting ANDROID_AVD_HOME: %w", err)
+	}
+	fmt.Printf("AVD home: %s\n", avdHome)
+
 	if avdExists(avdmgr, avdName) {
 		fmt.Printf("AVD %q already exists.\n", avdName)
 		return nil
@@ -742,18 +759,58 @@ func installEmulator(sdk, avdName, sdkm string) error {
 		return fmt.Errorf("avdmanager create avd failed: %w", err)
 	}
 	// avdmanager may write <build> placeholders for the name/id; normalize them.
-	cfg := filepath.Join(avdHomeDir(), avdName+".avd", "config.ini")
+	cfg := filepath.Join(avdHome, avdName+".avd", "config.ini")
 	if data, err := os.ReadFile(cfg); err == nil {
 		s := strings.ReplaceAll(string(data), "avd.id=<build>", "avd.id="+avdName)
 		s = strings.ReplaceAll(s, "avd.name=<build>", "avd.name="+avdName)
 		_ = os.WriteFile(cfg, []byte(s), 0o644)
 	}
-	avdDir := filepath.Join(avdHomeDir(), avdName+".avd")
+
+	// Verify the AVD actually landed where we will look for it (create and
+	// boot must agree). Fall back to the emulator's own list when the
+	// filesystem check disagrees, and fail loudly otherwise — a silently
+	// missing AVD is exactly the failure mode that bit CI.
+	avdDir := filepath.Join(avdHome, avdName+".avd")
 	if !isDir(avdDir) {
-		avdDir = filepath.Join(homeDir(), ".android", "avd", avdName+".avd")
+		if found := findAvdDir(avdName); found != "" {
+			avdDir = found
+			// Tell the emulator where we found it so boot resolves the same AVD.
+			_ = os.Setenv("ANDROID_AVD_HOME", filepath.Dir(avdDir))
+		} else {
+			return fmt.Errorf("avdmanager reported success but AVD %q was not created (expected %s)", avdName, avdDir)
+		}
 	}
 	fmt.Printf("AVD %q created at %s\n", avdName, avdDir)
 	return nil
+}
+
+// findAvdDir locates an existing AVD directory by name, checking the known
+// homes and finally the emulator's own view (emulator -list-avds).
+func findAvdDir(avdName string) string {
+	for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
+		if d := filepath.Join(base, avdName+".avd"); isDir(d) {
+			return d
+		}
+	}
+	// Ask the emulator where it thinks the AVD lives.
+	emu := filepath.Join(androidHome(), "emulator", "emulator")
+	if runtime.GOOS == "windows" {
+		emu += ".exe"
+	}
+	if out, err := exec.Command(emu, "-list-avds").CombinedOutput(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.TrimSpace(line) == avdName {
+				// emulator -list-avds prints bare names; resolve the dir by
+				// scanning the standard homes.
+				for _, base := range []string{avdHomeDir(), filepath.Join(homeDir(), ".android", "avd")} {
+					if d := filepath.Join(base, avdName+".avd"); isDir(d) {
+						return d
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func avdExists(avdmgr, avdName string) bool {
