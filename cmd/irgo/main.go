@@ -220,11 +220,15 @@ func main() {
 		}
 
 	case "doctor":
-		if len(os.Args) < 3 || os.Args[2] != "android" {
-			fmt.Println("Usage: irgo doctor android")
-			os.Exit(1)
+		// Bare `irgo doctor` answers the first question a dev has on a new
+		// machine: what can I actually build here?
+		if len(os.Args) > 2 && os.Args[2] == "android" {
+			err = doctorAndroid()
+		} else if len(os.Args) > 2 {
+			err = fmt.Errorf("unknown doctor target: %s (use `irgo doctor` or `irgo doctor android`)", os.Args[2])
+		} else {
+			err = doctorHost()
 		}
-		err = doctorAndroid()
 
 	case "reviews":
 		err = reviewsCommand(os.Args[2:])
@@ -273,6 +277,7 @@ Commands:
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
   uninstall-tools  Remove the Go tools irgo installed (--all: also yours)
   uninstall-tools android Remove everything install-tools android installed
+  doctor           Report what this host can and cannot build
   doctor android   Check the Android toolchain is correctly installed
   version          Print version information
   help [command]   Show help for a command
@@ -365,14 +370,20 @@ clones, and (macOS) emulator prefs. --remove-jdk also removes the managed
 JDK at ~/.irgo/jdks.`)
 
 	case "doctor":
-		fmt.Println(`irgo doctor android - Verify the Android toolchain
+		fmt.Println(`irgo doctor - What this host can build
 
 Usage:
-  irgo doctor android
+  irgo doctor          Capability report for this machine
+  irgo doctor android  Verify the Android toolchain in detail
 
-Checks ANDROID_HOME, JDK 17, sdkmanager, NDK, emulator and AVDs, printing
-what is OK and what is MISSING. Exits non-zero if anything critical is
-missing — safe to run in CI to assert an install worked.`)
+The plain form lists every target with one of three verdicts:
+  ready           buildable now
+  auto-installs   buildable; irgo provisions what is missing on first build
+  NOT ON THIS OS  impossible here, whatever you install
+
+iOS needs macOS, Linux desktop needs Linux, and Windows desktop builds from
+Windows or from macOS via mingw-w64. 'irgo build all' skips what the host
+cannot do rather than failing, so the same command works in CI everywhere.`)
 
 	case "build":
 		fmt.Println(`irgo build - Build for mobile and desktop platforms

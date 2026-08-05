@@ -68,7 +68,7 @@ func runBuild(target string, sim, device bool, team string) error {
 // have in the first place.
 func requireMacOS(what string) error {
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%s builds require macOS (Xcode) — cannot cross-compile from %s", what, runtime.GOOS)
+		return fmt.Errorf("%s builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", what, runtime.GOOS)
 	}
 	return nil
 }

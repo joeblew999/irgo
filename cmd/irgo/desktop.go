@@ -41,7 +41,7 @@ func ensureDesktopToolchain(target string) error {
 	switch target {
 	case "darwin", "macos":
 		if runtime.GOOS != "darwin" {
-			return fmt.Errorf("macOS desktop builds require macOS (Xcode) — cannot cross-compile from %s", runtime.GOOS)
+			return fmt.Errorf("macOS desktop builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 		if _, err := exec.LookPath("clang"); err != nil {
 			return fmt.Errorf("C compiler not found — install Xcode Command Line Tools: xcode-select --install")
@@ -63,11 +63,11 @@ func ensureDesktopToolchain(target string) error {
 				}
 			}
 		} else {
-			return fmt.Errorf("Windows desktop builds are supported from Windows or macOS (with mingw-w64), not %s", runtime.GOOS)
+			return fmt.Errorf("Windows desktop builds are supported from Windows or macOS (with mingw-w64), not %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 	case "linux":
 		if runtime.GOOS != "linux" {
-			return fmt.Errorf("Linux desktop builds require Linux (GTK3 + WebKit2GTK) — cannot cross-compile from %s", runtime.GOOS)
+			return fmt.Errorf("Linux desktop builds require Linux (GTK3 + WebKit2GTK) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 		if _, err := exec.LookPath("gcc"); err != nil {
 			return fmt.Errorf("gcc not found — install build-essential: sudo apt install build-essential")
