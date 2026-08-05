@@ -13,6 +13,12 @@ import (
 func runDesktop(devMode bool) error {
 	fmt.Println("Starting desktop app...")
 
+	// Verify the toolchain before running (clear errors, idempotent — never
+	// assume the machine is pre-configured).
+	if err := ensureDesktopToolchain(runtime.GOOS); err != nil {
+		return err
+	}
+
 	args := []string{"run", "-tags", "desktop", "."}
 	if devMode {
 		args = append(args, "--dev")
@@ -26,6 +32,56 @@ func runDesktop(devMode bool) error {
 	return cmd.Run()
 }
 
+// ensureDesktopToolchain verifies the CGO/webview toolchain needed to build
+// desktop apps for `target` on the current host, returning actionable install
+// guidance when anything is missing. Checked on every build/run — the command
+// never assumes a pre-configured machine (idempotent: same check each time,
+// clear errors instead of an obscure `go build` failure).
+func ensureDesktopToolchain(target string) error {
+	switch target {
+	case "darwin", "macos":
+		if runtime.GOOS != "darwin" {
+			return fmt.Errorf("macOS desktop builds require macOS (Xcode) — cannot cross-compile from %s", runtime.GOOS)
+		}
+		if _, err := exec.LookPath("clang"); err != nil {
+			return fmt.Errorf("C compiler not found — install Xcode Command Line Tools: xcode-select --install")
+		}
+		if out, err := exec.Command("xcode-select", "-p").Output(); err != nil || strings.TrimSpace(string(out)) == "" {
+			return fmt.Errorf("Xcode Command Line Tools not installed — run: xcode-select --install")
+		}
+	case "windows":
+		if runtime.GOOS == "darwin" {
+			// macOS cross-compiles via mingw-w64 (brew).
+			for _, tool := range []string{"x86_64-w64-mingw32-gcc", "x86_64-w64-mingw32-g++"} {
+				if _, err := exec.LookPath(tool); err != nil {
+					return fmt.Errorf("%s not found — install mingw-w64: brew install mingw-w64", tool)
+				}
+			}
+		} else if runtime.GOOS == "windows" {
+			for _, tool := range []string{"gcc", "g++"} {
+				if _, err := exec.LookPath(tool); err != nil {
+					return fmt.Errorf("%s not found — install MSYS2 (https://www.msys2.org) with the mingw-w64-x86_64 toolchain", tool)
+				}
+			}
+		} else {
+			return fmt.Errorf("Windows desktop builds are supported from Windows or macOS (with mingw-w64), not %s", runtime.GOOS)
+		}
+	case "linux":
+		if runtime.GOOS != "linux" {
+			return fmt.Errorf("Linux desktop builds require Linux (GTK3 + WebKit2GTK) — cannot cross-compile from %s", runtime.GOOS)
+		}
+		if _, err := exec.LookPath("gcc"); err != nil {
+			return fmt.Errorf("gcc not found — install build-essential: sudo apt install build-essential")
+		}
+		if err := exec.Command("pkg-config", "--exists", "webkit2gtk-4.0").Run(); err != nil {
+			return fmt.Errorf("webkit2gtk-4.0 not found — install: sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev")
+		}
+	default:
+		return fmt.Errorf("unsupported desktop platform: %s", target)
+	}
+	return nil
+}
+
 // buildDesktop builds desktop app for target platform
 func buildDesktop(target string) error {
 	if target == "" {
@@ -33,6 +89,11 @@ func buildDesktop(target string) error {
 	}
 
 	fmt.Printf("Building desktop app for %s...\n", target)
+
+	// Verify the toolchain before building (clear errors, idempotent).
+	if err := ensureDesktopToolchain(target); err != nil {
+		return err
+	}
 
 	// Generate templ files first
 	if err := runTempl(); err != nil {
