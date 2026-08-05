@@ -439,6 +439,74 @@ Desktop mode:
   2. Opens native webview window pointing to localhost
   3. Closes server when window is closed`)
 
+	case "serve":
+		fmt.Println(`irgo serve - Run the web server without file watching
+
+Usage: irgo serve
+
+Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
+hot reload (that path needs entr; this one has no extra dependency).`)
+
+	case "assets":
+		fmt.Println(`irgo assets - Regenerate the embedded assets
+
+Usage: irgo assets
+
+Regenerates _templ.go and static/css/output.css. Both are gitignored yet
+embedded into every build, so a fresh clone has neither.
+
+Every 'irgo build' / 'irgo run' does this for you. Run it directly only when
+invoking the Go toolchain yourself (plain 'go test' / 'go build'), which
+otherwise compiles against missing templates and ships an unstyled app.
+
+Installs the templ generator (pinned to your go.mod templ version) and the
+frontend dependencies if they are absent. Skips CSS when the project has no
+"css" script; prefers bun, falls back to npm.`)
+
+	case "test":
+		fmt.Println(`irgo test - Run the Go test suite
+
+Usage: irgo test
+
+Equivalent to: go test -v ./...`)
+
+	case "help":
+		fmt.Println(`irgo help - Show help
+
+Usage:
+  irgo help            List every command
+  irgo help <command>  Detail for one command`)
+
+	case "version":
+		fmt.Println(`irgo version - Print the CLI version
+
+Usage: irgo version | irgo -v | irgo --version`)
+
+	case "package":
+		fmt.Println(`irgo package - Build store-ready artifacts
+
+Usage:
+  irgo package ios       [--team ID] [--export-method M] [-o OUT]   .ipa    (macOS only)
+  irgo package android   [--keystore F --keystore-pass P --key-alias A --key-pass P] [-o OUT]   .aab
+  irgo package macos     [--identity ID] [--notarize --apple-id ID --team ID --password P] [--dmg]   (macOS only)
+  irgo package windows   [--publisher CN] [--version V] [--cert F --cert-pass P]   .msix
+  irgo package setup [store]     Interactive wizard for the values a store needs
+  irgo package setup --check     Report what is configured and what is missing
+
+Config is read from irgo.package.toml; flags override it. App icons come from
+a single appicon.png. Signing material is never written to the repo.`)
+
+	case "reviews":
+		fmt.Println(`irgo reviews - Monitor app store reviews
+
+Usage:
+  irgo reviews ios       Recent App Store reviews (iOS)
+  irgo reviews mac       Recent App Store reviews (macOS)
+  irgo reviews android   Recent Play Store reviews, and reply to them
+
+Credentials come from irgo.package.toml - 'irgo package setup --check' reports
+what is missing.`)
+
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
