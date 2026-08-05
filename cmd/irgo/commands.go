@@ -722,6 +722,10 @@ func ensureMobileBuildSetup() error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to install gobind: %w", err)
 		}
+
+		// `go install` lands in GOBIN (default $GOPATH/bin), which may not be on
+		// the caller's PATH — prepend it so runGomobileCommand resolves gomobile.
+		_ = os.Setenv("PATH", gobinDir()+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 
 	return nil
