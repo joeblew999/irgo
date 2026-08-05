@@ -636,6 +636,11 @@ func ensureAndroidToolchain(withEmulator bool, avdName string) error {
 	sdk := androidHome()
 	fmt.Printf("Android SDK home: %s\n", sdk)
 
+	// Export ANDROID_HOME for every subprocess we spawn (gradle, sdkmanager,
+	// aapt2...) — callers often don't have it set, and gradle refuses to build
+	// without a resolvable SDK location.
+	_ = os.Setenv("ANDROID_HOME", sdk)
+
 	jdkHome, ok := detectJDK17(true)
 	if !ok {
 		return fmt.Errorf("No JDK 17 found and the automatic cross-platform install failed — set JAVA_HOME to a JDK 17 and re-run")

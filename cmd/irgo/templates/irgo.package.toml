@@ -1,0 +1,56 @@
+# irgo package configuration — defaults for `irgo package <ios|android|macos|windows>`
+#
+# CLI flags override any value here (e.g. `irgo package android --keystore ...`).
+# Run `irgo package setup` for a step-by-step guide to obtaining every value
+# below for each store.
+
+[common]
+version = "0.1.0"
+
+[ios]
+# Apple Team ID — 10-character ID. Get it: developer.apple.com → Membership →
+# "Team ID". Requires a paid Apple Developer account (US$99/year). Required
+# for automatic signing.
+team = ""
+# app-store (default) | ad-hoc | development
+export_method = "app-store"
+
+[android]
+# Debug keystore works out of the box (validation only). For the Play Store
+# create a release keystore and KEEP IT SAFE — you can't change it after your
+# first upload:
+#   keytool -genkey -v -keystore ~/keys/release.keystore -alias myapp \
+#     -keyalg RSA -keysize 2048 -validity 10000
+keystore = "~/.android/debug.keystore"
+keystore_pass = "android"
+# Empty = auto-detected from the keystore.
+key_alias = ""
+key_pass = "android"
+
+[windows]
+# Publisher DN — must match your Partner Center publisher identity. Get it:
+# Partner Center → your app → Product management → Product identity →
+# "Publisher display name"/Publisher ID (partner.microsoft.com). A Microsoft
+# Store developer account costs US$19 one-time. Empty = test-signed with
+# "CN=<app>".
+publisher = ""
+# Optional real code-signing cert (PFX) + password; empty = self-signed test cert.
+cert = ""
+cert_pass = ""
+icon = ""
+
+[macos]
+# Developer ID Application certificate name, e.g.
+# "Developer ID Application: Your Name (TEAMID)". Get it:
+# developer.apple.com → Certificates → create a Developer ID Application cert →
+# download + double-click to import into Keychain. Requires a paid account.
+identity = ""
+# Notarization: Apple ID + Team ID + an app-specific password
+# (appleid.apple.com → Sign-In & Security → App-Specific Passwords).
+notarize = false
+apple_id = ""
+team = ""
+password = ""
+# Also produce a .dmg
+dmg = false
+

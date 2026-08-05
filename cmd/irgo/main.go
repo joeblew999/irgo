@@ -74,39 +74,76 @@ func main() {
 
 	case "package":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo package <ios|android|windows> [--team ID] [--export-method METHOD] [-o PATH]")
+			fmt.Println("Usage: irgo package <ios|android|macos|windows> [flags]")
 			os.Exit(1)
 		}
 		target := os.Args[2]
 		team, exportMethod, out := "", "app-store", ""
+		keystore, keystorePass, keyAlias, keyPass := "", "", "", ""
+		version, publisher, icon, cert, certPass := "", "", "", "", ""
+		identity, appleID, password := "", "", ""
+		notarize, dmg := false, false
 		for i := 3; i < len(os.Args); i++ {
+			next := func() string {
+				if i+1 < len(os.Args) {
+					i++
+					return os.Args[i]
+				}
+				return ""
+			}
 			switch os.Args[i] {
 			case "--team":
-				if i+1 < len(os.Args) {
-					team = os.Args[i+1]
-					i++
-				}
+				team = next()
 			case "--export-method":
-				if i+1 < len(os.Args) {
-					exportMethod = os.Args[i+1]
-					i++
-				}
+				exportMethod = next()
+			case "--keystore":
+				keystore = next()
+			case "--keystore-pass":
+				keystorePass = next()
+			case "--key-alias":
+				keyAlias = next()
+			case "--key-pass":
+				keyPass = next()
+			case "--version":
+				version = next()
+			case "--publisher":
+				publisher = next()
+			case "--icon":
+				icon = next()
+			case "--cert":
+				cert = next()
+			case "--cert-pass":
+				certPass = next()
+			case "--identity":
+				identity = next()
+			case "--apple-id":
+				appleID = next()
+			case "--password":
+				password = next()
+			case "--notarize":
+				notarize = true
+			case "--dmg":
+				dmg = true
 			case "-o", "--output":
-				if i+1 < len(os.Args) {
-					out = os.Args[i+1]
-					i++
-				}
+				out = next()
+			default:
+				fmt.Printf("Unknown flag: %s\n", os.Args[i])
+				os.Exit(1)
 			}
 		}
 		switch target {
+		case "setup":
+			packageSetupGuide()
 		case "ios":
 			err = packageIOS(team, exportMethod, out)
 		case "android":
-			err = fmt.Errorf("irgo package android: not implemented yet (plan: gradlew bundleRelease + signingConfig → signed .aab)")
+			err = packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, icon, out)
+		case "macos":
+			err = packageMacOS(identity, notarize, appleID, team, password, dmg, icon, out)
 		case "windows":
-			err = fmt.Errorf("irgo package windows: not implemented yet (plan: MSIX via AppxManifest + MakeAppx + sign)")
+			err = packageWindows(publisher, version, icon, cert, certPass, out)
 		default:
-			err = fmt.Errorf("unknown package target: %s (use ios, android, or windows)", target)
+			err = fmt.Errorf("unknown package target: %s (use ios, android, macos, windows, or setup)", target)
 		}
 
 	case "templ":
@@ -177,7 +214,8 @@ Commands:
   serve            Run server without file watching
   build <target>   Build for mobile/desktop (ios, android, desktop, or all)
   run <platform>   Build and run on simulator or desktop
-  package <target> Package for app stores (ios: signed .ipa; android/windows WIP)
+  package <target> Package for stores (ios .ipa, android .aab, macos .app/.dmg, windows .msix)
+  package setup    Guide: how to get every store config value
   templ            Generate templ files
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)

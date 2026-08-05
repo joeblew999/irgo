@@ -154,6 +154,13 @@ func buildDesktopMacOS(modulePath string) error {
 		return fmt.Errorf("could not write Info.plist: %w", err)
 	}
 
+	// App icon: single source icon → .icns in the bundle (if present).
+	if ic := findAppIcon(""); ic != "" {
+		if err := generateICNS(ic, appBundle); err != nil {
+			fmt.Printf("Warning: could not add app icon: %v\n", err)
+		}
+	}
+
 	fmt.Printf("macOS app built: %s\n", appBundle)
 	return nil
 }
@@ -167,13 +174,39 @@ func buildDesktopWindows(modulePath string) error {
 	}
 
 	binaryPath := filepath.Join(outDir, appName+".exe")
-		cmd := exec.Command(goBin(), "build",
+
+	// App icon: single source icon → .syso linked into the .exe. Only attempted
+	// on native Windows — cross-compiling (mingw windres) produces a .syso that
+	// Go's linker rejects, so we skip it there (the MSIX package still gets the
+	// icon via its tile assets).
+	if runtime.GOOS == "windows" {
+		if ic := findAppIcon(""); ic != "" {
+			if cleanup, err := embedWindowsIcon(ic); err != nil {
+				fmt.Printf("Warning: could not embed Windows icon: %v\n", err)
+			} else {
+				defer cleanup()
+			}
+		}
+	} else if findAppIcon("") != "" {
+		fmt.Println("  (skipping .exe icon embed: only on native Windows; MSIX package carries the icon)")
+	}
+
+	cmd := exec.Command(goBin(), "build",
 		"-tags", "desktop",
 		"-ldflags", "-H windowsgui", // Hide console window
 		"-o", binaryPath,
 		".",
 	)
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
+	// Cross-compiling to windows/amd64 requires the mingw-w64 CC (checked in
+	// ensureDesktopToolchain); without GOOS/GOARCH/CC the host toolchain would
+	// be used and the link fails.
+	cmd.Env = append(os.Environ(),
+		"GOOS=windows",
+		"GOARCH=amd64",
+		"CC=x86_64-w64-mingw32-gcc",
+		"CXX=x86_64-w64-mingw32-g++", // webview uses C++; without this the host clang++ is used
+		"CGO_ENABLED=1",
+	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -200,7 +233,7 @@ func buildDesktopLinux(modulePath string) error {
 	}
 
 	binaryPath := filepath.Join(outDir, appName)
-		cmd := exec.Command(goBin(), "build",
+	cmd := exec.Command(goBin(), "build",
 		"-tags", "desktop",
 		"-o", binaryPath,
 		".",

@@ -475,6 +475,12 @@ func runAndroid(devMode bool, avdName string, headless bool) error {
 		return fmt.Errorf("Android project not found at %s", androidProjectPath)
 	}
 
+	// App icon: single source icon → launcher mipmaps (if present), so the
+	// installed APK shows the project's icon.
+	if ic := findAppIcon(""); ic != "" {
+		_ = generateAndroidIcons(ic, filepath.Join(androidProjectPath, "app", "src", "main", "res"))
+	}
+
 	// Dev server URL as seen from the emulator (10.0.2.2 is the host loopback)
 	devServerURL := "http://10.0.2.2:8080"
 	var devServerCmd *exec.Cmd
