@@ -69,7 +69,7 @@ public struct IrgoResponse {
         self.body = body
     }
 
-    init(from response: CoreResponse) {
+    init(from response: MobileResponse) {
         self.status = Int(response.status)
         self.body = response.body ?? Data()
         self.headers = IrgoResponse.parseHeaders(response.headers)

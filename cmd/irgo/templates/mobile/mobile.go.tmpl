@@ -8,12 +8,12 @@
 // cannot bind two Go packages that share the name "mobile".
 //
 // Native surface (identical to binding the irgo module directly):
-//   - Swift: MobileInitialize, MobileHandleRequest -> CoreResponse,
+//   - Swift: MobileInitialize, MobileHandleRequest -> MobileResponse,
 //     MobileHandleRequestStream(..., MobileStreamCallbackProtocol) -> MobileStreamHandle,
 //     MobileSetStateDir, MobileOnBackground/OnForeground, MobileSetNativeInvoker, ...
-//   - Kotlin: mobile.Mobile.* functions, mobile.StreamCallback,
-//     mobile.StreamHandle, mobile.NativeInvoker, mobile.WebSocketCallback,
-//     core.Response
+//   - Kotlin: mobile.Mobile.* functions, mobile.Response,
+//     mobile.StreamCallback, mobile.StreamHandle, mobile.NativeInvoker,
+//     mobile.WebSocketCallback
 package mobile
 
 import (
@@ -21,7 +21,6 @@ import (
 
 	"{{MODULE_PATH}}/app"
 	irgomobile "github.com/stukennedy/irgo/mobile"
-	"github.com/stukennedy/irgo/pkg/core"
 )
 
 // Initialize sets up the mobile bridge and app routes.
@@ -39,14 +38,32 @@ func Initialize() {
 
 // --- HTTP ---
 
+// Response is a gomobile-compatible response type, defined locally rather
+// than reusing irgo's core.Response: gobind silently drops functions whose
+// signature references a type from a dependency module (binding *core.Response
+// produced an AAR without handleRequest/handleRequestSimple and without the
+// core package at all). A local type keeps the AAR self-contained.
+type Response struct {
+	Status  int
+	Headers string
+	Body    []byte
+}
+
+// BodyString returns the body as a string.
+func (r *Response) BodyString() string {
+	return string(r.Body)
+}
+
 // HandleRequest processes a buffered HTTP request from the WebView.
-func HandleRequest(method, url, headers string, body []byte) *core.Response {
-	return irgomobile.HandleRequest(method, url, headers, body)
+func HandleRequest(method, url, headers string, body []byte) *Response {
+	coreResp := irgomobile.HandleRequest(method, url, headers, body)
+	return &Response{Status: coreResp.Status, Headers: coreResp.Headers, Body: coreResp.Body}
 }
 
 // HandleRequestSimple processes a simple GET request.
-func HandleRequestSimple(method, url string) *core.Response {
-	return irgomobile.HandleRequestSimple(method, url)
+func HandleRequestSimple(method, url string) *Response {
+	coreResp := irgomobile.HandleRequestSimple(method, url)
+	return &Response{Status: coreResp.Status, Headers: coreResp.Headers, Body: coreResp.Body}
 }
 
 // StreamCallback receives a response progressively (one OnChunk per
