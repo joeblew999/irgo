@@ -138,15 +138,15 @@ func buildAndroid(modulePath string) error {
 	// Remove existing AAR
 	os.Remove(outPath)
 
+	// Self-provision the toolchain (JDK/SDK/NDK/gomobile) if anything is
+	// missing — devs and CI never need a separate setup step.
+	if err := ensureAndroidToolchain(false, "irgo"); err != nil {
+		return fmt.Errorf("Android toolchain setup failed: %w", err)
+	}
+
 	// Ensure go.work and gomobile setup
 	if err := ensureMobileBuildSetup(); err != nil {
 		return fmt.Errorf("mobile build setup failed: %w", err)
-	}
-
-	// Ensure gomobile bind finds the pinned NDK even when ANDROID_NDK_HOME is
-	// not exported — self-contained after `irgo install-tools android`.
-	if ndk := filepath.Join(androidHome(), "ndk", pinNDK); isDir(ndk) {
-		applyNDKToEnv(ndk)
 	}
 
 	mobilePackage := modulePath + "/mobile"
@@ -448,13 +448,11 @@ func findAvailableIPhoneSimulator() string {
 }
 
 func runAndroid(devMode bool, avdName string, headless bool) error {
-	// gradle needs java — resolve the managed ~/.irgo/jdks JDK (or an existing
-	// one) so the toolchain is self-contained after `irgo install-tools android`.
-	applyBestJDKToEnv()
-
-	// adb comes from the installed SDK (platform-tools); accept PATH too.
-	if !haveAdb() {
-		return fmt.Errorf("adb not found — run 'irgo install-tools android' (installs platform-tools) or add platform-tools to PATH")
+	// Self-provision the Android toolchain (JDK/SDK/NDK/gomobile, plus the
+	// emulator + AVD when no device is connected) — devs and CI never need a
+	// separate setup step. Idempotent: only installs what is missing.
+	if err := ensureAndroidToolchain(!adbRunning(), avdName); err != nil {
+		return err
 	}
 
 	// Check if android/Example project exists

@@ -573,7 +573,12 @@ func acceptLicenses(sdkm, androidHome string) {
 
 // --- install ----------------------------------------------------------------
 
-func installAndroidTools(withEmulator bool, avdName string) error {
+// ensureAndroidToolchain provisions anything the Android toolchain is missing
+// (JDK 17, cmdline-tools, platform-tools, platforms, build-tools, NDK, and —
+// with withEmulator — the emulator + AVD). Idempotent: only installs what is
+// absent. Called by install-tools android and, self-provisioning, by
+// build android / run android so devs and CI never need a separate setup step.
+func ensureAndroidToolchain(withEmulator bool, avdName string) error {
 	sdk := androidHome()
 	fmt.Printf("Android SDK home: %s\n", sdk)
 
@@ -602,16 +607,18 @@ func installAndroidTools(withEmulator bool, avdName string) error {
 	}
 	fmt.Printf("Using sdkmanager: %s\n", sdkm)
 
-	fmt.Println("Accepting Android SDK licenses...")
-	acceptLicenses(sdkm, sdk)
-
-	fmt.Println("Installing Android SDK components (platform-tools, platforms, build-tools, NDK)...")
-	if err := runSdkmanager(sdkm, sdk, "platform-tools", pinPlatform34, pinPlatform35, "build-tools;"+pinBuildTools, "ndk;"+pinNDK); err != nil {
-		return fmt.Errorf("sdkmanager install failed: %w", err)
-	}
-
+	// Fast path: when the pinned NDK + platform-tools already exist the
+	// components are installed — skip the sdkmanager round-trip entirely.
 	ndk := filepath.Join(sdk, "ndk", pinNDK)
-	if fi, err := os.Stat(ndk); err != nil || !fi.IsDir() {
+	if !isDir(ndk) || !isDir(filepath.Join(sdk, "platform-tools")) {
+		fmt.Println("Accepting Android SDK licenses...")
+		acceptLicenses(sdkm, sdk)
+		fmt.Println("Installing Android SDK components (platform-tools, platforms, build-tools, NDK)...")
+		if err := runSdkmanager(sdkm, sdk, "platform-tools", pinPlatform34, pinPlatform35, "build-tools;"+pinBuildTools, "ndk;"+pinNDK); err != nil {
+			return fmt.Errorf("sdkmanager install failed: %w", err)
+		}
+	}
+	if !isDir(ndk) {
 		return fmt.Errorf("NDK not found at %s — Android build will fail", ndk)
 	}
 	applyNDKToEnv(ndk)
@@ -638,7 +645,15 @@ func installAndroidTools(withEmulator bool, avdName string) error {
 			return err
 		}
 	}
+	return nil
+}
 
+func installAndroidTools(withEmulator bool, avdName string) error {
+	if err := ensureAndroidToolchain(withEmulator, avdName); err != nil {
+		return err
+	}
+	sdk := androidHome()
+	ndk := filepath.Join(sdk, "ndk", pinNDK)
 	fmt.Printf("\nAndroid toolchain ready.\n")
 	fmt.Printf("  ANDROID_HOME=%s\n", sdk)
 	fmt.Printf("  ANDROID_NDK_HOME=%s\n", ndk)
