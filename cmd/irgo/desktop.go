@@ -97,6 +97,7 @@ func ensureMinGW() error {
 	if err := runCommand("brew", "install", "mingw-w64"); err != nil {
 		return fmt.Errorf("brew install mingw-w64 failed: %w", err)
 	}
+	markToolInstalled("mingw-w64")
 	for _, tool := range []string{"x86_64-w64-mingw32-gcc", "x86_64-w64-mingw32-g++"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			return fmt.Errorf("%s still missing after installing mingw-w64", tool)

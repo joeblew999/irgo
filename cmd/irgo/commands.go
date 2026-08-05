@@ -300,6 +300,28 @@ func goToolPkg(name string) string {
 	return ""
 }
 
+// irgoToolsDir holds one marker file per tool irgo installed itself, so
+// uninstall can remove exactly those and leave a developer's own copies alone.
+// Without it an uninstall would either delete tools irgo never owned or, if it
+// played safe and skipped them, leave a half-provisioned machine that silently
+// fails to re-provision.
+func irgoToolsDir() string {
+	return filepath.Join(homeDir(), ".irgo", "tools")
+}
+
+func markToolInstalled(name string) {
+	dir := irgoToolsDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, name), []byte("irgo "+version+"\n"), 0o644)
+}
+
+func toolInstalledByIrgo(name string) bool {
+	_, err := os.Stat(filepath.Join(irgoToolsDir(), name))
+	return err == nil
+}
+
 // ensureGoTool installs a Go-based tool when missing rather than printing an
 // install command for someone to copy. `go install` behaves the same on macOS,
 // Linux and Windows, so this needs no per-OS branching.
@@ -315,6 +337,7 @@ func ensureGoTool(name string) error {
 	if err := runCommand(goBin(), "install", pkg); err != nil {
 		return fmt.Errorf("installing %s: %w", name, err)
 	}
+	markToolInstalled(name)
 	// `go install` lands in GOBIN (default $GOPATH/bin), which is often absent
 	// from PATH — prepend it so the tool resolves for the rest of this process.
 	if dir := gobinDir(); dir != "" {
@@ -407,6 +430,7 @@ func installTools() error {
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("  Warning: failed to install %s: %v\n", tool.name, err)
 			} else {
+				markToolInstalled(tool.name)
 				fmt.Printf("  %s: installed\n", tool.name)
 			}
 		} else {
@@ -998,4 +1022,99 @@ func clearDevServerInPlist(plistPath string) {
 
 	newContent := content[:entryStart] + content[entryEnd:]
 	os.WriteFile(plistPath, []byte(newContent), 0644)
+}
+
+// uninstallTools is the exact inverse of `irgo install-tools`: it removes the
+// Go tools irgo installed, and nothing else. Every install path in the CLI has
+// a matching uninstall — without one you cannot return a machine to a known
+// state, and a provisioning bug hides behind whatever was left lying around
+// instead of surfacing on the next run.
+//
+// Marker-guarded: a tool irgo did not install is reported and kept, so a
+// developer's own templ/air survives. Pass all to override that.
+func uninstallTools(all bool) error {
+	fmt.Println("Removing irgo-installed Go tools...")
+
+	// A tool can sit in the resolved GOBIN and/or the default $GOPATH/bin —
+	// they differ when GOBIN was empty at install time. Check both.
+	binDirs := []string{gobinDir()}
+	if out, err := exec.Command(goBin(), "env", "GOPATH").Output(); err == nil {
+		if gp := strings.TrimSpace(string(out)); gp != "" {
+			if p := filepath.Join(gp, "bin"); p != binDirs[0] {
+				binDirs = append(binDirs, p)
+			}
+		}
+	}
+
+	removed, kept, missing := 0, 0, 0
+	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
+		if !all && !toolInstalledByIrgo(tool) {
+			if _, err := exec.LookPath(tool); err == nil {
+				fmt.Printf("  %s: kept (not installed by irgo — use --all to remove anyway)\n", tool)
+				kept++
+			} else {
+				missing++
+			}
+			continue
+		}
+		found := false
+		for _, dir := range binDirs {
+			name := tool
+			if runtime.GOOS == "windows" {
+				name += ".exe"
+			}
+			p := filepath.Join(dir, name)
+			if _, err := os.Stat(p); err == nil {
+				if err := os.Remove(p); err != nil {
+					return fmt.Errorf("removing %s: %w", p, err)
+				}
+				fmt.Printf("  %s: removed (%s)\n", tool, p)
+				found = true
+				removed++
+			}
+		}
+		if !found {
+			missing++
+		}
+		_ = os.Remove(filepath.Join(irgoToolsDir(), tool))
+	}
+
+	// Build residue from mobile builds: the temp x/mobile clone and the local
+	// go.work that ensureMobileBuildSetup generates.
+	_ = os.RemoveAll(filepath.Join(os.TempDir(), "golang-mobile"))
+	_ = os.Remove("go.work")
+	_ = os.Remove("go.work.sum")
+
+	if err := uninstallMinGW(all); err != nil {
+		return err
+	}
+
+	fmt.Printf("\n%d removed, %d kept, %d not present.\n", removed, kept, missing)
+	fmt.Println("Android SDK/NDK/JDK are separate: irgo uninstall-tools android --remove-jdk")
+	return nil
+}
+
+// uninstallMinGW removes the mingw-w64 cross-compiler, but only when irgo
+// installed it — ensureMinGW brew-installs it on macOS for Windows builds.
+func uninstallMinGW(all bool) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	if _, err := exec.LookPath("x86_64-w64-mingw32-gcc"); err != nil {
+		return nil
+	}
+	if !all && !toolInstalledByIrgo("mingw-w64") {
+		fmt.Println("  mingw-w64: kept (not installed by irgo — use --all to remove anyway)")
+		return nil
+	}
+	if _, err := exec.LookPath("brew"); err != nil {
+		fmt.Println("  mingw-w64: present but Homebrew is unavailable — remove it manually")
+		return nil
+	}
+	fmt.Println("  mingw-w64: removing via brew...")
+	if err := runCommand("brew", "uninstall", "--formula", "mingw-w64"); err != nil {
+		fmt.Printf("  Warning: brew uninstall mingw-w64 failed: %v\n", err)
+	}
+	_ = os.Remove(filepath.Join(irgoToolsDir(), "mingw-w64"))
+	return nil
 }

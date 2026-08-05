@@ -201,11 +201,14 @@ func main() {
 		}
 
 	case "uninstall-tools":
-		if len(os.Args) < 3 || os.Args[2] != "android" {
-			fmt.Println("Usage: irgo uninstall-tools android [--remove-jdk]")
-			os.Exit(1)
+		// Every install path has an inverse: bare form undoes install-tools
+		// (templ/air/gomobile/gobind + mingw-w64), `android` undoes the
+		// Android toolchain.
+		if len(os.Args) > 2 && os.Args[2] == "android" {
+			err = uninstallAndroidTools(hasFlag(os.Args[3:], "--remove-jdk"))
+		} else {
+			err = uninstallTools(hasFlag(os.Args[2:], "--all"))
 		}
-		err = uninstallAndroidTools(hasFlag(os.Args[3:], "--remove-jdk"))
 
 	case "doctor":
 		if len(os.Args) < 3 || os.Args[2] != "android" {
@@ -259,6 +262,7 @@ Commands:
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
+  uninstall-tools  Remove the Go tools irgo installed (--all: also yours)
   uninstall-tools android Remove everything install-tools android installed
   doctor android   Check the Android toolchain is correctly installed
   version          Print version information
