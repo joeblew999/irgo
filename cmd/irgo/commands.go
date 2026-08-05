@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -54,15 +55,21 @@ func runServe() error {
 // runBuild builds for mobile platforms. sim additionally builds the runnable
 // iOS Simulator app (ios target only).
 func runBuild(target string, sim bool) error {
-	// Check for gomobile
-	if err := checkTool("gomobile", "go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init"); err != nil {
-		return err
-	}
+	// No gomobile check here: buildIOS/buildAndroid both run
+	// ensureMobileBuildSetup, which installs gomobile + gobind when missing.
+	// Gating up front would fail the build before that could happen.
 
 	// Determine module path
 	modulePath, err := getModulePath()
 	if err != nil {
 		return fmt.Errorf("could not determine module path: %w", err)
+	}
+
+	// _templ.go is generated and gitignored, but the mobile package imports it,
+	// so a fresh clone cannot bind until templ has run. Do it here rather than
+	// making every caller remember the ordering.
+	if err := runTempl(); err != nil {
+		return err
 	}
 
 	// Create build directory
@@ -72,6 +79,9 @@ func runBuild(target string, sim bool) error {
 
 	switch target {
 	case "ios":
+		if err := requireMacOS("iOS"); err != nil {
+			return err
+		}
 		if sim {
 			return buildIOSSim(modulePath)
 		}
@@ -79,13 +89,29 @@ func runBuild(target string, sim bool) error {
 	case "android":
 		return buildAndroid(modulePath)
 	case "all":
-		if err := buildIOS(modulePath); err != nil {
-			return err
+		// Android builds anywhere; iOS cannot leave macOS. Skip rather than
+		// fail so `irgo build all` stays usable on Linux/Windows CI.
+		if runtime.GOOS == "darwin" {
+			if err := buildIOS(modulePath); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("Skipping iOS framework: requires macOS (host is %s)\n", runtime.GOOS)
 		}
 		return buildAndroid(modulePath)
 	default:
 		return fmt.Errorf("unknown build target: %s (use ios, android, or all)", target)
 	}
+}
+
+// requireMacOS gates Apple-only targets with an actionable error, instead of
+// letting the build fail later on a missing xcodebuild that the host can never
+// have in the first place.
+func requireMacOS(what string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("%s builds require macOS (Xcode) — cannot cross-compile from %s", what, runtime.GOOS)
+	}
+	return nil
 }
 
 func buildIOS(modulePath string) error {
