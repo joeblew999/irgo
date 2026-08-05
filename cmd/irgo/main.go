@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 var version = "0.4.0"
@@ -224,7 +225,7 @@ func main() {
 		// machine: what can I actually build here?
 		if len(os.Args) > 2 && os.Args[2] == "android" {
 			err = doctorAndroid()
-		} else if len(os.Args) > 2 {
+		} else if len(os.Args) > 2 && !strings.HasPrefix(os.Args[2], "-") {
 			err = fmt.Errorf("unknown doctor target: %s (use `irgo doctor` or `irgo doctor android`)", os.Args[2])
 		} else {
 			err = doctorHost(hasFlag(os.Args[2:], "--strict"))
