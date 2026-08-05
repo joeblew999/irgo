@@ -53,7 +53,7 @@ func ensureDesktopToolchain(target string) error {
 		if runtime.GOOS == "darwin" {
 			// macOS cross-compiles via mingw-w64 — install it rather than
 			// telling the caller to.
-			if err := ensureMinGW(); err != nil {
+			if err := ensureOSPackage("mingw-w64"); err != nil {
 				return err
 			}
 		} else if runtime.GOOS == "windows" {
@@ -72,36 +72,11 @@ func ensureDesktopToolchain(target string) error {
 		if _, err := exec.LookPath("gcc"); err != nil {
 			return fmt.Errorf("gcc not found — install build-essential: sudo apt install build-essential")
 		}
-		if err := exec.Command("pkg-config", "--exists", "webkit2gtk-4.0").Run(); err != nil {
-			return fmt.Errorf("webkit2gtk-4.0 not found — install: sudo apt install libwebkit2gtk-4.0-dev libgtk-3-dev")
+		if err := ensureOSPackage("webkit2gtk"); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unsupported desktop platform: %s", target)
-	}
-	return nil
-}
-
-// ensureMinGW installs the mingw-w64 cross-compiler on macOS when it is
-// missing. Consumers were each re-implementing this brew call in shell before
-// invoking irgo; the toolchain a build needs is the build's own business.
-func ensureMinGW() error {
-	_, gccErr := exec.LookPath("x86_64-w64-mingw32-gcc")
-	_, gxxErr := exec.LookPath("x86_64-w64-mingw32-g++")
-	if gccErr == nil && gxxErr == nil {
-		return nil
-	}
-	if _, err := exec.LookPath("brew"); err != nil {
-		return fmt.Errorf("mingw-w64 not found and Homebrew is unavailable — install mingw-w64 to cross-compile for Windows")
-	}
-	fmt.Println("Installing mingw-w64 (Windows cross-compiler) via brew...")
-	if err := runCommand("brew", "install", "mingw-w64"); err != nil {
-		return fmt.Errorf("brew install mingw-w64 failed: %w", err)
-	}
-	markToolInstalled("mingw-w64")
-	for _, tool := range []string{"x86_64-w64-mingw32-gcc", "x86_64-w64-mingw32-g++"} {
-		if _, err := exec.LookPath(tool); err != nil {
-			return fmt.Errorf("%s still missing after installing mingw-w64", tool)
-		}
 	}
 	return nil
 }

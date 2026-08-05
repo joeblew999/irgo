@@ -16,6 +16,14 @@ func runDev() error {
 		return err
 	}
 
+	// dev.sh watches files with entr — provision it rather than failing later
+	// with a bare "entr: command not found" from inside the script.
+	if _, err := os.Stat("dev.sh"); err == nil {
+		if err := ensureOSPackage("entr"); err != nil {
+			return err
+		}
+	}
+
 	// Check if dev.sh exists (user project) or we're in framework
 	if _, err := os.Stat("dev.sh"); err == nil {
 		// User project - run dev.sh

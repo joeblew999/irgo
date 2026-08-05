@@ -140,53 +140,43 @@ func installTools() error {
 	fmt.Println("Installing irgo development tools...")
 	fmt.Println()
 
-	// Pin the templ generator to the templ library version in the project's
-	// go.mod (they must stay in sync — @latest drift breaks generated code).
-	templPkg := "github.com/a-h/templ/cmd/templ@latest"
-	if v := templVersionFromGoMod(); v != "" {
-		templPkg = "github.com/a-h/templ/cmd/templ@v" + v
-		fmt.Printf("  templ: pinning to go.mod version v%s\n", v)
-	}
-
-	tools := []struct {
-		name string
-		pkg  string
-	}{
-		{"templ", templPkg},
-		{"air", "github.com/air-verse/air@latest"},
-		{"gomobile", "golang.org/x/mobile/cmd/gomobile@latest"},
-	}
-
-	for _, tool := range tools {
-		if _, err := exec.LookPath(tool.name); err != nil {
-			fmt.Printf("Installing %s...\n", tool.name)
-			cmd := exec.Command(goBin(), "install", tool.pkg)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("  Warning: failed to install %s: %v\n", tool.name, err)
-			} else {
-				markToolInstalled(tool.name)
-				fmt.Printf("  %s: installed\n", tool.name)
-			}
-		} else {
-			fmt.Printf("  %s: already installed\n", tool.name)
+	// ensureGoTool owns pinning (templ tracks the project's go.mod version),
+	// marker-writing for uninstall, and PATH fix-up. This is just the eager
+	// form of what every build does lazily.
+	for _, tool := range []string{"templ", "air", "gomobile"} {
+		if _, err := exec.LookPath(tool); err == nil {
+			fmt.Printf("  %s: already installed\n", tool)
+			continue
 		}
+		if err := ensureGoTool(tool); err != nil {
+			fmt.Printf("  Warning: %v\n", err)
+			continue
+		}
+		fmt.Printf("  %s: installed\n", tool)
 	}
 
-	// Initialize gomobile
+	if err := installOSPackages(); err != nil {
+		fmt.Printf("Warning: %v\n", err)
+	}
+
 	fmt.Println()
 	fmt.Println("Initializing gomobile...")
 	if err := runCommand("gomobile", "init"); err != nil {
 		fmt.Printf("Warning: gomobile init failed: %v\n", err)
-		fmt.Println("You may need to run 'gomobile init' manually after installing Android NDK")
 	}
 
 	fmt.Println()
-	fmt.Println("Tools installed! You may also want to install:")
-	fmt.Println("  - Xcode: from App Store (for iOS development)")
-	fmt.Println("  - Android Studio: https://developer.android.com/studio (for Android development)")
-
+	fmt.Println("Done. Nothing else is required up front:")
+	fmt.Println("  Android — irgo installs the JDK, SDK and NDK on the first")
+	fmt.Println("            android build or run. Android Studio is NOT needed.")
+	fmt.Println("            Check it with: irgo doctor android")
+	if runtime.GOOS == "darwin" {
+		fmt.Println("  iOS     — needs Xcode from the App Store (the one thing irgo")
+		fmt.Println("            cannot install for you).")
+		fmt.Println("  Windows — irgo installs mingw-w64 when cross-compiling.")
+	} else {
+		fmt.Printf("  iOS     — requires macOS; not buildable on %s.\n", runtime.GOOS)
+	}
 	return nil
 }
 
@@ -226,37 +216,12 @@ func uninstallTools(all bool) error {
 	_ = os.Remove("go.work")
 	_ = os.Remove("go.work.sum")
 
-	if err := uninstallMinGW(all); err != nil {
+	if err := uninstallOSPackages(all); err != nil {
 		return err
 	}
 
 	fmt.Printf("\n%d removed, %d kept, %d not present.\n", removed, kept, missing)
 	fmt.Println("Android SDK/NDK/JDK are separate: irgo uninstall-tools android --remove-jdk")
-	return nil
-}
-
-// uninstallMinGW removes the mingw-w64 cross-compiler, but only when irgo
-// installed it — ensureMinGW brew-installs it on macOS for Windows builds.
-func uninstallMinGW(all bool) error {
-	if runtime.GOOS != "darwin" {
-		return nil
-	}
-	if _, err := exec.LookPath("x86_64-w64-mingw32-gcc"); err != nil {
-		return nil
-	}
-	if !all && !toolInstalledByIrgo("mingw-w64") {
-		fmt.Println("  mingw-w64: kept (not installed by irgo — use --all to remove anyway)")
-		return nil
-	}
-	if _, err := exec.LookPath("brew"); err != nil {
-		fmt.Println("  mingw-w64: present but Homebrew is unavailable — remove it manually")
-		return nil
-	}
-	fmt.Println("  mingw-w64: removing via brew...")
-	if err := runCommand("brew", "uninstall", "--formula", "mingw-w64"); err != nil {
-		fmt.Printf("  Warning: brew uninstall mingw-w64 failed: %v\n", err)
-	}
-	_ = os.Remove(filepath.Join(irgoToolsDir(), "mingw-w64"))
 	return nil
 }
 
