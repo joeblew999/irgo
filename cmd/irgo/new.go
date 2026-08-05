@@ -78,6 +78,29 @@ func getGoVersion() string {
 	return "1.23"
 }
 
+// replaceDirective returns the go.mod `replace` line for the generated project,
+// or "" to build against the published upstream module.
+//
+// IRGO_REPLACE pins a *published* module version — "github.com/joeblew999/irgo
+// v0.4.0-androidapi21.24" (an "@" between module and version also works). This
+// is what lets a downstream repo regenerate its app entirely from the CLI: the
+// fork pin lives in that repo's own config, so the generated go.mod is pure
+// output that never needs a hand-edit afterwards.
+//
+// Otherwise fall back to a local source checkout — the path replace you want
+// when hacking on irgo itself.
+func replaceDirective() string {
+	if mod := strings.TrimSpace(os.Getenv("IRGO_REPLACE")); mod != "" {
+		// Accept "module@version" as well as go.mod's own "module version".
+		return fmt.Sprintf("\nreplace github.com/stukennedy/irgo => %s\n",
+			strings.Replace(mod, "@", " ", 1))
+	}
+	if path := getIrgoPath(); path != "" {
+		return fmt.Sprintf("\nreplace github.com/stukennedy/irgo => %s\n", path)
+	}
+	return ""
+}
+
 // getIrgoPath returns the path to the irgo source directory if developing locally
 func getIrgoPath() string {
 	// Check IRGO_PATH environment variable first
@@ -278,11 +301,9 @@ func newProject(name string) error {
 		contentStr = strings.ReplaceAll(contentStr, "{{MODULE_PATH}}", modulePath)
 		contentStr = strings.ReplaceAll(contentStr, "{{GO_VERSION}}", getGoVersion())
 
-		// Add replace directive for local development if irgo isn't published
-		irgoPath := getIrgoPath()
-		if irgoPath != "" && strings.HasSuffix(relPath, "go.mod") {
-			contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}",
-				fmt.Sprintf("\nreplace github.com/stukennedy/irgo => %s\n", irgoPath))
+		// Pin irgo to a fork tag (IRGO_REPLACE) or a local checkout
+		if strings.HasSuffix(relPath, "go.mod") {
+			contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", replaceDirective())
 		} else {
 			contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", "")
 		}
@@ -369,9 +390,8 @@ func newProject(name string) error {
 // android/Example) into the CURRENT directory from the embedded templates.
 // It is missing-only and idempotent — an existing Example project is never
 // overwritten, so build/run can call it unconditionally. This is what makes
-// `irgo build/run android|ios` work on a bare project (devs and CI never
-// hand-copy the native shells), and `irgo new mobile` re-scaffolds an
-// existing project when an example was deleted.
+// `irgo build/run android|ios` work on a bare project: devs and CI never
+// hand-copy the native shells, and never need a separate scaffold step.
 func scaffoldExamples() error {
 	modulePath, err := getModulePath()
 	if err != nil {
