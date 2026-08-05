@@ -119,7 +119,7 @@ func firstLine(s string) string {
 
 // doctorHost prints the capability report. Exit status stays zero: a target
 // this OS cannot build is a fact about the machine, not a failure.
-func doctorHost() error {
+func doctorHost(strict bool) error {
 	fmt.Printf("irgo %s — what this machine can build\n\n", version)
 	fmt.Printf("Host: %s/%s\n\n", runtime.GOOS, runtime.GOARCH)
 
@@ -148,10 +148,13 @@ func doctorHost() error {
 		fmt.Println("Build those on a matching host or in CI — the repo's workflow covers")
 		fmt.Println("Linux, macOS and Windows. `irgo build all` skips what it cannot do.")
 	}
-	checkPinDrift()
+	drift := checkPinDrift()
 
 	fmt.Println()
 	fmt.Println("Toolchain detail: irgo doctor android")
+	if strict && drift {
+		return fmt.Errorf("CLI pin drift: IRGO_REPLACE and go.mod disagree")
+	}
 	return nil
 }
 
@@ -160,15 +163,15 @@ func doctorHost() error {
 // CLI, and `irgo new` writes it into go.mod. When they drift, builds silently
 // run against a different CLI than the project expects — which is exactly how
 // a stale pin hides for several releases.
-func checkPinDrift() {
+func checkPinDrift() bool {
 	want := strings.TrimSpace(os.Getenv("IRGO_REPLACE"))
 	if want == "" {
-		return
+		return false
 	}
 	want = strings.Replace(want, "@", " ", 1)
 	data, err := os.ReadFile("go.mod")
 	if err != nil {
-		return
+		return false
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
@@ -182,7 +185,9 @@ func checkPinDrift() {
 			fmt.Printf("  IRGO_REPLACE : %s\n", want)
 			fmt.Printf("  go.mod       : %s\n", got)
 			fmt.Println("  These must match. Regenerate the app (irgo new <name>) or fix IRGO_REPLACE.")
+			return true
 		}
-		return
+		return false
 	}
+	return false
 }

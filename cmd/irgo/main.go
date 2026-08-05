@@ -227,7 +227,7 @@ func main() {
 		} else if len(os.Args) > 2 {
 			err = fmt.Errorf("unknown doctor target: %s (use `irgo doctor` or `irgo doctor android`)", os.Args[2])
 		} else {
-			err = doctorHost()
+			err = doctorHost(hasFlag(os.Args[2:], "--strict"))
 		}
 
 	case "reviews":
@@ -277,7 +277,7 @@ Commands:
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
   uninstall-tools  Remove the Go tools irgo installed (--all: also yours)
   uninstall-tools android Remove everything install-tools android installed
-  doctor           Report what this host can and cannot build
+  doctor [--strict] Report what this host can and cannot build
   doctor android   Check the Android toolchain is correctly installed
   version          Print version information
   help [command]   Show help for a command
@@ -374,6 +374,7 @@ JDK at ~/.irgo/jdks.`)
 
 Usage:
   irgo doctor          Capability report for this machine
+  irgo doctor --strict Same, but exit non-zero on CLI pin drift (for CI)
   irgo doctor android  Verify the Android toolchain in detail
 
 The plain form lists every target with one of three verdicts:
