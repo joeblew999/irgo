@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -147,7 +148,41 @@ func doctorHost() error {
 		fmt.Println("Build those on a matching host or in CI — the repo's workflow covers")
 		fmt.Println("Linux, macOS and Windows. `irgo build all` skips what it cannot do.")
 	}
+	checkPinDrift()
+
 	fmt.Println()
 	fmt.Println("Toolchain detail: irgo doctor android")
 	return nil
+}
+
+// checkPinDrift reports when the CLI pin in the environment disagrees with the
+// replace directive in go.mod. Those two must match: IRGO_REPLACE selects the
+// CLI, and `irgo new` writes it into go.mod. When they drift, builds silently
+// run against a different CLI than the project expects — which is exactly how
+// a stale pin hides for several releases.
+func checkPinDrift() {
+	want := strings.TrimSpace(os.Getenv("IRGO_REPLACE"))
+	if want == "" {
+		return
+	}
+	want = strings.Replace(want, "@", " ", 1)
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "replace github.com/stukennedy/irgo") {
+			continue
+		}
+		got := strings.TrimSpace(line[strings.Index(line, "=>")+2:])
+		if got != want {
+			fmt.Println()
+			fmt.Println("WARNING: CLI pin drift")
+			fmt.Printf("  IRGO_REPLACE : %s\n", want)
+			fmt.Printf("  go.mod       : %s\n", got)
+			fmt.Println("  These must match. Regenerate the app (irgo new <name>) or fix IRGO_REPLACE.")
+		}
+		return
+	}
 }
