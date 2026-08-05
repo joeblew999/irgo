@@ -473,7 +473,9 @@ func templVersionFromGoMod() string {
 	if err != nil {
 		return ""
 	}
-	re := regexp.MustCompile(`(?m)^\s*github\.com/a-h/templ\s+v([0-9][^\s]*)`)
+	// Handles both `require github.com/a-h/templ vX` and block form
+	// `require ( ... github.com/a-h/templ vX ... )`.
+	re := regexp.MustCompile(`(?m)^\s*(?:require\s+)?github\.com/a-h/templ\s+v([0-9][^\s]*)`)
 	if m := re.FindSubmatch(data); m != nil {
 		return string(m[1])
 	}
