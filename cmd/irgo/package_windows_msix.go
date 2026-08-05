@@ -195,6 +195,9 @@ func packageWindows(publisher, version, iconPath, cert, certPass, out string) er
 		return err
 	}
 	fmt.Printf("Windows package built: %s\n", out)
+	runHint(
+		"Add-AppxPackage " + out + "   (signed, or with a trusted test cert)",
+	)
 	return nil
 }
 

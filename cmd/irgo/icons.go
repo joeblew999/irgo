@@ -351,3 +351,39 @@ func writeMSIXAssets(assetsDir, iconPath, appName string) error {
 	}
 	return nil
 }
+
+// generateIOSIcons writes the app icon into the Xcode asset catalog. Xcode 14+
+// accepts a single 1024x1024 universal image and derives every other size, so
+// one source PNG covers the whole set.
+//
+// The project sets ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon, so without
+// this the build looks for an icon, finds nothing, and ships the blank default.
+func generateIOSIcons(iconPath, iosProjectPath string) error {
+	src, err := decodeIcon(iconPath)
+	if err != nil {
+		return err
+	}
+	set := filepath.Join(iosProjectPath, "Example", "Assets.xcassets", "AppIcon.appiconset")
+	if err := os.MkdirAll(set, 0o755); err != nil {
+		return err
+	}
+	if err := writeIconVariant(set, src, iconVariant{path: "icon-1024.png", w: 1024, h: 1024}); err != nil {
+		return err
+	}
+	contents := `{
+  "images" : [
+    {
+      "filename" : "icon-1024.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
+`
+	return os.WriteFile(filepath.Join(set, "Contents.json"), []byte(contents), 0o644)
+}

@@ -119,6 +119,13 @@ func ensureOSPackage(key string) error {
 	}
 
 	fmt.Printf("Installing %s (%s) via %s...\n", p.key, p.why, mgr)
+	if mgr == "apt" {
+		// Without a fresh index apt-get install fails with exit 100 ("unable to
+		// locate package") on runners whose image ships a stale package list.
+		if err := runCommand("sudo", "apt-get", "update"); err != nil {
+			fmt.Printf("  Warning: apt-get update failed: %v\n", err)
+		}
+	}
 	if err := runCommand(pkgInstallCmd(mgr, name)[0], pkgInstallCmd(mgr, name)[1:]...); err != nil {
 		return fmt.Errorf("installing %s via %s failed: %w", p.key, mgr, err)
 	}

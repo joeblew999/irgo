@@ -220,6 +220,8 @@ func uninstallTools(all bool) error {
 		return err
 	}
 
+	pruneIrgoStateDir()
+
 	fmt.Printf("\n%d removed, %d kept, %d not present.\n", removed, kept, missing)
 	fmt.Println("Android SDK/NDK/JDK are separate: irgo uninstall-tools android --remove-jdk")
 	return nil
@@ -231,4 +233,14 @@ func checkTool(name, installCmd string) error {
 		return fmt.Errorf("%s not found. Install with: %s", name, installCmd)
 	}
 	return nil
+}
+
+// pruneIrgoStateDir removes ~/.irgo once nothing is left in it. Marker files
+// are irgo's own bookkeeping, so leaving an empty tree behind makes an
+// otherwise-clean machine look provisioned.
+func pruneIrgoStateDir() {
+	// os.Remove only succeeds on an empty directory, which is exactly the
+	// condition we want — never delete state that is still in use.
+	_ = os.Remove(irgoToolsDir())
+	_ = os.Remove(filepath.Join(homeDir(), ".irgo"))
 }

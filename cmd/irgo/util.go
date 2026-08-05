@@ -113,3 +113,16 @@ func firstNonEmpty(vals ...string) string {
 	}
 	return ""
 }
+
+// runHint tells the caller how to run or install what was just produced.
+// Building an artifact and then having to work out how to launch it is a gap
+// every dev hits; the command that made it knows the answer.
+func runHint(lines ...string) {
+	if len(lines) == 0 {
+		return
+	}
+	fmt.Println("  run it:")
+	for _, l := range lines {
+		fmt.Printf("    %s\n", l)
+	}
+}

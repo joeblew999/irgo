@@ -182,6 +182,7 @@ func packageMacOS(identity string, notarize bool, appleID, team, password string
 		}
 	}
 	fmt.Printf("macOS package built: %s\n", dest)
+	runHint("open " + dest)
 	if dmg {
 		fmt.Printf("  (dmg: %s)\n", filepath.Join(distPath("macos"), appName+".dmg"))
 	}

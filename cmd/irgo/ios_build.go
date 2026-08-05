@@ -53,6 +53,15 @@ func buildIOSApp(modulePath string, device bool, team string) error {
 	// a plain build must produce a self-contained app.
 	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
 
+	// Single-source app icon, same as macOS/Android/Windows.
+	if ic := findAppIcon(""); ic != "" {
+		if err := generateIOSIcons(ic, "ios/Example"); err != nil {
+			fmt.Printf("Warning: could not write iOS app icon: %v\n", err)
+		} else {
+			fmt.Println("  wrote iOS app icon from " + ic)
+		}
+	}
+
 	appPath, err := buildXcodeApp("ios/Example", device, team)
 	if err != nil {
 		return err

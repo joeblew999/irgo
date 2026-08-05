@@ -71,7 +71,7 @@ func main() {
 		}
 
 		if platform == "desktop" {
-			err = runDesktop(devMode)
+			err = runDesktop(devMode, hasFlag(os.Args[3:], "--built", "-b"))
 		} else {
 			err = runMobile(platform, devMode, avd, headless)
 		}
@@ -188,6 +188,9 @@ func main() {
 			err = fmt.Errorf("unknown package target: %s (use ios, android, macos, windows, or setup)", target)
 		}
 
+	case "clean":
+		err = runClean(hasFlag(os.Args[2:], "--all", "-a"))
+
 	case "templ":
 		err = runTempl()
 
@@ -271,6 +274,7 @@ Commands:
   package <target> Package for stores (ios .ipa, android .aab, macos .app/.dmg, windows .msix)
   package setup    Guide: how to get every store config value
   reviews <ios|android>   Monitor app store reviews (reply on android)
+  clean [--all]    Remove generated output (--all: also node_modules/caches)
   templ            Generate templ files
   assets           Regenerate embedded assets (templ + Tailwind CSS)
   test             Run tests
@@ -292,6 +296,8 @@ Examples:
   irgo run android --dev Hot-reload mode (connects to dev server)
   irgo run desktop       Run as desktop app
   irgo run desktop --dev Desktop app with devtools enabled
+  irgo run desktop --built
+                         Launch the app from irgo build desktop
   irgo build ios         Build iOS framework only
   irgo build ios --sim   Build the runnable iOS Simulator app
   irgo build ios --device --team ID
@@ -470,6 +476,25 @@ Usage: irgo serve
 
 Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
 hot reload (that path needs entr; this one has no extra dependency).`)
+
+	case "clean":
+		fmt.Println(`irgo clean - Remove generated output
+
+Usage:
+  irgo clean         Build output, native shells, generated code
+  irgo clean --all   Also node_modules and Gradle caches
+
+Removes only what irgo produces — compiled output, store packages, the
+scaffolded ios/Example and android/Example shells, _templ.go, the generated
+stylesheet, and the gomobile go.work. Nothing you wrote is touched, and
+everything removed is rebuilt by the next build.
+
+Reach for this when a stale artifact is the suspect: a framework built by an
+older irgo exposes an older bridge API, and the native shells then fail to
+compile against it.
+
+--all additionally drops dependency trees and caches, which are slow to
+refetch — so the plain form stays quick.`)
 
 	case "assets":
 		fmt.Println(`irgo assets - Regenerate the embedded assets

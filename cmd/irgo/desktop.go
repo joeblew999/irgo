@@ -9,8 +9,13 @@ import (
 	"strings"
 )
 
-// runDesktop builds and runs a desktop app
-func runDesktop(devMode bool) error {
+// runDesktop builds and runs a desktop app. With built=true it launches the
+// artifact `irgo build desktop` produced instead of `go run` — that is the one
+// that behaves like what ships (bundled resources, app icon, no toolchain).
+func runDesktop(devMode, built bool) error {
+	if built {
+		return launchBuiltDesktop()
+	}
 	fmt.Println("Starting desktop app...")
 
 	// Verify the toolchain before running (clear errors, idempotent — never
@@ -191,6 +196,7 @@ func buildDesktopMacOS(modulePath string) error {
 	}
 
 	fmt.Printf("macOS app built: %s\n", appBundle)
+	runHint("open "+appBundle, "irgo run desktop --built")
 	return nil
 }
 
@@ -250,6 +256,7 @@ func buildDesktopWindows(modulePath string) error {
 	}
 
 	fmt.Printf("Windows app built: %s\n", binaryPath)
+	runHint(binaryPath, "irgo run desktop --built  (on Windows)")
 	return nil
 }
 
@@ -282,6 +289,7 @@ func buildDesktopLinux(modulePath string) error {
 	}
 
 	fmt.Printf("Linux app built: %s\n", binaryPath)
+	runHint("./"+binaryPath, "irgo run desktop --built")
 	return nil
 }
 
@@ -387,4 +395,35 @@ func hasFlag(args []string, flags ...string) bool {
 		}
 	}
 	return false
+}
+
+// launchBuiltDesktop runs the artifact from build/desktop for this host.
+func launchBuiltDesktop() error {
+	modulePath, err := getModulePath()
+	if err != nil {
+		return fmt.Errorf("could not determine module path: %w", err)
+	}
+	app := filepath.Base(modulePath)
+
+	var path string
+	var cmd []string
+	switch runtime.GOOS {
+	case "darwin":
+		path = filepath.Join("build/desktop/macos", app+".app")
+		cmd = []string{"open", path}
+	case "windows":
+		path = filepath.Join("build/desktop/windows", app+".exe")
+		cmd = []string{path}
+	case "linux":
+		path = filepath.Join("build/desktop/linux", app)
+		cmd = []string{"./" + path}
+	default:
+		return fmt.Errorf("no desktop artifact layout known for %s", runtime.GOOS)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("no built app at %s — build it first: irgo build desktop", path)
+	}
+	fmt.Printf("Launching %s...\n", path)
+	return runCommand(cmd[0], cmd[1:]...)
 }

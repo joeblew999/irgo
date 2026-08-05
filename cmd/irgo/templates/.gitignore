@@ -29,10 +29,14 @@ android/Example/local.properties
 
 # Store packages + config produced by `irgo package` / `irgo reviews`
 # (dist/ holds per-target store builds; irgo.package.toml is regenerated and
-# may hold keystore paths/passwords — never commit it)
+# may hold keystore paths/passwords — never commit it).
+#
+# appicon.png is deliberately NOT ignored: it is the single source icon YOU
+# provide, and every platform icon is derived from it at build time. Ignoring
+# it meant an icon never reached CI or teammates, so builds silently shipped
+# the platform default.
 dist/
 irgo.package.toml
-appicon.png
 
 # IDE
 .idea/

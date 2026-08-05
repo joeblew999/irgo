@@ -97,6 +97,27 @@ func hostCapabilities() []capability {
 		)
 	}
 
+	// Packaging: what can actually be shipped from here. Each mirrors the gate
+	// in runPackage, so the report cannot drift from the real behaviour.
+	mac := runtime.GOOS == "darwin"
+	win := runtime.GOOS == "windows"
+	pkg := func(target, note, blockedNote string, ok bool) capability {
+		if ok {
+			return capability{target, capReady, note}
+		}
+		return capability{target, capBlocked, blockedNote}
+	}
+	caps = append(caps,
+		pkg("package ios (.ipa)", "needs a signing team — irgo package setup ios",
+			"requires macOS (Xcode + codesign) — run on a Mac or macos-latest in CI", mac),
+		pkg("package macos (.app/.dmg)", "notarization needs an Apple ID — irgo package setup macos",
+			"requires macOS (codesign/notarytool/hdiutil) — run on a Mac or macos-latest in CI", mac),
+		pkg("package windows (.msix)", "needs the Windows SDK (MakeAppx/signtool)",
+			"requires Windows (MakeAppx/signtool) — run on Windows or windows-latest in CI", win),
+		capability{"package android (.aab)", capFixable,
+			"builds anywhere — signing needs a keystore: irgo package setup android"},
+	)
+
 	// Android builds anywhere; only the emulator has host limits.
 	caps = append(caps, capability{"android (AAR/APK)", capFixable,
 		"irgo installs the JDK, SDK and NDK on first build — Android Studio not needed"})
@@ -151,6 +172,7 @@ func doctorHost(strict bool) error {
 	drift := checkPinDrift()
 
 	fmt.Println()
+	fmt.Println("Store config:     irgo package setup --check")
 	fmt.Println("Toolchain detail: irgo doctor android")
 	if strict && drift {
 		return fmt.Errorf("CLI pin drift: IRGO_REPLACE and go.mod disagree")

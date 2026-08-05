@@ -963,6 +963,7 @@ func uninstallAndroidTools(removeJDK bool) error {
 		fmt.Printf("SDK at %s was not installed by irgo — leaving it in place.\n", sdk)
 	}
 	fmt.Println("Android tooling removed.")
+	pruneIrgoStateDir()
 	return nil
 }
 

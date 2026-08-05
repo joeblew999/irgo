@@ -143,5 +143,11 @@ func packageIOS(team, exportMethod, out string) error {
 		return fmt.Errorf("copying ipa: %w", err)
 	}
 	fmt.Printf("iOS package built: %s\n", out)
+	runHint(
+		"an .ipa installs on a device, not the simulator:",
+		"xcrun devicectl device install app --device <UDID> "+out,
+		"or upload to TestFlight: xcrun altool --upload-app -f "+out,
+		"for the simulator instead: irgo run ios",
+	)
 	return nil
 }
