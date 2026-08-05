@@ -144,8 +144,10 @@ func buildAndroid(modulePath string) error {
 	}
 
 	mobilePackage := modulePath + "/mobile"
-	if err := runGomobileCommand("bind", "-target", "android", "-o", outPath, mobilePackage); err != nil {
-		return fmt.Errorf("gomobile bind failed: %w", err)
+        // Pin the Android API level explicitly: gomobile defaults to API 16,
+        // which modern NDKs (r26/r27) reject with "unsupported API version 16".
+        // API 21 is the floor every current NDK supports.
+        if err := runGomobileCommand("bind", "-target", "android", "-androidapi", "21", "-o", outPath, mobilePackage); err != nil {
 	}
 	writeArtifactStamp("build/android")
 
