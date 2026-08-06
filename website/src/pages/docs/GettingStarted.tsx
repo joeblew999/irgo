@@ -36,10 +36,9 @@ go install .`}
       <h2>Create a New Project</h2>
 
       <CodeBlock language="bash">
-        {`irgo new myapp
+        {`irgo project new myapp
 cd myapp
-go mod tidy
-bun install  # or: npm install`}
+go mod tidy`}
       </CodeBlock>
 
       <p>This creates a new project with the following structure:</p>
@@ -50,7 +49,6 @@ bun install  # or: npm install`}
 ├── main_desktop.go      # Desktop entry point
 ├── go.mod               # Go module definition
 ├── .air.toml            # Hot reload configuration
-├── package.json         # Node dependencies (Tailwind 4)
 ├── app/
 │   └── app.go           # Router setup
 ├── handlers/
@@ -71,7 +69,7 @@ bun install  # or: npm install`}
 
       <h3>Web Development (Hot Reload)</h3>
 
-      <CodeBlock language="bash">{`irgo dev`}</CodeBlock>
+      <CodeBlock language="bash">{`irgo server dev`}</CodeBlock>
 
       <p>
         This starts a development server at <code>http://localhost:8080</code>{" "}
@@ -81,22 +79,22 @@ bun install  # or: npm install`}
       <h3>Desktop Development</h3>
 
       <CodeBlock language="bash">
-        {`irgo run desktop         # Run as desktop app
-irgo run desktop --dev   # With browser devtools enabled`}
+        {`irgo app run desktop         # Run as desktop app
+irgo app run desktop --dev   # With browser devtools enabled`}
       </CodeBlock>
 
       <h3>iOS Development</h3>
 
       <CodeBlock language="bash">
-        {`irgo run ios --dev       # Hot reload with iOS Simulator
-irgo run ios             # Production build`}
+        {`irgo app run ios --dev       # Hot reload with iOS Simulator
+irgo app run ios             # Production build`}
       </CodeBlock>
 
       <h3>Android Development</h3>
 
       <CodeBlock language="bash">
-        {`irgo run android --dev   # Hot reload with Android Emulator
-irgo run android         # Production build`}
+        {`irgo app run android --dev   # Hot reload with Android Emulator
+irgo app run android         # Production build`}
       </CodeBlock>
 
       <h2>Building for Production</h2>
@@ -104,18 +102,18 @@ irgo run android         # Production build`}
       <h3>Desktop</h3>
 
       <CodeBlock language="bash">
-        {`irgo build desktop           # Build for current platform
-irgo build desktop macos     # Build macOS .app bundle
-irgo build desktop windows   # Build Windows .exe
-irgo build desktop linux     # Build Linux binary`}
+        {`irgo app build desktop           # Build for current platform
+irgo app build desktop macos     # Build macOS .app bundle
+irgo app build desktop windows   # Build Windows .exe
+irgo app build desktop linux     # Build Linux binary`}
       </CodeBlock>
 
       <h3>Mobile</h3>
 
       <CodeBlock language="bash">
-        {`irgo build ios               # Build iOS framework
-irgo build android           # Build Android AAR
-irgo build all               # Build for all mobile platforms`}
+        {`irgo app build ios               # Build iOS framework
+irgo app build android           # Build Android AAR
+irgo app build all               # Build for all mobile platforms`}
       </CodeBlock>
 
       <h2>Your First Handler</h2>
@@ -192,8 +190,8 @@ func NewRouter() *router.Router {
       <h3>4. Generate Templates and Run</h3>
 
       <CodeBlock language="bash">
-        {`irgo templ      # Generate _templ.go files
-irgo dev        # Start development server`}
+        {`irgo project assets      # Generate _templ.go files
+irgo server dev        # Start development server`}
       </CodeBlock>
 
       <p>

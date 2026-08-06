@@ -20,16 +20,16 @@ export const CLIPage: FC = () => {
 
       <h2>Commands</h2>
 
-      <h3>irgo new</h3>
+      <h3>irgo project new</h3>
 
       <p>Create a new irgo project.</p>
 
       <CodeBlock language="bash">
         {`# Create new project in directory
-irgo new myapp
+irgo project new myapp
 
 # Initialize in current directory
-irgo new .`}
+irgo project new .`}
       </CodeBlock>
 
       <p>This creates a complete project structure with:</p>
@@ -41,68 +41,68 @@ irgo new .`}
         <li>Hot reload configuration via air</li>
       </ul>
 
-      <h3>irgo dev</h3>
+      <h3>irgo server dev</h3>
 
       <p>Start the development server with hot reload.</p>
 
-      <CodeBlock language="bash">{`irgo dev`}</CodeBlock>
+      <CodeBlock language="bash">{`irgo server dev`}</CodeBlock>
 
       <p>
         Starts a web server at <code>http://localhost:8080</code> with automatic
         reload when Go or templ files change.
       </p>
 
-      <h3>irgo run</h3>
+      <h3>irgo app run</h3>
 
       <p>Run the application for a specific platform.</p>
 
       <CodeBlock language="bash">
         {`# Desktop
-irgo run desktop         # Run desktop app
-irgo run desktop --dev   # With devtools enabled
+irgo app run desktop         # Run desktop app
+irgo app run desktop --dev   # With devtools enabled
 
 # iOS
-irgo run ios             # Build and run on Simulator
-irgo run ios --dev       # Hot reload development
+irgo app run ios             # Build and run on Simulator
+irgo app run ios --dev       # Hot reload development
 
 # Android
-irgo run android         # Build and run on Emulator
-irgo run android --dev   # Hot reload development`}
+irgo app run android         # Build and run on Emulator
+irgo app run android --dev   # Hot reload development`}
       </CodeBlock>
 
-      <h3>irgo build</h3>
+      <h3>irgo app build</h3>
 
       <p>Build the application for production.</p>
 
       <CodeBlock language="bash">
         {`# Desktop
-irgo build desktop           # Current platform
-irgo build desktop macos     # macOS .app bundle
-irgo build desktop windows   # Windows .exe
-irgo build desktop linux     # Linux binary
+irgo app build desktop           # Current platform
+irgo app build desktop macos     # macOS .app bundle
+irgo app build desktop windows   # Windows .exe
+irgo app build desktop linux     # Linux binary
 
 # Mobile
-irgo build ios               # iOS framework
-irgo build android           # Android AAR
-irgo build all               # All mobile platforms`}
+irgo app build ios               # iOS framework
+irgo app build android           # Android AAR
+irgo app build all               # All mobile platforms`}
       </CodeBlock>
 
-      <h3>irgo templ</h3>
+      <h3>irgo project assets</h3>
 
       <p>Generate Go code from templ templates.</p>
 
-      <CodeBlock language="bash">{`irgo templ`}</CodeBlock>
+      <CodeBlock language="bash">{`irgo project assets`}</CodeBlock>
 
       <p>
         Runs <code>templ generate</code> to compile <code>.templ</code> files to{" "}
         <code>_templ.go</code>.
       </p>
 
-      <h3>irgo install-tools</h3>
+      <h3>irgo tools install</h3>
 
       <p>Install required development tools.</p>
 
-      <CodeBlock language="bash">{`irgo install-tools`}</CodeBlock>
+      <CodeBlock language="bash">{`irgo tools install`}</CodeBlock>
 
       <p>Installs:</p>
       <ul>
@@ -184,67 +184,67 @@ irgo help run`}
           <tbody>
             <tr>
               <td>
-                <code>irgo new &lt;name&gt;</code>
+                <code>irgo project new &lt;name&gt;</code>
               </td>
               <td>Create new project</td>
             </tr>
             <tr>
               <td>
-                <code>irgo dev</code>
+                <code>irgo server dev</code>
               </td>
               <td>Start dev server with hot reload</td>
             </tr>
             <tr>
               <td>
-                <code>irgo run desktop [--dev]</code>
+                <code>irgo app run desktop [--dev]</code>
               </td>
               <td>Run as desktop app</td>
             </tr>
             <tr>
               <td>
-                <code>irgo run ios [--dev]</code>
+                <code>irgo app run ios [--dev]</code>
               </td>
               <td>Run on iOS Simulator</td>
             </tr>
             <tr>
               <td>
-                <code>irgo run android [--dev]</code>
+                <code>irgo app run android [--dev]</code>
               </td>
               <td>Run on Android Emulator</td>
             </tr>
             <tr>
               <td>
-                <code>irgo build desktop [platform]</code>
+                <code>irgo app build desktop [platform]</code>
               </td>
               <td>Build desktop app</td>
             </tr>
             <tr>
               <td>
-                <code>irgo build ios</code>
+                <code>irgo app build ios</code>
               </td>
               <td>Build iOS framework</td>
             </tr>
             <tr>
               <td>
-                <code>irgo build android</code>
+                <code>irgo app build android</code>
               </td>
               <td>Build Android AAR</td>
             </tr>
             <tr>
               <td>
-                <code>irgo build all</code>
+                <code>irgo app build all</code>
               </td>
               <td>Build all mobile platforms</td>
             </tr>
             <tr>
               <td>
-                <code>irgo templ</code>
+                <code>irgo project assets</code>
               </td>
               <td>Generate templ files</td>
             </tr>
             <tr>
               <td>
-                <code>irgo install-tools</code>
+                <code>irgo tools install</code>
               </td>
               <td>Install dev dependencies</td>
             </tr>

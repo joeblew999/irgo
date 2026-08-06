@@ -161,7 +161,7 @@ export const HomePage: FC = () => {
             <FeatureCard
               icon={<TerminalIcon size={24} />}
               title="Powerful CLI"
-              description="Create, develop, and build projects with simple commands. irgo new, irgo dev, irgo build - that's it."
+              description="Create, develop, and build projects with simple commands. irgo project new, irgo server dev, irgo app build - that's it."
             />
           </div>
         </div>

@@ -187,22 +187,22 @@ config.Debug = true`}
 
       <CodeBlock language="bash">
 {`# Run directly (compiles and runs)
-irgo run desktop
+irgo app run desktop
 
 # With devtools enabled (for debugging)
-irgo run desktop --dev`}
+irgo app run desktop --dev`}
       </CodeBlock>
 
       <h2>Building Desktop Apps</h2>
 
       <CodeBlock language="bash">
 {`# Build for current platform
-irgo build desktop
+irgo app build desktop
 
 # Build for specific platform
-irgo build desktop macos     # Creates build/desktop/macos/MyApp.app
-irgo build desktop windows   # Creates build/desktop/windows/MyApp.exe
-irgo build desktop linux     # Creates build/desktop/linux/myapp`}
+irgo app build desktop macos     # Creates build/desktop/macos/MyApp.app
+irgo app build desktop windows   # Creates build/desktop/windows/MyApp.exe
+irgo app build desktop linux     # Creates build/desktop/linux/myapp`}
       </CodeBlock>
 
       <h3>Build Output</h3>
