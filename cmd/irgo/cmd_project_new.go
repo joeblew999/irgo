@@ -304,6 +304,17 @@ func newProject(name string) error {
 			}
 		}
 
+		// appicon.png is the one source image every platform's icons are
+		// generated from, and the shipped one is a placeholder. Overwriting it
+		// replaces the project's actual icon with that placeholder, and the
+		// loss is silent until a build produces an app branded as irgo.
+		if path == "templates/appicon.png" {
+			if _, err := os.Stat(filepath.Join(projectDir, "appicon.png")); err == nil {
+				fmt.Println("  kept (yours): appicon.png")
+				return nil
+			}
+		}
+
 		// The CI workflows live under templates/github but are not part of a
 		// new project — `irgo ci` scaffolds them to .github/ on request.
 		// Without this they land in every project as a stray github/ folder
