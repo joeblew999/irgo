@@ -318,6 +318,12 @@ func main() {
 
 	case "version", "-v", "--version":
 		fmt.Printf("irgo %s\n", version)
+		// Build info reports the *required* module version, so a project
+		// tracking a fork or a checkout would be told v0.4.0 while running
+		// something else entirely. go.mod has the answer.
+		if r := projectReplacement(); r != "" {
+			fmt.Printf("  running: %s\n", r)
+		}
 
 	case "help", "-h", "--help":
 		if len(os.Args) > 2 {

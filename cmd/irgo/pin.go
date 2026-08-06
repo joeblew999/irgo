@@ -179,3 +179,22 @@ func tidy() error {
 	fmt.Println("go.mod updated — `go tool irgo` now uses it.")
 	return nil
 }
+
+// projectReplacement returns the replacement this project pins irgo to, or ""
+// when it tracks the published module (or there is no go.mod here).
+func projectReplacement() string {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return ""
+	}
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if !strings.HasPrefix(line, "replace "+upstreamModule) {
+			continue
+		}
+		if i := strings.Index(line, "=>"); i >= 0 {
+			return strings.TrimSpace(line[i+2:])
+		}
+	}
+	return ""
+}
