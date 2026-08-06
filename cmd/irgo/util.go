@@ -2,7 +2,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -132,3 +134,16 @@ func pathExists(p string) bool { _, err := os.Stat(p); return err == nil }
 func removeAllPath(p string) error { return os.RemoveAll(p) }
 
 func baseName(modulePath string) string { return filepath.Base(modulePath) }
+
+// runCommandCapture runs a command, streams it to the terminal as usual, and
+// also returns the combined output so the caller can diagnose the failure.
+// Tools like xcodebuild bury the actionable line in a wall of build log.
+func runCommandCapture(name string, args ...string) (string, error) {
+	var buf bytes.Buffer
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stdin = os.Stdin
+	err := cmd.Run()
+	return buf.String(), err
+}

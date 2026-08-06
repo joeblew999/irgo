@@ -516,8 +516,9 @@ func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
 	args = append(args, "build")
 
 	fmt.Println("Building for device...")
-	if err := runCommand("xcodebuild", args...); err != nil {
-		return "", fmt.Errorf("%w\n\n%s", err, iosSigningHelp(team))
+	out, err := runCommandCapture("xcodebuild", args...)
+	if err != nil {
+		return "", fmt.Errorf("%w\n\n%s", err, iosDeviceBuildHelp(out, team))
 	}
 
 	appPath := "build/ios/DerivedData-Device/Build/Products/Debug-iphoneos/Example.app"
@@ -525,6 +526,27 @@ func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
 		return "", fmt.Errorf("built app not found at %s", appPath)
 	}
 	return appPath, nil
+}
+
+// iosDeviceBuildHelp turns an xcodebuild failure into the specific thing to go
+// and do. Both blockers here are physical actions on the device or in Xcode
+// that no CLI can perform, so naming the exact one matters more than usual.
+func iosDeviceBuildHelp(out, team string) string {
+	if strings.Contains(out, "Developer Mode disabled") {
+		return "Developer Mode is off on the iPhone — enable it first:\n" +
+			"    1. On the iPhone: Settings → Privacy & Security → Developer Mode → On\n" +
+			"    2. The phone restarts; unlock it and confirm Turn On\n" +
+			"    3. irgo run ios --device\n" +
+			"  The option only appears after a Mac has tried to use the device for\n" +
+			"  development, which this build just did — so it is there now."
+	}
+	if strings.Contains(out, "requires a provisioning profile") ||
+		strings.Contains(out, "No signing certificate") ||
+		strings.Contains(out, "no profiles for") ||
+		strings.Contains(out, "Signing for") {
+		return iosSigningHelp(team)
+	}
+	return iosSigningHelp(team)
 }
 
 // iosSigningHelp explains the one thing irgo cannot do for you. Running on a

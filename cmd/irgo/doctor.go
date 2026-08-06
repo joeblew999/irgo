@@ -86,7 +86,7 @@ func hostCapabilities() []capability {
 		caps = append(caps,
 			capability{"ios (framework)", state, note},
 			capability{"ios (simulator app)", state, note},
-			capability{"ios (device/App Store)", state, strings.TrimSpace(note + " — needs a signing team: --team ID")},
+			capability{"ios (device/App Store)", state, iosDeviceNote(state)},
 		)
 	} else {
 		blocked := "requires macOS (Xcode) — cannot cross-compile from " + runtime.GOOS
@@ -212,4 +212,29 @@ func checkPinDrift() bool {
 		return false
 	}
 	return false
+}
+
+// iosDeviceNote reports the two prerequisites a physical-device run needs that
+// a simulator run does not: a signing identity, and a device that is attached
+// with Developer Mode enabled. Both are manual, so surfacing them here saves a
+// full build that fails at the last step.
+func iosDeviceNote(state string) string {
+	if state == capBlocked {
+		return "install Xcode from the App Store (irgo cannot install it)"
+	}
+	var parts []string
+
+	out, err := exec.Command("security", "find-identity", "-v", "-p", "codesigning").Output()
+	if err != nil || strings.Contains(string(out), "0 valid identities") {
+		parts = append(parts, "no signing identity (Xcode → Settings → Accounts; a free Apple ID works)")
+	} else {
+		parts = append(parts, "signing identity present")
+	}
+
+	if devs, err := listIOSDevices(); err == nil && len(devs) > 0 {
+		parts = append(parts, fmt.Sprintf("%s attached", devs[0].name))
+	} else {
+		parts = append(parts, "no device attached")
+	}
+	return strings.Join(parts, "; ")
 }
