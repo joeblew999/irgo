@@ -10,7 +10,9 @@
 //	app       what gets built, run, shipped and installed
 //	tools     the toolchains on this machine
 //	server    the development server
-//	ios       Apple-specific settings
+//
+// There is deliberately no platform noun. ios, android and desktop are targets
+// — `app build ios` — so a noun of the same name would mean two things.
 //
 // Every previous spelling still routes here, so nothing that worked stops
 // working; the old form prints where it moved to.
@@ -46,6 +48,8 @@ func route(noun, verb string, args []string) (error, bool) {
 			return ensureAssets(), true
 		case "test":
 			return runTest(), true
+		case "config":
+			return runConfig(args), true
 		}
 
 	case "app":
@@ -122,9 +126,14 @@ func route(noun, verb string, args []string) (error, bool) {
 		}
 
 	case "ios":
-		switch verb {
-		case "team":
-			return runIOSTeamCmd(args), true
+		// Kept only so `irgo ios team` still works. ios is a target
+		// (app build ios), never a noun.
+		if verb == "team" {
+			deprecated("ios team", "project config ios.team")
+			if len(args) > 0 {
+				return setConfig("ios.team", args[0]), true
+			}
+			return showOneConfig("ios.team"), true
 		}
 	}
 	return nil, false
@@ -133,11 +142,10 @@ func route(noun, verb string, args []string) (error, bool) {
 // nounVerbs lists what each noun accepts, so an unknown verb is answered with
 // the alternatives rather than the whole CLI.
 var nounVerbs = map[string][]string{
-	"project": {"new", "clean", "upgrade", "pin", "ci", "assets", "test"},
+	"project": {"new", "clean", "upgrade", "pin", "ci", "assets", "test", "config"},
 	"app":     {"build", "run", "package", "install", "remove", "reviews"},
 	"tools":   {"install", "remove", "doctor"},
 	"server":  {"dev", "serve"},
-	"ios":     {"team"},
 }
 
 // legacy maps every previous spelling to its noun and verb. Renaming without

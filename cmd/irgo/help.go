@@ -23,6 +23,7 @@ PROJECT   the repository you are in
   project ci [--force]     Scaffold GitHub Actions workflows
   project upgrade          Take framework updates, leaving your code alone
   project pin [target]     Which irgo this project builds against
+  project config [k] [v]   Show or set a setting (signing, stores, version)
 
 APP       what gets built, shipped and installed
   app build <ios|android|desktop|all>      Build it
@@ -41,9 +42,6 @@ SERVER    the development server
   server dev               Hot reload
   server serve             No file watching
 
-IOS
-  ios team [ID]            List signing teams, or select one
-
   version                  Print version information
   help [command]           Detail for one command
 
@@ -57,6 +55,7 @@ Examples:
   irgo app package macos --dmg       Signed .app and a DMG
   irgo app install desktop           Put the built app in /Applications
   irgo tools remove --yes            Undo everything irgo installed
+  irgo project config ios.team       Which team signs, and what is available
   irgo project pin --local ../irgo   Build a checkout you are editing
 
 Earlier spellings (irgo build, irgo doctor, irgo dev, ...) still work and say
@@ -322,6 +321,27 @@ wins for a one-off.
 With several teams and none chosen, a device build stops and lists them rather
 than picking one — the wrong team fails later as an Apple-side error that never
 mentions the team.`)
+
+	case "config":
+		fmt.Println(`irgo project config - Settings for this project
+
+Usage:
+  irgo project config                  Every setting, its value and its source
+  irgo project config <key>            One setting
+  irgo project config <key> <value>    Set it
+
+Settings live in irgo.package.toml, which is committed. Precedence, highest
+first: a command flag, an environment variable (what a CI secret is called),
+irgo.package.local.toml (gitignored, for secrets), then this file.
+
+Secrets — passwords, certificates, keys — are marked when you set them and
+belong in irgo.package.local.toml or the environment, not the committed file.
+
+This replaced 'irgo ios team', which was the only command named after a
+platform. Platforms are targets (irgo app build ios), never nouns, and one
+accessor covers every setting rather than growing a command per value. Where
+valid values are discoverable rather than looked up — signing teams — they are
+listed alongside.`)
 
 	case "pin":
 		fmt.Println(`irgo pin - Which irgo does this project build against?
