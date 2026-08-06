@@ -196,6 +196,13 @@ func main() {
 			err = fmt.Errorf("unknown package target: %s (use ios, android, macos, windows, or setup)", target)
 		}
 
+	case "ios":
+		if len(os.Args) > 2 && os.Args[2] == "team" {
+			err = runIOSTeamCmd(os.Args[3:])
+		} else {
+			err = fmt.Errorf("usage: irgo ios team [TEAM_ID]")
+		}
+
 	case "clean":
 		err = runClean(hasFlag(os.Args[2:], "--all", "-a"))
 
@@ -297,6 +304,7 @@ Commands:
   package <target> Package for stores (ios .ipa, android .aab, macos .app/.dmg, windows .msix)
   package setup    Guide: how to get every store config value
   reviews <ios|android>   Monitor app store reviews (reply on android)
+  ios team [ID]    List development teams, or select one for device builds
   clean [--all]    Remove generated output (--all: also node_modules/caches)
   uninstall <p>    Remove the installed app (ios, android, desktop, or all)
   templ            Generate templ files

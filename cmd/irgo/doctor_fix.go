@@ -317,3 +317,133 @@ func xcodeAppleID() string {
 func canSignForDevice() bool {
 	return len(xcodeTeams()) > 0 || hasSigningIdentity()
 }
+
+// resolveIOSTeam decides which development team signs a device build, and
+// reports where the choice came from so a surprising one can be traced.
+//
+// Order: explicit flag, environment, irgo.package.toml [ios] team, then the
+// teams Xcode knows. With several teams and no preference recorded, it refuses
+// rather than guessing — picking the wrong one produces an Apple-side error
+// (a device limit, an expired membership) that looks nothing like "wrong team".
+func resolveIOSTeam(flagTeam string) (team, source string, err error) {
+	// Every source is validated the same way. A typo in a flag or an env var
+	// fails identically to a stale config entry, and checkTeamKnown is a no-op
+	// where Xcode lists no teams at all — CI, which signs from a secret.
+	if flagTeam != "" {
+		return flagTeam, "--team", checkTeamKnown(flagTeam)
+	}
+	if v := os.Getenv("IRGO_IOS_TEAM"); v != "" {
+		return v, "env IRGO_IOS_TEAM", checkTeamKnown(v)
+	}
+	if v := os.Getenv("DEVELOPMENT_TEAM"); v != "" {
+		return v, "env DEVELOPMENT_TEAM", checkTeamKnown(v)
+	}
+	if cfg := parsePackageConfig(); cfg.IOSTeam != "" {
+		// A recorded team can go stale — the Apple ID it came from may have
+		// been removed from Xcode since. Using it anyway fails deep inside
+		// xcodebuild with an Apple-side message that never mentions the team,
+		// so say it here instead.
+		if err := checkTeamKnown(cfg.IOSTeam); err != nil {
+			return "", "", err
+		}
+		return cfg.IOSTeam, packageConfigFile + " [ios] team", nil
+	}
+	if v := deriveIOSTeamFromXcode(); v != "" {
+		return v, "the Xcode project", nil
+	}
+
+	teams := xcodeTeams()
+	switch len(teams) {
+	case 0:
+		return "", "", fmt.Errorf("no development team found.\n" +
+			"  Sign an Apple ID into Xcode (Settings → Apple Accounts); a free one works.\n" +
+			"  Then irgo picks up the team automatically.")
+	case 1:
+		return teams[0].id, "the Apple ID in Xcode", nil
+	default:
+		return "", "", fmt.Errorf("several development teams are available — pick one:\n\n%s\n"+
+			"  Choose per run:      irgo run ios --device --team <TEAM_ID>\n"+
+			"  Or record it once:   irgo ios team <TEAM_ID>\n"+
+			"                       (writes [ios] team to %s)",
+			formatTeams(teams, ""), packageConfigFile)
+	}
+}
+
+// checkTeamKnown reports when a configured team is not one Xcode has. It is a
+// no-op when Xcode lists none at all: CI signs with a team from a secret and
+// has no local account, which is legitimate.
+func checkTeamKnown(id string) error {
+	teams := xcodeTeams()
+	if len(teams) == 0 {
+		return nil
+	}
+	for _, t := range teams {
+		if t.id == id {
+			return nil
+		}
+	}
+	return fmt.Errorf("team %s is not one Xcode has.\n"+
+		"  Either it is a typo, or the Apple ID it came from was removed.\n\n"+
+		"  Available:\n%s\n"+
+		"  Pick one:  irgo ios team <TEAM_ID>   (records it in %s)",
+		id, formatTeams(teams, ""), packageConfigFile)
+}
+
+// formatTeams renders the team list, marking the one in use.
+func formatTeams(teams []xcodeTeam, selected string) string {
+	var b strings.Builder
+	for _, t := range teams {
+		kind := "paid"
+		if t.free {
+			kind = "free"
+		}
+		mark := "   "
+		if t.id == selected {
+			mark = " → "
+		}
+		fmt.Fprintf(&b, "  %s%-12s %-6s %s\n", mark, t.id, kind, t.name)
+	}
+	return b.String()
+}
+
+// runIOSTeamCmd records the team to use, so it does not have to be passed on
+// every run. Called with no argument it lists what is available.
+func runIOSTeamCmd(args []string) error {
+	teams := xcodeTeams()
+	cur, src, _ := resolveIOSTeam("")
+
+	if len(args) == 0 {
+		if len(teams) == 0 {
+			fmt.Println("No development teams. Sign an Apple ID into Xcode (Settings → Apple Accounts).")
+			return nil
+		}
+		fmt.Println("Development teams available to Xcode:")
+		fmt.Println()
+		fmt.Print(formatTeams(teams, cur))
+		fmt.Println()
+		if cur != "" {
+			fmt.Printf("In use: %s (from %s)\n", cur, src)
+		} else {
+			fmt.Println("None selected.")
+		}
+		fmt.Printf("\nSelect one:  irgo ios team <TEAM_ID>\n")
+		return nil
+	}
+
+	id := args[0]
+	known := len(teams) == 0 // cannot validate when Xcode reports none
+	for _, t := range teams {
+		if t.id == id {
+			known = true
+		}
+	}
+	if !known {
+		return fmt.Errorf("team %s is not one Xcode knows about:\n\n%s\n"+
+			"  Add its Apple ID first: Xcode → Settings → Apple Accounts", id, formatTeams(teams, ""))
+	}
+	if err := writeConfigValue("ios", "team", id); err != nil {
+		return err
+	}
+	fmt.Printf("Team %s recorded in %s — device builds will use it.\n", id, packageConfigFile)
+	return nil
+}

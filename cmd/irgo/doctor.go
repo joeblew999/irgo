@@ -187,6 +187,7 @@ func doctorHost(strict bool) error {
 	}
 	drift := checkPinDrift()
 
+	printTeamDetail()
 	printXcodeDetail()
 
 	fmt.Println()
@@ -244,11 +245,12 @@ func iosDeviceCapability(xcodeState string) (state, note string) {
 	needsAction := false
 
 	if teams := xcodeTeams(); len(teams) > 0 {
-		kind := "team"
-		if teams[0].free {
-			kind = "free personal team"
+		if cur, src, terr := resolveIOSTeam(""); terr == nil {
+			parts = append(parts, fmt.Sprintf("team %s (from %s)", cur, src))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d teams, none selected — irgo ios team <ID>", len(teams)))
+			needsAction = true
 		}
-		parts = append(parts, fmt.Sprintf("%s %s (%s)", kind, teams[0].id, teams[0].name))
 	} else if hasSigningIdentity() {
 		parts = append(parts, "signing identity present")
 	} else {
@@ -365,4 +367,23 @@ func xcodeMajor(ver string) int {
 		return 0
 	}
 	return n
+}
+
+// printTeamDetail lists every development team, so choosing between them is a
+// visible decision rather than a guess about which one irgo picked.
+func printTeamDetail() {
+	teams := xcodeTeams()
+	if len(teams) == 0 {
+		return
+	}
+	cur, src, _ := resolveIOSTeam("")
+	fmt.Println()
+	fmt.Println("Development teams:")
+	fmt.Print(formatTeams(teams, cur))
+	if cur != "" {
+		fmt.Printf("  in use: %s (from %s)\n", cur, src)
+	}
+	if len(teams) > 1 {
+		fmt.Println("  select: irgo ios team <TEAM_ID>")
+	}
 }

@@ -322,7 +322,17 @@ func runSetupWizard(store string, missing []configValue) error {
 func writeConfigValue(section, key, value string) error {
 	lines, err := os.ReadFile(packageConfigFile)
 	if err != nil {
-		return err
+		// A project generated before the config existed, or one where it was
+		// deleted, should still be able to record a setting rather than fail
+		// with a bare "no such file".
+		if !os.IsNotExist(err) {
+			return err
+		}
+		seed := "# irgo package configuration — see: irgo package setup\n"
+		if werr := os.WriteFile(packageConfigFile, []byte(seed), 0o644); werr != nil {
+			return fmt.Errorf("creating %s: %w", packageConfigFile, werr)
+		}
+		lines = []byte(seed)
 	}
 	text := strings.Split(string(lines), "\n")
 	curSection := ""
