@@ -6,7 +6,7 @@
 // other:
 //
 //	main.go                 argument handling only
-//	cmd_route.go            the noun/verb table, and every legacy spelling
+//	cmd_route.go            the noun/verb table
 //	help.go                 the help text
 //	cmd_<noun>.go           a noun and its verbs
 //	cmd_<noun>_<verb>.go    one verb, when it is large enough to stand alone
@@ -40,7 +40,7 @@ const fallbackVersion = "0.4.0"
 
 // cliVersion reports the module version this binary was built from, falling
 // back to the VCS revision for a local checkout — which is exactly the case
-// `irgo pin --local` creates, and worth naming so a surprising result is
+// `irgo project pin --local` creates, and worth naming so a surprising result is
 // traceable to a working tree rather than a release.
 func cliVersion() string {
 	bi, ok := debug.ReadBuildInfo()
@@ -79,16 +79,9 @@ func main() {
 
 	var err error
 
-	// One grammar: <noun> <verb> [target]. A previous spelling is mapped to
-	// its noun and verb rather than handled separately, so there is one
-	// implementation of every command and the old form cannot drift from it.
+	// One grammar, no exceptions: <noun> <verb> [target].
 	noun, verb, rest := os.Args[1], "", os.Args[2:]
-	if nv, ok := legacy[noun]; ok {
-		if noun != nv[0] || (len(os.Args) > 2 && os.Args[2] != nv[1]) {
-			deprecated(noun, nv[0]+" "+nv[1])
-		}
-		noun, verb = nv[0], nv[1]
-	} else if len(os.Args) > 2 {
+	if len(os.Args) > 2 {
 		verb, rest = os.Args[2], os.Args[3:]
 	}
 
@@ -99,10 +92,15 @@ func main() {
 			fmt.Printf("  running: %s\n", r)
 		}
 	case "help", "-h", "--help":
-		if len(os.Args) > 2 {
-			printCommandHelp(os.Args[2])
-		} else {
+		// `irgo help`, `irgo help app`, `irgo help app run` — the same grammar
+		// as the commands themselves.
+		switch len(os.Args) {
+		case 2:
 			printUsage()
+		case 3:
+			printCommandHelp(os.Args[2], "")
+		default:
+			printCommandHelp(os.Args[2], os.Args[3])
 		}
 	default:
 		var handled bool
@@ -115,6 +113,8 @@ func main() {
 					err = fmt.Errorf("unknown command: irgo %s %s\n  %s accepts: %s",
 						noun, verb, noun, strings.Join(verbs, ", "))
 				}
+			} else if now, moved := renamed[noun]; moved {
+				err = fmt.Errorf("`irgo %s` was removed — it is now `irgo %s`", noun, now)
 			} else {
 				fmt.Printf("Unknown command: %s\n", noun)
 				printUsage()
@@ -127,8 +127,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func deprecated(old, replacement string) {
-	fmt.Fprintf(os.Stderr, "note: `irgo %s` is now `irgo %s` — the old name still works\n", old, replacement)
 }

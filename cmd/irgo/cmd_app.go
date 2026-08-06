@@ -1,6 +1,6 @@
 // Installing an already-built app.
 //
-// `irgo run` builds, installs and launches in one step, which is right while
+// `irgo app run` builds, installs and launches in one step, which is right while
 // developing and wrong when you want to check the artifact itself: whether the
 // signed bundle installs, whether the packaged app behaves like it will for a
 // user. Doing that meant copying files by hand, which is the fiddling the CLI
@@ -45,7 +45,7 @@ func runAppInstall(platform string) error {
 	}
 }
 
-// iosSimulatorApp is where `irgo build ios --sim` leaves its bundle.
+// iosSimulatorApp is where `irgo app build ios --sim` leaves its bundle.
 const iosSimulatorApp = "build/ios/DerivedData/Build/Products/Debug-iphonesimulator/Example.app"
 
 func installIOSApp() error {
@@ -53,11 +53,11 @@ func installIOSApp() error {
 		return err
 	}
 	if !pathExists(iosSimulatorApp) {
-		return fmt.Errorf("no Simulator app at %s — build it first: irgo build ios --sim", iosSimulatorApp)
+		return fmt.Errorf("no Simulator app at %s — build it first: irgo app build ios --sim", iosSimulatorApp)
 	}
 	fmt.Printf("  ios: installing %s on the booted simulator\n", iosSimulatorApp)
 	if err := runCommand("xcrun", "simctl", "install", "booted", iosSimulatorApp); err != nil {
-		return fmt.Errorf("simctl install failed (is a simulator booted? try: irgo run ios): %w", err)
+		return fmt.Errorf("simctl install failed (is a simulator booted? try: irgo app run ios): %w", err)
 	}
 	fmt.Printf("  ios: installed %s\n", iosBundleID)
 	return nil
@@ -70,7 +70,7 @@ func installAndroidApp() error {
 	}
 	apk := filepath.Join("android/Example", "app/build/outputs/apk/debug/app-debug.apk")
 	if !pathExists(apk) {
-		return fmt.Errorf("no APK at %s — build it first: irgo run android", apk)
+		return fmt.Errorf("no APK at %s — build it first: irgo app run android", apk)
 	}
 	fmt.Printf("  android: installing %s\n", apk)
 	// -r replaces an existing install rather than failing on a conflict.
@@ -103,7 +103,7 @@ func installDesktopApp() error {
 		origin = "development"
 	}
 	if !pathExists(src) {
-		return fmt.Errorf("no macOS app found — build one first: irgo build desktop (or irgo package macos)")
+		return fmt.Errorf("no macOS app found — build one first: irgo app build desktop (or irgo app package macos)")
 	}
 
 	dst := "/Applications/" + name + ".app"
@@ -124,7 +124,7 @@ func installDesktopApp() error {
 	return nil
 }
 
-// appBundleID is the identifier `irgo run` installs under.
+// appBundleID is the identifier `irgo app run` installs under.
 func appBundleID() (string, error) {
 	modulePath, err := getModulePath()
 	if err != nil {
@@ -207,10 +207,10 @@ func uninstallAndroidApp() error {
 }
 
 // uninstallDesktopApp removes a copy installed into the system Applications
-// directory. Build output under build/ is `irgo clean`'s job, not this one.
+// directory. Build output under build/ is `irgo project clean`'s job, not this one.
 func uninstallDesktopApp() error {
 	if runtime.GOOS != "darwin" {
-		fmt.Printf("  desktop: nothing to remove on %s (the app runs from build/ — use irgo clean)\n", runtime.GOOS)
+		fmt.Printf("  desktop: nothing to remove on %s (the app runs from build/ — use irgo project clean)\n", runtime.GOOS)
 		return nil
 	}
 	modulePath, err := getModulePath()
@@ -231,10 +231,10 @@ func uninstallDesktopApp() error {
 			found = true
 		}
 	}
-	// Packaged output is `irgo clean`'s business, but say it is there —
+	// Packaged output is `irgo project clean`'s business, but say it is there —
 	// otherwise "uninstalled" is confusing when the app is still on disk.
 	if pathExists(filepath.Join("dist/macos", name+".app")) {
-		fmt.Printf("  desktop: dist/macos/%s.app remains (packaged output — irgo clean removes it)\n", name)
+		fmt.Printf("  desktop: dist/macos/%s.app remains (packaged output — irgo project clean removes it)\n", name)
 	}
 	if !found {
 		fmt.Println("  desktop: not installed in /Applications")
@@ -269,10 +269,11 @@ func runAppBuild(target string, args []string) error {
 }
 
 func runAppRun(target string, args []string) error {
+	// Flags are read from the whole argument list rather than from everything
+	// after the first token: the target is a bare word and every flag is
+	// dashed, so there is nothing to strip, and stripping blindly ate the
+	// first flag whenever the target was written after it.
 	rest := args
-	if len(rest) > 0 {
-		rest = rest[1:]
-	}
 	devMode := hasFlag(rest, "--dev", "-d")
 	if target == "desktop" {
 		return runDesktop(devMode, hasFlag(rest, "--built", "-b"))
@@ -286,13 +287,7 @@ func runAppRun(target string, args []string) error {
 		}
 		return runIOSDevice(team)
 	}
-	avd := "irgo"
-	for i := 0; i < len(rest)-1; i++ {
-		if rest[i] == "--avd" {
-			avd = rest[i+1]
-		}
-	}
-	return runMobile(target, devMode, avd, hasFlag(rest, "--no-window", "-nw"))
+	return runMobile(target, devMode)
 }
 
 func runAppPackage(args []string) error {

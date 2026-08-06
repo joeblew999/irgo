@@ -157,7 +157,7 @@ func packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, iconPath
 		"an .aab is for Play, not direct install — to try it on a device:",
 		"bundletool build-apks --bundle="+out+" --output=app.apks --local-testing",
 		"bundletool install-apks --apks=app.apks",
-		"or just: irgo run android",
+		"or just: irgo app run android",
 	)
 	return nil
 }

@@ -29,7 +29,7 @@ open class IrgoWebViewController: UIViewController {
 
     /// The dev server URL if in dev mode
     private var devServerURL: String? {
-        // Check for dev server URL in Info.plist (set by `irgo run ios --dev`)
+        // Check for dev server URL in Info.plist (set by `irgo app run ios --dev`)
         if let devURL = Bundle.main.object(forInfoDictionaryKey: "IRGO_DEV_SERVER") as? String,
            !devURL.isEmpty {
             return devURL

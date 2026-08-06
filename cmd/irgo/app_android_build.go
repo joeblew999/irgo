@@ -81,14 +81,14 @@ func checkDebugKeystore() error {
 		"  Delete it and it will be recreated correctly:\n    rm %s", ks, alias, ks)
 }
 
-func runAndroid(devMode bool, avdName string, headless bool) error {
+func runAndroid(devMode bool) error {
 	// Self-provision the Android toolchain (JDK/SDK/NDK/gomobile, plus the
 	// emulator + AVD when no device is connected) — devs and CI never need a
 	// separate setup step. Idempotent: only installs what is missing.
 	if err := checkDebugKeystore(); err != nil {
 		return err
 	}
-	if err := ensureAndroidToolchain(!adbRunning(), avdName); err != nil {
+	if err := ensureAndroidToolchain(!adbRunning(), defaultAVD); err != nil {
 		return err
 	}
 
@@ -201,7 +201,7 @@ func runAndroid(devMode bool, avdName string, headless bool) error {
 	}
 
 	// Boot the emulator if none is running, then install.
-	if err := ensureEmulatorRunning(avdName, headless); err != nil {
+	if err := ensureEmulatorRunning(); err != nil {
 		killDevServer()
 		return err
 	}

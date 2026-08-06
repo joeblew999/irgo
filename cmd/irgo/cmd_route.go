@@ -14,8 +14,6 @@
 // There is deliberately no platform noun. ios, android and desktop are targets
 // — `app build ios` — so a noun of the same name would mean two things.
 //
-// Every previous spelling still routes here, so nothing that worked stops
-// working; the old form prints where it moved to.
 package main
 
 import (
@@ -27,6 +25,15 @@ import (
 // the pair is not a command, so the caller can report it against the noun's
 // own verb list rather than a generic unknown-command message.
 func route(noun, verb string, args []string) (error, bool) {
+	// --help anywhere means help, and help must never do work. Without this,
+	// `irgo app run android --help` fell through to the runner: it generated
+	// assets, built the AAR, and launched the app on an emulator. Asking what
+	// a command does should never be the thing that does it.
+	if hasFlag(args, "--help", "-h") {
+		printCommandHelp(noun, verb)
+		return nil, true
+	}
+
 	switch noun {
 
 	case "project":
@@ -61,10 +68,7 @@ func route(noun, verb string, args []string) (error, bool) {
 		}
 
 	case "app":
-		target := "all"
-		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-			target = args[0]
-		}
+		target := appTarget(args)
 		switch verb {
 		case "build":
 			if target == "all" && len(args) == 0 {
@@ -98,7 +102,7 @@ func route(noun, verb string, args []string) (error, bool) {
 		switch verb {
 		case "install":
 			if android {
-				avd := "irgo"
+				avd := defaultAVD
 				for i := 0; i < len(rest)-1; i++ {
 					if rest[i] == "--avd" {
 						avd = rest[i+1]
@@ -133,16 +137,6 @@ func route(noun, verb string, args []string) (error, bool) {
 			return runServe(), true
 		}
 
-	case "ios":
-		// Kept only so `irgo ios team` still works. ios is a target
-		// (app build ios), never a noun.
-		if verb == "team" {
-			deprecated("ios team", "project config ios.team")
-			if len(args) > 0 {
-				return setConfig("ios.team", args[0]), true
-			}
-			return showOneConfig("ios.team"), true
-		}
 	}
 	return nil, false
 }
@@ -156,27 +150,46 @@ var nounVerbs = map[string][]string{
 	"server":  {"dev", "serve"},
 }
 
-// legacy maps every previous spelling to its noun and verb. Renaming without
-// this turns a grammar cleanup into a broken script for everyone who had one.
-var legacy = map[string][2]string{
-	"new":     {"project", "new"},
-	"clean":   {"project", "clean"},
-	"upgrade": {"project", "upgrade"},
-	"pin":     {"project", "pin"},
-	"ci":      {"project", "ci"},
-	"assets":  {"project", "assets"},
-	"templ":   {"project", "assets"},
-	"test":    {"project", "test"},
+// appValueFlags are the flags that consume the argument after them, so a
+// target search does not mistake a flag's value for the platform.
+var appValueFlags = map[string]bool{"--team": true}
 
-	"build":   {"app", "build"},
-	"run":     {"app", "run"},
-	"package": {"app", "package"},
-	"reviews": {"app", "reviews"},
+// appTarget picks the platform out of the arguments.
+//
+// It used to be args[0] and nothing else, which meant a flag written first —
+// `app run --dev android`, the order most people reach for — left the target
+// as "all" and failed with "unknown platform: all" while the platform was
+// sitting right there in the arguments.
+func appTarget(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "-") {
+			if appValueFlags[a] {
+				i++ // skip the value, it is not the target
+			}
+			continue
+		}
+		return a
+	}
+	return "all"
+}
 
-	"dev":   {"server", "dev"},
-	"serve": {"server", "serve"},
+// renamed names where each removed command went. It does NOT dispatch: the old
+// spellings are gone, and one grammar means one spelling for each thing. It
+// exists so muscle memory and an old script get an answer instead of the whole
+// usage screen and a guess.
+var renamed = map[string]string{
+	"new": "project new", "clean": "project clean", "upgrade": "project upgrade",
+	"pin": "project pin", "ci": "project ci", "test": "project test",
+	"assets": "project assets", "templ": "project assets",
 
-	"install-tools":   {"tools", "install"},
-	"uninstall-tools": {"tools", "remove"},
-	"doctor":          {"tools", "doctor"},
+	"build": "app build", "run": "app run",
+	"package": "app package", "reviews": "app reviews",
+
+	"dev": "server dev", "serve": "server serve",
+
+	"install-tools": "tools install", "uninstall-tools": "tools remove",
+	"doctor": "tools doctor",
+
+	"ios": "app build ios, or project config ios.team",
 }

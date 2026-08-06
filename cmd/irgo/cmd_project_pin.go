@@ -19,7 +19,7 @@ const upstreamModule = "github.com/stukennedy/irgo"
 // runPin reports or changes the pinned CLI.
 func runPin(args []string) error {
 	if _, err := os.Stat("go.mod"); err != nil {
-		return fmt.Errorf("no go.mod here — run irgo pin from your project root")
+		return fmt.Errorf("no go.mod here — run irgo project pin from your project root")
 	}
 	if len(args) == 0 {
 		return showPin()
@@ -70,7 +70,7 @@ func showPin() error {
 		}
 	}
 
-	fmt.Println("irgo pin (from go.mod)")
+	fmt.Println("irgo project pin (from go.mod)")
 	fmt.Println()
 	if replace == "" {
 		fmt.Printf("  published release: %s\n", strings.TrimSpace(require))
@@ -151,7 +151,7 @@ func pinVersion(target string) error {
 	if strings.Contains(target, "/") {
 		repo, version, ok := strings.Cut(target, "@")
 		if !ok {
-			return fmt.Errorf("a fork needs a version: irgo pin %s@<tag>", target)
+			return fmt.Errorf("a fork needs a version: irgo project pin %s@<tag>", target)
 		}
 		mod := repo
 		if !strings.HasPrefix(mod, "github.com/") {

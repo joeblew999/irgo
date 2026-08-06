@@ -1,7 +1,7 @@
-# irgo package configuration — defaults for: irgo package <ios|android|macos|windows>
+# irgo app package configuration — defaults for: irgo app package <ios|android|macos|windows>
 #
 # Precedence, highest first:
-#   1. CLI flag           irgo package android --keystore ...
+#   1. CLI flag           irgo app package android --keystore ...
 #   2. Environment        IRGO_ANDROID_KEYSTORE=...   (what CI secrets set)
 #   3. irgo.package.local.toml   your machine, gitignored — put SECRETS here
 #   4. this file          shared with your team, committed
@@ -11,9 +11,9 @@
 # put them in irgo.package.local.toml (gitignored) or set the environment
 # variable, which is how CI supplies them.
 #
-#   irgo package setup            what every value is and where to get it
-#   irgo package setup --check    what is set, where it came from, what is missing
-#   irgo package setup <store>    fill in one store interactively
+#   irgo app package setup            what every value is and where to get it
+#   irgo app package setup --check    what is set, where it came from, what is missing
+#   irgo app package setup <store>    fill in one store interactively
 
 [common]
 version = "0.1.0"
@@ -71,7 +71,7 @@ password = ""
 dmg = false
 
 [reviews]
-# App Store review monitoring: irgo reviews <ios|mac|android>
+# App Store review monitoring: irgo app reviews <ios|mac|android>
 # Apple (iOS + Mac) uses the official App Store Connect API — a key with
 # Customer Reviews access. Android uses the Play Developer API (service
 # account) and can also reply from the terminal.

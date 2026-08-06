@@ -116,14 +116,14 @@ func hostCapabilities() []capability {
 		return capability{target, capBlocked, blockedNote}
 	}
 	caps = append(caps,
-		pkg("package ios (.ipa)", "needs a signing team — irgo package setup ios",
+		pkg("package ios (.ipa)", "needs a signing team — irgo app package setup ios",
 			"requires macOS (Xcode + codesign) — run on a Mac or macos-latest in CI", mac),
-		pkg("package macos (.app/.dmg)", "notarization needs an Apple ID — irgo package setup macos",
+		pkg("package macos (.app/.dmg)", "notarization needs an Apple ID — irgo app package setup macos",
 			"requires macOS (codesign/notarytool/hdiutil) — run on a Mac or macos-latest in CI", mac),
 		pkg("package windows (.msix)", "needs the Windows SDK (MakeAppx/signtool)",
 			"requires Windows (MakeAppx/signtool) — run on Windows or windows-latest in CI", win),
 		capability{"package android (.aab)", capFixable,
-			"builds anywhere — signing needs a keystore: irgo package setup android"},
+			"builds anywhere — signing needs a keystore: irgo app package setup android"},
 	)
 
 	// Android builds anywhere; only the emulator has host limits.
@@ -184,7 +184,7 @@ func doctorHost(strict bool) error {
 	} else {
 		fmt.Printf("Not possible on %s: %s\n", runtime.GOOS, strings.Join(blocked, ", "))
 		fmt.Println("Build those on a matching host or in CI — the repo's workflow covers")
-		fmt.Println("Linux, macOS and Windows. `irgo build all` skips what it cannot do.")
+		fmt.Println("Linux, macOS and Windows. `irgo app build all` skips what it cannot do.")
 	}
 	drift := checkPinDrift()
 
@@ -193,8 +193,8 @@ func doctorHost(strict bool) error {
 	printAndroidDetail()
 
 	fmt.Println()
-	fmt.Println("Store config:     irgo package setup --check")
-	fmt.Println("Toolchain detail: irgo doctor android")
+	fmt.Println("Store config:     irgo app package setup --check")
+	fmt.Println("Toolchain detail: irgo tools doctor android")
 	if strict && drift {
 		return fmt.Errorf("CLI pin drift: IRGO_REPLACE and go.mod disagree")
 	}
@@ -203,7 +203,7 @@ func doctorHost(strict bool) error {
 
 // checkPinDrift reports when the CLI pin in the environment disagrees with the
 // replace directive in go.mod. Those two must match: IRGO_REPLACE selects the
-// CLI, and `irgo new` writes it into go.mod. When they drift, builds silently
+// CLI, and `irgo project new` writes it into go.mod. When they drift, builds silently
 // run against a different CLI than the project expects — which is exactly how
 // a stale pin hides for several releases.
 func checkPinDrift() bool {
@@ -227,7 +227,7 @@ func checkPinDrift() bool {
 			fmt.Println("WARNING: CLI pin drift")
 			fmt.Printf("  IRGO_REPLACE : %s\n", want)
 			fmt.Printf("  go.mod       : %s\n", got)
-			fmt.Println("  These must match. Regenerate the app (irgo new <name>) or fix IRGO_REPLACE.")
+			fmt.Println("  These must match. Regenerate the app (irgo project new <name>) or fix IRGO_REPLACE.")
 			return true
 		}
 		return false
@@ -260,7 +260,7 @@ func iosDeviceCapability(xcodeState string) (state, note string) {
 		needsAction = true
 	}
 
-	// A device only matters for `irgo run ios --device`; packaging an .ipa
+	// A device only matters for `irgo app run ios --device`; packaging an .ipa
 	// needs none, so its absence is not itself a blocker.
 	if devs, derr := listIOSDevices(); derr == nil && len(devs) > 0 {
 		d := devs[0]
@@ -437,7 +437,7 @@ func printAndroidDetail() {
 	}
 	switch {
 	case !pathExists(emu):
-		fmt.Println("  emulator      not installed — only needed for `irgo run android`")
+		fmt.Println("  emulator      not installed — only needed for `irgo app run android`")
 	default:
 		avd := "none"
 		if avdmgr := locateAvdmanager(sdk); avdmgr != "" {

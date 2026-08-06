@@ -1,12 +1,12 @@
 # Store packages for every target, built on the OS each one requires and
 # attached to a GitHub Release.
 #
-# Scaffolded by `irgo ci`. Each job is skipped unless its signing secrets are
+# Scaffolded by `irgo project ci`. Each job is skipped unless its signing secrets are
 # configured, so this is useful before you have any of them: what is set gets
 # packaged, what is not is skipped rather than failing the run.
 #
-# Configure the values with `irgo package setup <store>`, then add them as
-# repository secrets. `irgo package setup --check` reports what is missing.
+# Configure the values with `irgo app package setup <store>`, then add them as
+# repository secrets. `irgo app package setup --check` reports what is missing.
 
 name: release
 
@@ -14,9 +14,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-
-env:
-  IRGO_VERSION: "{{IRGO_VERSION}}"
 
 jobs:
   android:
@@ -39,7 +36,7 @@ jobs:
         if: env.KEYSTORE_B64 != ''
         run: |
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
-          irgo package android --keystore release.keystore \
+          irgo app package android --keystore release.keystore \
             --keystore-pass "$KEYSTORE_PASS" --key-alias "$KEY_ALIAS" --key-pass "$KEY_PASS"
           rm -f release.keystore
       - uses: {{UPLOAD_ARTIFACT}}

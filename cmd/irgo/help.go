@@ -5,7 +5,10 @@
 // change for different reasons and at different times.
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func printUsage() {
 	fmt.Println(`irgo - one Go codebase for web, desktop, iOS and Android
@@ -57,462 +60,384 @@ Examples:
   irgo app install desktop           Put the built app in /Applications
   irgo tools remove --yes            Undo everything irgo installed
   irgo project config ios.team       Which team signs, and what is available
-  irgo project pin --local ../irgo   Build a checkout you are editing
-
-Earlier spellings (irgo build, irgo doctor, irgo dev, ...) still work and say
-where they moved.
+  irgo project pin local ../irgo     Build a checkout you are editing
 
 Nothing needs installing first: toolchains provision themselves when a command
 needs them, and go.mod pins the CLI so ` + "`go tool irgo`" + ` always matches the project.`)
 }
 
-func printCommandHelp(cmd string) {
-	switch cmd {
-	case "new":
-		fmt.Println(`irgo new - Create a new irgo project
+// printCommandHelp explains one command. The key is the grammar itself —
+// "app run", not "run" — because two nouns share verbs (app install puts a
+// built app on a device, tools install provisions a toolchain) and a
+// verb-keyed lookup answered one of them with the other.
+func printCommandHelp(noun, verb string) {
+	switch strings.TrimSpace(noun + " " + verb) {
+
+	// ---- project -----------------------------------------------------------
+
+	case "project new":
+		fmt.Println(`irgo project new - Create a project, or regenerate this one
 
 Usage:
-  irgo new <project-name>
-  irgo new .              Initialize in current directory
+  irgo project new <name>     Create ./<name>
+  irgo project new .          Generate into the current directory
+  irgo project new --check    Report what regenerating would change, write nothing
 
-Creates a new project with:
-  - main.go           App entry point
-  - handlers/         Route handlers
-  - templates/        Templ templates
-  - static/           CSS and JS assets
-  - dev.sh            Development script
-  - Makefile          Build targets
+What it writes:
+  main.go, handlers/, templates/, static/   your app
+  ios/, android/                            native shells
+  .github/workflows/                        CI for every target
+  go.mod                                    pins the CLI via a tool directive
 
-Environment:
-  IRGO_REPLACE  Pin irgo to a published fork in the generated go.mod, e.g.
-                "github.com/joeblew999/irgo v0.4.0-androidapi21.24" ("@" between
-                module and version also works). Set this in the consuming repo so
-                its app is regenerable from the CLI alone — no hand-edited go.mod.
-  IRGO_PATH     Pin to a local irgo checkout instead (for hacking on irgo itself).
-                IRGO_REPLACE wins when both are set.`)
+Files that are yours are seeded once and never overwritten: go.mod, README.md,
+irgo.package.toml and appicon.png. Everything else is regenerated, so fix the
+template rather than the generated copy.
 
-	case "dev":
-		fmt.Println(`irgo dev - Run development server with hot reload
+--check exits non-zero if regenerating would change a file. That asserts the
+repo IS unmodified CLI output, which is true of example repos and not of a real
+app — for those, use irgo project upgrade --check.`)
 
-Usage:
-  irgo dev
-
-Starts:
-  - Air for Go hot reloading
-  - Templ file watcher
-  - Tailwind CSS watcher (if configured)
-
-Server runs at http://localhost:8080`)
-
-	case "install-tools", "tools":
-		fmt.Println(`irgo tools - The toolchains on this machine
+	case "project upgrade":
+		fmt.Println(`irgo project upgrade - Take framework updates, leaving your code alone
 
 Usage:
-  irgo tools doctor [android] [--fix|--strict]   What this host can build
-  irgo tools install [android] [--emulator]      Install what builds need
-  irgo tools remove  [android] [--yes] [--all] [--keep-jdk]   Undo it
+  irgo project upgrade           Refresh framework-owned scaffolding
+  irgo project upgrade --check   Name what an upgrade would overwrite, change nothing
+  irgo project upgrade --diff    Also show what the template holds for your files
+  irgo project upgrade --force   Overwrite your files too (destructive)
 
-You rarely need install: every build provisions what it needs, when it needs
-it. It exists to set a machine up in one go, and remove exists so that can be
-undone — a machine that cannot return to a known state hides provisioning bugs
-behind whatever was left lying around.
+Framework-owned (replaced): ios/, android/, mobile/, .air.toml, .gitignore,
+CLAUDE.md, AGENTS.md, and the generated workflows.
+Yours (never rewritten):    main.go, handlers/, templates/, static/, README.md,
+                            go.mod, irgo.package.toml, appicon.png.
 
-WHAT IRGO MANAGES
+Anything overwritten is copied to <file>.irgo-bak first.
 
-Go tools, via go install into GOBIN:
-  templ      pinned to the templ version in your go.mod, so the generator and
-             the library cannot disagree
-  air        hot reload for irgo dev
-  gomobile   and gobind, for the iOS/Android bindings
+--check is the CI-friendly form: it exits non-zero when a framework-owned file
+has been hand-edited, i.e. when an upgrade is about to discard that edit.`)
 
-Downloaded and pinned, under ~/.irgo:
-  Tailwind   v4.3.3 standalone binary — no Node, npm or bun anywhere
-  JDK 17     Temurin via Adoptium, into ~/.irgo/jdks; an existing JAVA_HOME is
-             respected when it is actually 17 (Gradle 8.2 fails on 21+)
-
-Android SDK, into ANDROID_HOME:
-  cmdline-tools, platform-tools, build-tools 35, platforms 34 and 35
-  NDK r26    required: gomobile binds at API 16 by default and r27+ rejects it
-  emulator   with --emulator, plus a system image and an AVD (default "irgo")
-
-Host packages, via brew/apt/pacman, only when a build actually needs them:
-  mingw-w64  cross-compiling the Windows desktop app from macOS
-  webkit2gtk GTK3 + WebKit2GTK for the Linux desktop webview
-
-Android Studio is not involved, and nothing here is required up front.
-
-REMOVING
-
-  irgo tools remove              everything irgo installed, Android included
-  irgo tools remove android      only the Android toolchain
-  irgo tools remove --all        also copies irgo did not install
-  irgo tools remove --keep-jdk   spare the managed JDK, the slowest to refetch
-  irgo tools remove --yes        skip the confirmation
-
-It shows what it will delete, with sizes, and asks first — the Android SDK
-alone is several gigabytes. Outside a terminal it refuses rather than assuming
-yes, so a script cannot quietly wipe an SDK; pass --yes there.
-
-Removal is marker-guarded: anything irgo did not install is reported and kept,
-so your own templ or JDK survives. --all overrides that.
-
-ANDROID_HOME defaults to ~/Library/Android/sdk on macOS, ~/Android/Sdk on
-Linux, %LOCALAPPDATA%\Android\Sdk on Windows.`)
-
-	case "uninstall-tools":
-		fmt.Println(`irgo uninstall-tools android - Remove the Android toolchain
+	case "project pin":
+		fmt.Println(`irgo project pin - Choose which irgo this project builds against
 
 Usage:
-  irgo uninstall-tools android [--remove-jdk]
+  irgo project pin                     Show the current pin and where it came from
+  irgo project pin local [dir]         Build a checkout you are editing
+  irgo project pin release             Track the published module
+  irgo project pin <version>           A published version, e.g. v0.4.0
+  irgo project pin <owner>/<repo>@<tag>  A fork
 
-Removes everything install-tools android put in place: gomobile/gobind, the
-SDK directory (only if irgo provisioned it), ~/.android, ~/.gradle, temp
-clones, and (macOS) emulator prefs. --remove-jdk also removes the managed
-JDK at ~/.irgo/jdks.`)
+go.mod is the only pin: ` + "`go tool irgo`" + ` builds whatever it names, so there is
+nothing installed globally to fall out of step. A pin that does not resolve
+leaves go.mod untouched rather than half-written.
 
-	case "doctor":
-		fmt.Println(`irgo doctor - What this host can build
+A fork keeps the upstream module path, so the proxy cannot serve it:
+  go env -w GOPRIVATE='github.com/<owner>/*'`)
 
-Usage:
-  irgo doctor          Capability report for this machine
-  irgo doctor --strict Same, but exit non-zero on CLI pin drift (for CI)
-  irgo doctor --fix    Repair what irgo can, then list what needs you
-
---fix repoints xcode-select when it is aimed at the Command Line Tools instead
-of Xcode, accepts the Xcode licence and installs its components, and downloads
-an iOS simulator runtime if none exists. Each needs sudo or a large download,
-which is why it is opt-in rather than part of every build.
-
-Two things cannot be automated: signing in an Apple ID needs credentials and
-2FA, and Developer Mode is a toggle Apple gates on the device itself. --fix
-gets you to the last step of each and opens Xcode for the first.
-  irgo doctor android  Verify the Android toolchain in detail
-
-The plain form lists every target with one of three verdicts:
-  ready           buildable now
-  auto-installs   buildable; irgo provisions what is missing on first build
-  NOT ON THIS OS  impossible here, whatever you install
-
-iOS needs macOS, Linux desktop needs Linux, and Windows desktop builds from
-Windows or from macOS via mingw-w64. 'irgo build all' skips what the host
-cannot do rather than failing, so the same command works in CI everywhere.`)
-
-	case "build":
-		fmt.Println(`irgo build - Build for mobile and desktop platforms
+	case "project ci":
+		fmt.Println(`irgo project ci - Scaffold GitHub Actions workflows
 
 Usage:
-  irgo build ios             Build iOS framework (.xcframework)
-  irgo build android         Build Android library (.aar)
-  irgo build desktop         Build desktop app for current platform
-  irgo build desktop macos   Build desktop app for macOS
-  irgo build desktop windows Build desktop app for Windows
-  irgo build desktop linux   Build desktop app for Linux
-  irgo build all             Build all mobile platforms
+  irgo project ci            Write .github/workflows, keeping any that exist
+  irgo project ci --force    Regenerate them
 
-Requirements:
-  - iOS: Xcode and gomobile
-  - Android: Android SDK and gomobile
-  - Desktop: CGO enabled (C compiler required)
-    - macOS: Xcode Command Line Tools
-    - Windows: MinGW-w64 or similar
-    - Linux: GCC and WebKit2GTK dev packages
+Writes build.yml (every target, on the OS each one needs) and release.yml
+(signed store artifacts). Both are generated from the CLI — the desktop matrix,
+the artifact paths and the action versions come from irgo, so they stay correct
+as it changes. Edit the template, not the output.
 
-Output:
-  - iOS: build/ios/Irgo.xcframework
-  - Android: build/android/irgo.aar
-  - Desktop macOS: build/desktop/macos/<app>.app
-  - Desktop Windows: build/desktop/windows/<app>.exe
-  - Desktop Linux: build/desktop/linux/<app>`)
+Two jobs in build.yml are opt-in, off unless the repository sets a variable:
+  IRGO_TOOLCHAIN_ROUNDTRIP=true   install → doctor → build → uninstall, and
+                                  assert the machine comes back clean
+  IRGO_GENERATED_REPO=true        assert the repo still matches project new
 
-	case "templ":
-		fmt.Println(`irgo templ - Generate templ files
+The round-trip deletes the Android toolchain to prove the uninstall works, so
+it refuses to run anywhere but a github-hosted runner.`)
+
+	case "project clean":
+		fmt.Println(`irgo project clean - Remove generated output
 
 Usage:
-  irgo templ
+  irgo project clean         Generated code and build output
+  irgo project clean --all   Also the scaffolded native shells
 
-Runs 'templ generate' to compile .templ files to Go code.`)
+Removes _templ.go, static/css/output.css, build/, tmp/ and dist/. With --all,
+ios/Example and android/Example go too; they are scaffolded again on the next
+build, which takes a gomobile rebuild.
 
-	case "run":
-		fmt.Println(`irgo run - Build and run on simulator or desktop
+Nothing you wrote is touched.`)
+
+	case "project config":
+		fmt.Println(`irgo project config - Show or set a project setting
 
 Usage:
-  irgo run ios              Build and run on iOS Simulator
-  irgo run ios --dev        Run iOS with hot-reload (connects to dev server)
-  irgo run android          Build and run on Android Emulator
-  irgo run android --dev    Run Android with hot-reload (connects to dev server)
-  irgo run desktop          Run as desktop app
-  irgo run desktop --dev    Run desktop app with devtools enabled
+  irgo project config              Every setting, its value, and where it came from
+  irgo project config <key>        One setting
+  irgo project config <key> <val>  Set it
+
+Settings live in irgo.package.toml. Precedence: environment variable, then
+irgo.package.local.toml (gitignored), then irgo.package.toml.
+
+Secrets belong in the local file or the environment — irgo.package.toml is
+committed. Values you have to discover rather than type, such as which signing
+teams exist, are reported by irgo tools doctor.`)
+
+	case "project assets":
+		fmt.Println(`irgo project assets - Regenerate templ and Tailwind CSS
+
+Usage:
+  irgo project assets
+
+Writes _templ.go and static/css/output.css. Both are gitignored and compiled
+into the binary, so a plain ` + "`go build`" + ` needs this first; every irgo build and
+run does it for you.
+
+templ and the Tailwind standalone binary are installed on demand. There is no
+Node, npm or package.json.`)
+
+	case "project test":
+		fmt.Println(`irgo project test - Run the tests
+
+Usage:
+  irgo project test
+
+Regenerates assets, then runs go test ./... — so tests that render templates
+see the current ones rather than whatever was last on disk.`)
+
+	// ---- app ---------------------------------------------------------------
+
+	case "app build":
+		fmt.Println(`irgo app build - Build for a target
+
+Usage:
+  irgo app build ios              Device framework (Irgo.xcframework)
+  irgo app build ios --sim        Simulator build
+  irgo app build ios --device     Build and sign for a USB device
+  irgo app build android          AAR for the native shell
+  irgo app build desktop          This host
+  irgo app build desktop <goos>   linux, darwin or windows
+  irgo app build all              Everything this host can produce
 
 Flags:
-  --dev, -d    Development mode.
-               - Mobile: Connects to the dev server for hot-reload
-                 (iOS Simulator: localhost:8080, Android Emulator: 10.0.2.2:8080)
-               - Desktop: Enables browser devtools in webview
+  --sim, -s        Simulator rather than device (iOS)
+  --device, -D     A real device (iOS)
+  --team <id>      Apple Team ID to sign with
 
-Requirements:
-  - iOS: Xcode with iOS Simulator
-  - Android: Android Studio with emulator
-  - Desktop: CGO enabled (see 'irgo help build' for details)
+Toolchains install themselves: the Android SDK, NDK, JDK and gomobile are
+provisioned on first use. Cross-building is limited by the host — macOS can
+produce macOS and Windows desktop binaries, Linux only Linux. Ask irgo tools
+doctor what this machine can do.`)
 
-Mobile standard mode (without --dev):
-  1. Builds the Go framework with gomobile
-  2. Builds the native app project
-  3. Installs and launches on simulator/emulator
-
-Mobile dev mode (with --dev):
-  1. Starts the dev server with hot reload (air on localhost:8080)
-  2. Builds the gomobile framework/AAR only if it doesn't exist yet
-     (delete build/ios/Irgo.xcframework or android/Example/app/libs/irgo.aar
-     to force a rebuild - the native app still links against it)
-  3. Builds, installs and launches the native app on the simulator/emulator
-  4. The app loads its UI from the dev server, so Go code changes
-     are reflected instantly without rebuilding the native app
-
-Desktop mode:
-  1. Starts local HTTP server on auto-selected port
-  2. Opens native webview window pointing to localhost
-  3. Closes server when window is closed`)
-
-	case "serve":
-		fmt.Println(`irgo serve - Run the web server without file watching
-
-Usage: irgo serve
-
-Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
-hot reload, which air provides natively — neither needs anything installed.`)
-
-	case "app", "uninstall":
-		fmt.Println(`irgo app - The app installed on a device, simulator or this machine
+	case "app run":
+		fmt.Println(`irgo app run - Build and launch
 
 Usage:
-  irgo app install <platform>   Install an already-built app
-  irgo app remove <platform>    Remove it
+  irgo app run ios              iOS Simulator
+  irgo app run ios --device     A USB-connected iPhone
+  irgo app run android          Android emulator
+  irgo app run desktop          Native desktop window
 
-  irgo app remove ios       From the booted simulator
-  irgo app remove android   From the attached device or emulator
-  irgo app remove desktop   From /Applications (macOS)
-  irgo app remove           All of the above
+Flags:
+  --dev, -d      Hot reload: serves the app from the dev server on :8080 and
+                 reloads on save, instead of embedding it in the binary
+  --device, -D   A real iPhone rather than the Simulator
+  --team <id>    Apple Team ID to sign with
+  --built, -b    Desktop: launch the existing build rather than rebuilding
 
-The inverse of irgo run. 'irgo tools remove' is the separate thing that removes
-the toolchain — these used to be one hyphen apart, which was a trap.
+Android uses whatever device or emulator is already connected, and only boots
+its own when nothing is. To run a particular AVD, start it first — there is no
+flag to disagree with what is actually attached.`)
 
-install does not build. It takes what is already there — the packaged artifact
-if one exists, since that is what ships, otherwise the development build — so
-you can check the thing itself rather than the thing plus a rebuild:
-
-  ios       the Simulator app from 'irgo build ios --sim'
-  android   the debug APK, via adb
-  desktop   the .app into /Applications (macOS), packaged build preferred
-
-An app that is not installed is not an error — the goal is that it is gone.
-Reach for this when a stale install is the suspect: the app keeps launching
-with old assets or an old bridge API and nothing explains why.`)
-
-	case "ios":
-		fmt.Println(`irgo ios - iOS-specific settings
+	case "app package":
+		fmt.Println(`irgo app package - Build a store artifact
 
 Usage:
-  irgo ios team          List the development teams Xcode knows about
-  irgo ios team <ID>     Use that team for device builds and packaging
+  irgo app package ios        Signed .ipa
+  irgo app package android    Signed .aab
+  irgo app package macos      Signed .app, notarized; --dmg for a disk image
+  irgo app package windows    .msix
+  irgo app package setup --check   What each store needs, and what is missing
 
-The selection is written to irgo.package.toml under [ios] team, so it applies
-to every later build without being passed again. A flag or IRGO_IOS_TEAM still
-wins for a one-off.
+Assets are regenerated first, so a package cannot ship a stale stylesheet.
 
-With several teams and none chosen, a device build stops and lists them rather
-than picking one — the wrong team fails later as an Apple-side error that never
-mentions the team.`)
+Signing settings come from irgo.package.toml — see irgo project config. Missing
+credentials are reported before the build rather than at the end of it.`)
 
-	case "config":
-		fmt.Println(`irgo project config - Settings for this project
-
-Usage:
-  irgo project config                  Every setting, its value and its source
-  irgo project config <key>            One setting
-  irgo project config <key> <value>    Set it
-
-Settings live in irgo.package.toml, which is committed. Precedence, highest
-first: a command flag, an environment variable (what a CI secret is called),
-irgo.package.local.toml (gitignored, for secrets), then this file.
-
-Secrets — passwords, certificates, keys — are marked when you set them and
-belong in irgo.package.local.toml or the environment, not the committed file.
-
-This replaced 'irgo ios team', which was the only command named after a
-platform. Platforms are targets (irgo app build ios), never nouns, and one
-accessor covers every setting rather than growing a command per value. Where
-valid values are discoverable rather than looked up — signing teams — they are
-listed alongside.`)
-
-	case "pin":
-		fmt.Println(`irgo pin - Which irgo does this project build against?
+	case "app install":
+		fmt.Println(`irgo app install - Install what you already built
 
 Usage:
-  irgo pin                        Show the current pin and what it means
-  irgo pin --release              Track the published module
-  irgo pin <version>              Track a specific published version
-  irgo pin <owner>/<repo>@<tag>   Track a fork
-  irgo pin --local [dir]          Build a checkout you are editing
+  irgo app install ios        Onto the running Simulator
+  irgo app install android    Onto the connected device or emulator
+  irgo app install desktop    Into /Applications (macOS)
 
-Using irgo and working on irgo are the same activity pointed at different
-versions. 'go tool irgo' builds whatever go.mod names, so this is the only
-difference between the two — there is no separate toolchain, install step or
-set of commands for contributors.
+Installs the existing artifact and does not rebuild. Build first if there is
+nothing there yet.`)
 
-  irgo pin --local ../irgo    then edit the CLI; the next 'go tool irgo'
-                              already runs your change, with nothing to
-                              reinstall and nothing to tag
-  irgo pin --release          go back to the published build
-
-A fork keeps the upstream module path, so Go fetches it from GitHub rather
-than the proxy:  go env -w GOPRIVATE='github.com/<owner>/*'`)
-
-	case "upgrade":
-		fmt.Println(`irgo upgrade - Move an existing project to this CLI version
+	case "app remove":
+		fmt.Println(`irgo app remove - Uninstall it again
 
 Usage:
-  irgo upgrade          Refresh framework scaffolding
-  irgo upgrade --check  Report what an upgrade would overwrite, change nothing
-  irgo upgrade --diff   Also show what the template holds for your files
-  irgo upgrade --force  Overwrite your files too (destructive)
+  irgo app remove ios
+  irgo app remove android
+  irgo app remove desktop
 
-Files are split by who owns them.
+The exact inverse of irgo app install. Every install irgo performs can be
+undone by irgo, so nothing it puts on a machine has to be hunted down by hand.`)
 
-  Framework — rewritten, because they must match the CLI in use:
-    ios/, android/      native shells (builds regenerate these anyway)
-    .air.toml           hot-reload config
-    .gitignore          tracks which generated paths exist
-    .github/workflows   CI
-    CLAUDE.md           framework documentation
-
-  Yours — seeded once, never rewritten:
-    main.go, app/, handlers/, templates/, static/, mobile/
-    irgo.package.toml   your signing team and store settings
-    go.mod              your dependencies
-
-When one of your files differs from the current template, upgrade names it
-rather than touching it. That is expected for anything you have edited; look
-only when an upgrade note says the framework changed how it works.
-
---force overwrites your code too. That is what a repo which IS generated
-output wants, and what an application never does.`)
-
-	case "ci":
-		fmt.Println(`irgo ci - Scaffold GitHub Actions workflows
+	case "app reviews":
+		fmt.Println(`irgo app reviews - Read store reviews
 
 Usage:
-  irgo ci           Write .github/workflows (existing files are kept)
-  irgo ci --force   Overwrite them
+  irgo app reviews ios
+  irgo app reviews mac
+  irgo app reviews android
 
-Writes two workflows:
+Needs the store credentials in irgo.package.toml under [reviews] — see
+irgo project config.`)
 
-  build.yml    Tests, web binary, desktop for Linux/macOS/Windows, the iOS
-               framework and simulator app, and the Android AAR — each on a
-               runner of the OS it requires. No secrets needed.
-  release.yml  Store packages on tag push. Every job is skipped unless its
-               signing secrets exist, so this is useful before you have any.
+	// ---- tools -------------------------------------------------------------
 
-Nothing is installed first. The workflows call 'go tool irgo', which builds the
-CLI version this module requires straight from go.mod — including through a
-replace directive when you track a fork. So the pin is go.mod and there is
-nothing to keep in step by hand.
-
-There are no SDK/NDK/JDK setup steps either: the CLI provisions its own
-toolchains, so 'go tool irgo build android' works on a bare runner.`)
-
-	case "clean":
-		fmt.Println(`irgo clean - Remove generated output
+	case "tools doctor":
+		fmt.Println(`irgo tools doctor - What this machine can build
 
 Usage:
-  irgo clean         Build output, native shells, generated code
-  irgo clean --all   Also Gradle caches and other slow-to-refetch state
+  irgo tools doctor            Every target, and what is missing for the rest
+  irgo tools doctor android    The Android toolchain in detail
+  irgo tools doctor --fix      Install what is missing
+  irgo tools doctor --strict   Exit non-zero if anything is missing (CI)
 
-Removes only what irgo produces — compiled output, store packages, the
-scaffolded ios/Example and android/Example shells, _templ.go, the generated
-stylesheet, and the gomobile go.work. Nothing you wrote is touched, and
-everything removed is rebuilt by the next build.
+Reports the Go toolchain, templ and Tailwind, Xcode and its signing teams, and
+the Android SDK/NDK/JDK with the emulator and AVDs.`)
 
-Reach for this when a stale artifact is the suspect: a framework built by an
-older irgo exposes an older bridge API, and the native shells then fail to
-compile against it.
-
---all additionally drops caches that are slow to refetch, so the plain form
-stays quick.`)
-
-	case "assets":
-		fmt.Println(`irgo assets - Regenerate the embedded assets
-
-Usage: irgo assets
-
-Regenerates _templ.go and static/css/output.css. Both are gitignored yet
-embedded into every build, so a fresh clone has neither.
-
-Every 'irgo build' / 'irgo run' does this for you. Run it directly only when
-invoking the Go toolchain yourself (plain 'go test' / 'go build'), which
-otherwise compiles against missing templates and ships an unstyled app.
-
-Installs the templ generator (pinned to your go.mod templ version) and the
-frontend dependencies if they are absent. Skips CSS when the project has no
-"css" script; prefers bun, falls back to npm.`)
-
-	case "test":
-		fmt.Println(`irgo test - Run the Go test suite
-
-Usage: irgo test
-
-Equivalent to: go test -v ./...`)
-
-	case "help":
-		fmt.Println(`irgo help - Show help
+	case "tools install":
+		fmt.Println(`irgo tools install - Provision what builds need
 
 Usage:
-  irgo help            List every command
-  irgo help <command>  Detail for one command`)
+  irgo tools install                        Everything this host can use
+  irgo tools install android                SDK, NDK, JDK 17 and gomobile
+  irgo tools install android --emulator     Also a system image and an AVD
+  irgo tools install android --avd <name>   Name that AVD (default "irgo")
+
+Everything lands under ~/.irgo or the Android SDK home — no system package
+manager, on any OS. Running it again installs only what is missing.
+
+You rarely need this: a build provisions what it needs. It exists so a large
+download can be done deliberately rather than in the middle of a build.`)
+
+	case "tools remove":
+		fmt.Println(`irgo tools remove - Undo it
+
+Usage:
+  irgo tools remove              What irgo installed for this host
+  irgo tools remove android      The Android toolchain
+  irgo tools remove --all        Everything, including the SDK and AVDs
+  irgo tools remove --keep-jdk   Leave the managed JDK in place
+  irgo tools remove --yes, -y    Do not ask
+
+Shows what it will delete, with sizes, and asks first. Outside a terminal it
+refuses rather than assuming yes.
+
+Only what irgo installed is removed: each install leaves a marker, and anything
+without one is left alone, so a toolchain you set up yourself survives.`)
+
+	// ---- server ------------------------------------------------------------
+
+	case "server dev":
+		fmt.Println(`irgo server dev - Development server with hot reload
+
+Usage:
+  irgo server dev
+
+Serves on http://localhost:8080 and rebuilds on save: templ, Tailwind and the
+Go binary. From an Android emulator the same server is http://10.0.2.2:8080,
+which is what irgo app run android --dev connects to.
+
+air is installed on demand.`)
+
+	case "server serve":
+		fmt.Println(`irgo server serve - Run the app without watching files
+
+Usage:
+  irgo server serve
+
+Serves on http://localhost:8080. Regenerates assets once at startup and then
+leaves them alone — for checking a build, or running the web target.`)
+
+	// ---- nouns and fallbacks ------------------------------------------------
+
+	case "project", "app", "tools", "server":
+		fmt.Printf("irgo %s - %s\n\n", noun, nounSummary[noun])
+		fmt.Println("Verbs:")
+		for _, v := range nounVerbs[noun] {
+			fmt.Printf("  irgo %s %s\n", noun, v)
+		}
+		fmt.Printf("\nDetail for one:  irgo help %s <verb>\n", noun)
 
 	case "version":
-		fmt.Println(`irgo version - Print the CLI version
-
-Usage: irgo version | irgo -v | irgo --version`)
-
-	case "package":
-		fmt.Println(`irgo package - Build store-ready artifacts
+		fmt.Println(`irgo version - Print the version
 
 Usage:
-  irgo package ios       [--team ID] [--export-method M] [-o OUT]   .ipa    (macOS only)
-  irgo package android   [--keystore F --keystore-pass P --key-alias A --key-pass P] [-o OUT]   .aab
-  irgo package macos     [--identity ID] [--notarize --apple-id ID --team ID --password P] [--dmg]   (macOS only)
-  irgo package windows   [--publisher CN] [--version V] [--cert F --cert-pass P]   .msix
-  irgo package setup [store]     Interactive wizard for the values a store needs
-  irgo package setup --check     Report what is set, where it came from, and
-                                 exactly how to supply what is missing
+  irgo version
 
-Configuration precedence, highest first:
-  1. CLI flag                    irgo package android --keystore ...
-  2. Environment                 IRGO_ANDROID_KEYSTORE=...  (what CI secrets set)
-  3. irgo.package.local.toml     your machine, gitignored — SECRETS go here
-  4. irgo.package.toml           shared with your team, committed
-  5. auto-derived                e.g. the Team ID read from Xcode
-
-Config is read from irgo.package.toml; flags override it. App icons come from
-a single appicon.png. Signing material is never written to the repo.`)
-
-	case "reviews":
-		fmt.Println(`irgo reviews - Monitor app store reviews
-
-Usage:
-  irgo reviews ios       Recent App Store reviews (iOS)
-  irgo reviews mac       Recent App Store reviews (macOS)
-  irgo reviews android   Recent Play Store reviews, and reply to them
-
-Credentials come from irgo.package.toml - 'irgo package setup --check' reports
-what is missing.`)
+Prints the CLI version and, in a project, which irgo go.mod resolves to — a
+release, a fork tag or a local checkout.`)
 
 	default:
-		fmt.Printf("Unknown command: %s\n", cmd)
+		fmt.Printf("No help for %q.\n\n", strings.TrimSpace(noun+" "+verb))
 		printUsage()
 	}
 }
 
-// deprecated warns that a command has moved, then runs it anyway. Renaming
-// without an alias turns a naming cleanup into a broken script for everyone
-// who already had one.
+// nounSummary is the one-line description of each noun, used when help is
+// asked for a noun rather than a command.
+var nounSummary = map[string]string{
+	"project": "the repository you are in",
+	"app":     "what gets built, run, shipped and installed",
+	"tools":   "the toolchains on this machine",
+	"server":  "the development server",
+}
+
+// verbSummary is the one line each command gets in generated documentation.
+// It sits next to the help text so a new command is described once, in the
+// same file, rather than in a README that then has to be remembered.
+var verbSummary = map[string]string{
+	"project new":     "Create a project, or regenerate this one",
+	"project clean":   "Remove generated output",
+	"project upgrade": "Take framework updates, leaving your code alone",
+	"project pin":     "Choose which irgo this project builds against",
+	"project ci":      "Scaffold the GitHub Actions workflows",
+	"project assets":  "Regenerate templ + Tailwind (builds do this already)",
+	"project test":    "Run the tests",
+	"project config":  "Show or set a setting (signing, stores, version)",
+
+	"app build":   "Build for ios, android, desktop, or all",
+	"app run":     "Build and launch; --dev for hot reload",
+	"app package": "Store artifacts (.ipa, .aab, .app, .msix)",
+	"app install": "Install what you already built — no rebuild",
+	"app remove":  "Uninstall it again",
+	"app reviews": "Read store reviews",
+
+	"tools install": "Provision what builds need",
+	"tools remove":  "Undo it — shows what it will delete, and asks",
+	"tools doctor":  "What this host can build; --fix repairs it",
+
+	"server dev":   "Web server with hot reload",
+	"server serve": "Web server without file watching",
+}
+
+// renderCommandTable writes the command reference that ships in the generated
+// README. It is built from the same table the CLI dispatches on, so the
+// documented commands are the commands — the previous README was written by
+// hand and still described `irgo doctor`, `irgo dev` and `irgo ios team` long
+// after all three were renamed.
+func renderCommandTable() string {
+	var b strings.Builder
+	b.WriteString("| Command | What it does |\n|---|---|\n")
+	for _, noun := range []string{"project", "app", "tools", "server"} {
+		for _, verb := range nounVerbs[noun] {
+			key := noun + " " + verb
+			fmt.Fprintf(&b, "| `%s` | %s |\n", key, verbSummary[key])
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}

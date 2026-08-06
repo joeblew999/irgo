@@ -149,7 +149,7 @@ func printASReview(r asReview, platform string) {
 	if r.hasReply {
 		fmt.Println("  ↳ already replied")
 	} else {
-		fmt.Printf("  ↳ no reply yet — `irgo reviews %s --reply %s --text \"...\"`\n", platform, r.id)
+		fmt.Printf("  ↳ no reply yet — `irgo app reviews %s --reply %s --text \"...\"`\n", platform, r.id)
 	}
 	fmt.Println()
 }
@@ -256,7 +256,7 @@ func ascToken(cfg packageConfig) (string, error) {
 		p8 = os.Getenv("IRGO_ASC_PRIVATE_KEY")
 	}
 	if keyID == "" || issuer == "" || p8 == "" {
-		return "", fmt.Errorf("set [reviews] ios_key_id, ios_issuer_id and ios_private_key in %s (App Store Connect API key — see `irgo package setup`; the key needs Customer Reviews access)", packageConfigFile)
+		return "", fmt.Errorf("set [reviews] ios_key_id, ios_issuer_id and ios_private_key in %s (App Store Connect API key — see `irgo app package setup`; the key needs Customer Reviews access)", packageConfigFile)
 	}
 	key, err := parseECP8Key(expandHome(p8))
 	if err != nil {

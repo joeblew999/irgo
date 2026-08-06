@@ -19,7 +19,7 @@ import (
 func runDoctorFix() error {
 	if runtime.GOOS != "darwin" {
 		fmt.Println("Nothing to fix: the repairs here are Xcode-specific (macOS only).")
-		fmt.Println("Run `irgo doctor` to see what this host can build.")
+		fmt.Println("Run `irgo tools doctor` to see what this host can build.")
 		return nil
 	}
 
@@ -63,7 +63,7 @@ func runDoctorFix() error {
 		fmt.Printf("%d thing(s) fixed.\n", fixed)
 	}
 	if len(manual) == 0 {
-		fmt.Println("Nothing left to do — irgo doctor should be clean.")
+		fmt.Println("Nothing left to do — irgo tools doctor should be clean.")
 		return nil
 	}
 
@@ -133,7 +133,7 @@ func fixXcodeFirstLaunch() (bool, error) {
 }
 
 // fixSimulatorRuntimes downloads an iOS runtime when none is installed, so
-// `irgo run ios` has something to boot.
+// `irgo app run ios` has something to boot.
 func fixSimulatorRuntimes() (bool, error) {
 	if countIOSRuntimes() > 0 {
 		fmt.Println("  ✓ iOS simulator runtime present")
@@ -217,7 +217,7 @@ func printManualSteps() {
 		fmt.Println()
 		fmt.Println("   If step 3 has no 'Developer Mode' entry, the phone has not yet")
 		fmt.Println("   been asked for development by a Mac. Keep it plugged in and")
-		fmt.Println("   unlocked, run `irgo run ios --device` once, then look again —")
+		fmt.Println("   unlocked, run `irgo app run ios --device` once, then look again —")
 		fmt.Println("   the entry appears after that attempt. (Just done for you.)")
 		_ = exec.Command("xcrun", "devicectl", "device", "info", "details",
 			"--device", d.identifier).Run()
@@ -225,8 +225,8 @@ func printManualSteps() {
 
 	fmt.Println()
 	fmt.Println("  ── Then ───────────────────────────────────────────────────")
-	fmt.Println("   irgo doctor --fix     re-check (should report nothing left)")
-	fmt.Println("   irgo run ios --device build, install and launch on the phone")
+	fmt.Println("   irgo tools doctor --fix     re-check (should report nothing left)")
+	fmt.Println("   irgo app run ios --device build, install and launch on the phone")
 	fmt.Println()
 	fmt.Println("   First launch on the phone shows 'Untrusted Developer'. Fix on the")
 	fmt.Println("   phone: Settings → General → VPN & Device Management → tap your")

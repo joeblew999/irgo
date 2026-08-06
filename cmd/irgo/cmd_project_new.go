@@ -294,7 +294,7 @@ func newProject(name string) error {
 
 		// irgo.package.toml holds settings a person chose — the signing team,
 		// store IDs, the app version. The template version is only a seed, so
-		// regenerating in place (irgo new .) must not overwrite an existing
+		// regenerating in place (irgo project new .) must not overwrite an existing
 		// one: that silently discards configuration and the next build fails
 		// somewhere unrelated.
 		if strings.HasSuffix(path, "/"+packageConfigFile) || path == "templates/"+packageConfigFile {
@@ -316,7 +316,7 @@ func newProject(name string) error {
 		}
 
 		// The CI workflows live under templates/github but are not part of a
-		// new project — `irgo ci` scaffolds them to .github/ on request.
+		// new project — `irgo project ci` scaffolds them to .github/ on request.
 		// Without this they land in every project as a stray github/ folder
 		// that GitHub ignores, so nothing runs and nothing says why.
 		if path == "templates/github" {
@@ -348,18 +348,13 @@ func newProject(name string) error {
 			relPath = strings.TrimSuffix(relPath, ".tmpl")
 		}
 
-		// Replace placeholders
-		contentStr := string(content)
-		contentStr = strings.ReplaceAll(contentStr, "{{PROJECT_NAME}}", projectName)
-		contentStr = strings.ReplaceAll(contentStr, "{{MODULE_PATH}}", modulePath)
-		contentStr = strings.ReplaceAll(contentStr, "{{GO_VERSION}}", getGoVersion())
-
-		// Pin irgo to a fork tag (IRGO_REPLACE) or a local checkout
+		// Pin irgo to a fork tag (IRGO_REPLACE) or a local checkout — only
+		// go.mod carries a replace directive.
+		replace := ""
 		if strings.HasSuffix(relPath, "go.mod") {
-			contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", replaceDirective())
-		} else {
-			contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", "")
+			replace = replaceDirective()
 		}
+		contentStr := renderTemplate(string(content), projectName, modulePath, replace)
 
 		// Shell scripts and gradle wrappers must be executable
 		fileMode := os.FileMode(0644)
@@ -398,14 +393,14 @@ func newProject(name string) error {
 	}
 
 	// Every project wants CI, so scaffold it rather than making it a step
-	// people have to know about. `irgo ci --force` regenerates it later.
+	// people have to know about. `irgo project ci --force` regenerates it later.
 	if err := runCIIn(projectDir, modulePath); err != nil {
 		fmt.Printf("Warning: could not scaffold CI workflows: %v\n", err)
 	}
 
 	// Generate templ files BEFORE tidy. Only the generated _templ.go files
 	// import templ directly; tidy run first sees no importer and records templ
-	// as `// indirect`, which the first `irgo templ` then flips back to direct
+	// as `// indirect`, which the first `irgo project assets` then flips back to direct
 	// — dirtying go.mod, a generated file, on the very first build.
 	// Install templ rather than skipping when it is absent. Skipping is not
 	// harmless: tidy then runs with no _templ.go on disk, concludes nothing
@@ -467,7 +462,7 @@ func newProject(name string) error {
 // android/Example) into the CURRENT directory from the embedded templates.
 // It is missing-only and idempotent — an existing Example project is never
 // overwritten, so build/run can call it unconditionally. This is what makes
-// `irgo build/run android|ios` work on a bare project: devs and CI never
+// `irgo app build/run android|ios` work on a bare project: devs and CI never
 // hand-copy the native shells, and never need a separate scaffold step.
 func scaffoldExamples() error {
 	modulePath, err := getModulePath()
@@ -494,7 +489,7 @@ func scaffoldExamples() error {
 
 // scaffoldExampleDir copies one example subtree (rel, e.g. "ios/Example") from
 // the embedded templates into the current directory, resolving the same
-// placeholders as irgo new. Skips (without error) when the destination already
+// placeholders as irgo project new. Skips (without error) when the destination already
 // exists so it is safe to call on every build/run.
 func scaffoldExampleDir(rel, projectName, modulePath string) error {
 	if _, err := os.Stat(rel); err == nil {
@@ -518,19 +513,12 @@ func scaffoldExampleDir(rel, projectName, modulePath string) error {
 			return fmt.Errorf("reading template %s: %w", path, err)
 		}
 
-		// Handle .tmpl extension (remove it), like irgo new.
+		// Handle .tmpl extension (remove it), like irgo project new.
 		if strings.HasSuffix(destPath, ".tmpl") {
 			destPath = strings.TrimSuffix(destPath, ".tmpl")
 		}
 
-		// Resolve placeholders. Only {{PROJECT_NAME}} appears in the example
-		// templates today (Android app_name), but resolve the full set so the
-		// two scaffolders stay in sync.
-		contentStr := string(content)
-		contentStr = strings.ReplaceAll(contentStr, "{{PROJECT_NAME}}", projectName)
-		contentStr = strings.ReplaceAll(contentStr, "{{MODULE_PATH}}", modulePath)
-		contentStr = strings.ReplaceAll(contentStr, "{{GO_VERSION}}", getGoVersion())
-		contentStr = strings.ReplaceAll(contentStr, "{{REPLACE_DIRECTIVE}}", "")
+		contentStr := renderTemplate(string(content), projectName, modulePath, "")
 
 		// Shell scripts and gradle wrappers must be executable.
 		fileMode := os.FileMode(0o644)

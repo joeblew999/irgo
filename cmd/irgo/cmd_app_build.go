@@ -55,7 +55,7 @@ func runBuild(target string, sim, device bool, team string) error {
 		return buildAndroid(modulePath)
 	case "all":
 		// Android builds anywhere; iOS cannot leave macOS. Skip rather than
-		// fail so `irgo build all` stays usable on Linux/Windows CI.
+		// fail so `irgo app build all` stays usable on Linux/Windows CI.
 		if runtime.GOOS == "darwin" {
 			if err := buildIOS(modulePath); err != nil {
 				return err
@@ -74,16 +74,16 @@ func runBuild(target string, sim, device bool, team string) error {
 // have in the first place.
 func requireMacOS(what string) error {
 	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%s builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", what, runtime.GOOS)
+		return fmt.Errorf("%s builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo tools doctor` to see everything this host can and cannot build", what, runtime.GOOS)
 	}
 	return nil
 }
 
 // runMobile builds and runs on mobile simulator
-func runMobile(platform string, devMode bool, avdName string, headless bool) error {
+func runMobile(platform string, devMode bool) error {
 	// Same as the build paths: _templ.go and output.css are generated and
 	// gitignored but compiled into the app, so running without regenerating
-	// them ships whatever happened to be on disk — or, after irgo clean,
+	// them ships whatever happened to be on disk — or, after irgo project clean,
 	// nothing at all, which looks like a broken app rather than a missing step.
 	if err := ensureAssets(); err != nil {
 		return err
@@ -92,7 +92,7 @@ func runMobile(platform string, devMode bool, avdName string, headless bool) err
 	case "ios":
 		return runIOS(devMode)
 	case "android":
-		return runAndroid(devMode, avdName, headless)
+		return runAndroid(devMode)
 	default:
 		return fmt.Errorf("unknown platform: %s (use ios or android)", platform)
 	}
@@ -178,7 +178,7 @@ func runGomobileCommand(args ...string) error {
 
 	// gomobile bind for Android shells out to javac, which needs a JDK on
 	// PATH — resolve the managed ~/.irgo/jdks JDK (or an existing one) so the
-	// toolchain is self-contained after `irgo install-tools android`.
+	// toolchain is self-contained after `irgo tools install android`.
 	applyBestJDKToEnv()
 
 	cmd := exec.Command("gomobile", args...)

@@ -11,7 +11,7 @@ android {
         applicationId = "com.irgo.example"
         minSdk = 24
         targetSdk = 34
-        // Overridable by `irgo package android --version 1.2.3` (or the
+        // Overridable by `irgo app package android --version 1.2.3` (or the
         // irgo.package.toml [common] version) via -Pirgo.* gradle props.
         versionCode = providers.gradleProperty("irgo.versionCode").map { it.toInt() }.orNull ?: 1
         versionName = providers.gradleProperty("irgo.versionName").orNull ?: "1.0"
@@ -19,7 +19,7 @@ android {
 
     signingConfigs {
         create("irgo") {
-            // Populated by `irgo package android` via -Pirgo.* gradle props
+            // Populated by `irgo app package android` via -Pirgo.* gradle props
             // (keystore path + passwords, or the debug keystore by default).
             val ks = providers.gradleProperty("irgo.keystore").orNull
             if (ks != null) {
@@ -38,7 +38,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Sign only when `irgo package android` supplied a keystore;
+            // Sign only when `irgo app package android` supplied a keystore;
             // plain `gradlew assembleDebug` (dev) is unaffected.
             if (providers.gradleProperty("irgo.keystore").isPresent) {
                 signingConfig = signingConfigs.getByName("irgo")

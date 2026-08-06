@@ -17,7 +17,7 @@ import (
 
 // This file adds the single-source app icon (appicon.png, static/icon.png, or
 // [common] icon in irgo.package.toml — see findAppIcon) to BUILD outputs, so
-// `irgo build/run` shows a real icon on each platform, not just `irgo package`.
+// `irgo app build/run` shows a real icon on each platform, not just `irgo app package`.
 
 // writeICO writes a Windows .ico containing 16/32/48/256 px PNG-embedded
 // images scaled from src (PNG-in-ICO, supported since Vista).

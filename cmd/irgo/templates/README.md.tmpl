@@ -13,7 +13,7 @@ Go + [templ](https://templ.guide) + [Datastar](https://data-star.dev).
 
 ```bash
 go tool irgo tools doctor      # what this machine can build, and what needs setup
-go tool irgo server server dev         # hot-reload server on http://localhost:8080
+go tool irgo server dev         # hot-reload server on http://localhost:8080
 ```
 
 Starting a *new* project is the one case `go tool` cannot cover — it needs a
@@ -69,30 +69,21 @@ build regenerates them — you never have to remember.
 Everything runs through `go tool irgo`. `go tool irgo help <command>` has the
 detail; `doctor` reports what your machine can actually do.
 
-| Command | Description |
-|---|---|
-| `doctor [--fix]` | What this host can build; `--fix` repairs the Xcode setup |
-| `dev` / `serve` | Web server; `dev` adds hot reload |
-| `assets` | Regenerate templ + Tailwind (builds do this already) |
-| `build ios [--sim\|--device]` | Framework, Simulator app, or signed device build |
-| `build android` | AAR — installs the JDK/SDK/NDK on first use |
-| `build desktop [all]` | Desktop app; `all` = every target this host supports |
-| `run ios [--dev\|--device]` | Launch on Simulator or a USB iPhone |
-| `run android [--no-window]` | Launch on the emulator |
-| `run desktop [--dev\|--built]` | Native window; `--built` runs the built app |
-| `package <ios\|android\|macos\|windows>` | Store artifacts |
-| `package setup --check` | What each store needs and how to supply it |
-| `ios team [ID]` | List signing teams, or select one |
-| `pin [target]` | Which irgo this builds against — release, fork, or a checkout |
-| `upgrade [--diff\|--force]` | Take framework updates without touching your code |
-| `ci [--force]` | Scaffold the GitHub Actions workflows |
-| `clean [--all]` | Remove generated output |
-| `uninstall [ios\|android\|desktop]` | Remove the installed app |
+{{COMMANDS}}
+
+Every command explains itself, including its flags:
+
+```bash
+go tool irgo help              # the whole grammar
+go tool irgo help app          # what app accepts
+go tool irgo help app run      # detail and flags for one command
+```
 
 **Nothing needs installing first.** Toolchains provision themselves when a
 command needs them: `build android` fetches JDK 17, the SDK and the NDK into
 `~/.irgo` — Android Studio is not involved. Undo it all with
-`uninstall-tools android --remove-jdk`. The one exception is Xcode, which only
+`tools remove android` — it shows what it will delete, with sizes, and asks
+first. The one exception is Xcode, which only
 Apple can install; `doctor` says so plainly.
 
 ## Working on irgo itself
@@ -102,12 +93,12 @@ irgo and working on irgo are the same activity pointed at different versions:
 
 ```bash
 go tool irgo project pin                      # what am I building against?
-go tool irgo project pin --local ../irgo      # build a checkout you are editing
+go tool irgo project pin local ../irgo        # build a checkout you are editing
 # edit the CLI — the next `go tool irgo` already runs your change
-go tool irgo project pin --release            # back to the published build
+go tool irgo project pin release              # back to the published build
 ```
 
-`--local` writes a `replace` into go.mod, so nothing is installed, nothing is
+`pin local` writes a `replace` into go.mod, so nothing is installed, nothing is
 tagged, and nothing has to be reinstalled between edits. The same command
 tracks a fork:
 
@@ -595,8 +586,8 @@ r.DSPost("/register", func(ctx *router.Context) error {
 ## Tips
 
 1. **Always read files before editing** - understand existing code first
-2. **You do not need to run templ by hand** — every build and `go tool irgo server server dev` regenerates `_templ.go` and the stylesheet
-3. **Use `go tool irgo server server dev`** during development for hot reload
+2. **You do not need to run templ by hand** — every build and `go tool irgo server dev` regenerates `_templ.go` and the stylesheet
+3. **Use `go tool irgo server dev`** during development for hot reload
 4. **Return HTML fragments via SSE**, not JSON - this is hypermedia-driven
 5. **Elements need IDs** for Datastar to patch them
 6. **Use signals for client state** - avoid unnecessary server roundtrips

@@ -19,7 +19,7 @@ import (
 
 // --- Android toolchain management -------------------------------------------
 //
-// irgo install-tools android / irgo uninstall-tools android / irgo doctor android
+// irgo tools install android / irgo tools remove android / irgo tools doctor android
 // provision and remove the Android SDK + NDK (+ optionally the emulator/AVD)
 // across macOS/Linux/Windows — the same logic used to live in per-project mise
 // tasks, now available to every irgo project and CI pipeline.
@@ -549,7 +549,18 @@ func adbRunning() bool {
 // Safe to call repeatedly: it is a no-op while an emulator/device is up.
 // headless=true runs without a window (CI/scripting); otherwise headed unless
 // there is no display available (non-macOS without DISPLAY).
-func ensureEmulatorRunning(avdName string, headless bool) error {
+// defaultAVD is the AVD irgo creates and boots when none is named.
+const defaultAVD = "irgo"
+
+// There is nothing to choose here on purpose. Whatever device or emulator is
+// already connected is used, and only when none is does irgo boot its own —
+// so running a particular AVD means starting it yourself first, with no flag
+// to disagree with reality. The knobs that used to exist (--avd, --no-window)
+// were ignored outright whenever something was already running, which is most
+// of the time.
+func ensureEmulatorRunning() error {
+	avdName := defaultAVD
+	headless := false
 	if adbRunning() {
 		return nil
 	}
@@ -668,7 +679,7 @@ func ensureEmulatorSupported() error {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
 		return fmt.Errorf("no Android emulator for linux/arm64: Google publishes no `emulator` package for linux-aarch64, " +
 			"so sdkmanager reports \"Failed to find package 'emulator'\". Use an x86_64 Linux host, " +
-			"or build without running: irgo build android")
+			"or build without running: irgo app build android")
 	}
 	if runtime.GOOS == "linux" && !hasKVM() {
 		msg := "the Android emulator needs KVM on Linux, but /dev/kvm is missing or not readable/writable by this user"
@@ -680,7 +691,7 @@ func ensureEmulatorSupported() error {
 		} else {
 			msg += ".\n  Add your user to the kvm group, or widen the device permissions"
 		}
-		return fmt.Errorf("%s.\n  To skip the emulator entirely, build only: irgo build android", msg)
+		return fmt.Errorf("%s.\n  To skip the emulator entirely, build only: irgo app build android", msg)
 	}
 	return nil
 }

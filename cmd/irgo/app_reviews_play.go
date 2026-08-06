@@ -172,7 +172,7 @@ func printPlayReview(r playReview) {
 	if r.ReplyResult.ReplyText != "" {
 		fmt.Printf("  ↳ replied: %s\n", r.ReplyResult.ReplyText)
 	} else {
-		fmt.Println("  ↳ no reply yet — `irgo reviews android --reply <id> --text \"...\"`")
+		fmt.Println("  ↳ no reply yet — `irgo app reviews android --reply <id> --text \"...\"`")
 	}
 	fmt.Println()
 }

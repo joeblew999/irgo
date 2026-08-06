@@ -11,8 +11,8 @@ import (
 // ---------------------------------------------------------------------------
 // package configuration (irgo.package.toml)
 //
-// `irgo new` scaffolds a default irgo.package.toml at the project root. The
-// `irgo package` commands read it for defaults; explicit CLI flags override
+// `irgo project new` scaffolds a default irgo.package.toml at the project root. The
+// `irgo app package` commands read it for defaults; explicit CLI flags override
 // the file. Missing file = built-in defaults + CLI flags.
 // ---------------------------------------------------------------------------
 
@@ -173,10 +173,10 @@ func writeDefaultPackageConfig() error {
 	if _, err := os.Stat(packageConfigFile); err == nil {
 		return nil
 	}
-	content := `# irgo package configuration — defaults for ` + "`irgo package <ios|android|macos|windows>`" + `
+	content := `# irgo app package configuration — defaults for ` + "`irgo app package <ios|android|macos|windows>`" + `
 #
-# CLI flags override any value here (e.g. ` + "`irgo package android --keystore ...`" + `).
-# Run ` + "`irgo package setup`" + ` for a step-by-step guide to obtaining every value
+# CLI flags override any value here (e.g. ` + "`irgo app package android --keystore ...`" + `).
+# Run ` + "`irgo app package setup`" + ` for a step-by-step guide to obtaining every value
 # below for each store.
 
 [common]
@@ -230,7 +230,7 @@ password = ""
 dmg = false
 
 [reviews]
-# App Store review monitoring (` + "`irgo reviews <ios|mac|android>`" + `).
+# App Store review monitoring (` + "`irgo app reviews <ios|mac|android>`" + `).
 # Apple (iOS + Mac) uses the official App Store Connect API — a key with
 # Customer Reviews access. Android uses the Play Developer API (service
 # account) and can also reply from the terminal.
@@ -267,7 +267,7 @@ android_service_account = ""
 // gitignored-but-embedded assets.
 //
 // Both matter before packaging. Without the regeneration a package built after
-// `irgo clean` embeds no stylesheet and ships an unstyled app — the failure
+// `irgo project clean` embeds no stylesheet and ships an unstyled app — the failure
 // does not surface until someone opens the artifact, which for a store build
 // is far too late.
 func preparePackage(target string) error {
@@ -281,15 +281,15 @@ func gateOS(target string) error {
 	switch target {
 	case "ios":
 		if runtime.GOOS != "darwin" {
-			return fmt.Errorf("irgo package ios requires macOS (Xcode + codesign); this host is %s — run it on a Mac or in CI on macos-latest", runtime.GOOS)
+			return fmt.Errorf("irgo app package ios requires macOS (Xcode + codesign); this host is %s — run it on a Mac or in CI on macos-latest", runtime.GOOS)
 		}
 	case "windows":
 		if runtime.GOOS != "windows" {
-			return fmt.Errorf("irgo package windows requires Windows (MakeAppx/signtool from the Windows SDK); this host is %s — run it on Windows or in CI on windows-latest", runtime.GOOS)
+			return fmt.Errorf("irgo app package windows requires Windows (MakeAppx/signtool from the Windows SDK); this host is %s — run it on Windows or in CI on windows-latest", runtime.GOOS)
 		}
 	case "macos":
 		if runtime.GOOS != "darwin" {
-			return fmt.Errorf("irgo package macos requires macOS (Xcode codesign/notarytool/hdiutil); this host is %s — run it on a Mac or in CI on macos-latest", runtime.GOOS)
+			return fmt.Errorf("irgo app package macos requires macOS (Xcode codesign/notarytool/hdiutil); this host is %s — run it on a Mac or in CI on macos-latest", runtime.GOOS)
 		}
 	case "android":
 		// Cross-platform: gradle + JDK + Android SDK run on every OS.
@@ -298,12 +298,12 @@ func gateOS(target string) error {
 }
 
 // packageSetupGuide prints where to get every store config value — run with
-// `irgo package setup` and fill the results into irgo.package.toml.
+// `irgo app package setup` and fill the results into irgo.package.toml.
 func packageSetupGuide() {
-	fmt.Print(`irgo package — what each store needs, and where to get it
+	fmt.Print(`irgo app package — what each store needs, and where to get it
 
-Everything below goes into irgo.package.toml (created by ` + "`irgo package`" + ` or
-` + "`irgo new`" + `). CLI flags override it per invocation. One source icon
+Everything below goes into irgo.package.toml (created by ` + "`irgo app package`" + ` or
+` + "`irgo project new`" + `). CLI flags override it per invocation. One source icon
 (appicon.png or [common] icon) feeds every store.
 
 COMMON
@@ -341,11 +341,11 @@ macOS — notarized distribution (.app/.dmg)
                 Sign-In & Security → App-Specific Passwords).
 
 TIPS
-  - ` + "`irgo package ios --team X`" + ` etc. overrides the config file for one run.
+  - ` + "`irgo app package ios --team X`" + ` etc. overrides the config file for one run.
   - Every value has an IRGO_* env var (e.g. IRGO_IOS_TEAM), so CI supplies
     secrets as env vars / GitHub secrets — irgo.package.toml is gitignored.
-  - ` + "`irgo package setup <store>`" + ` interactively walks you through that store's
-    required values (opens the right pages); ` + "`irgo package setup --check`" + ` shows
+  - ` + "`irgo app package setup <store>`" + ` interactively walks you through that store's
+    required values (opens the right pages); ` + "`irgo app package setup --check`" + ` shows
     what's set/missing for every store. In CI (no terminal) commands fail fast
     with the exact env var + URL for each missing value.
   - iOS/macOS packaging must run on macOS; MSIX must run on Windows;
@@ -477,10 +477,10 @@ func packageCommand(args []string) error {
 	}
 	switch target {
 	case "setup":
-		// irgo package setup              → static guide (where to get every value)
-		// irgo package setup <store>      → interactive wizard for that store
-		// irgo package setup --check      → status report for every store
-		// irgo package setup --check <s>  → status report for one store
+		// irgo app package setup              → static guide (where to get every value)
+		// irgo app package setup <store>      → interactive wizard for that store
+		// irgo app package setup --check      → status report for every store
+		// irgo app package setup --check <s>  → status report for one store
 		check := false
 		store := ""
 		for _, a := range args[1:] {
@@ -506,7 +506,7 @@ func packageCommand(args []string) error {
 			}
 			missing := missingStoreConfig(store)
 			if len(missing) == 0 {
-				fmt.Printf("Nothing missing for %s — defaults cover it. Run `irgo package setup` for the full guide.\n", store)
+				fmt.Printf("Nothing missing for %s — defaults cover it. Run `irgo app package setup` for the full guide.\n", store)
 			} else if wErr := runSetupWizard(store, missing); wErr != nil {
 				return wErr
 			}

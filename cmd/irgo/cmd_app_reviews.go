@@ -13,7 +13,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// irgo reviews — app store review monitoring (and responding).
+// irgo app reviews — app store review monitoring (and responding).
 //
 // Apple (iOS + Mac App Store): official App Store Connect API — ES256 JWT auth
 // with a .p8 key. Lists reviews and posts responses (reviews_apple.go).
@@ -44,8 +44,8 @@ type reviewsState struct {
 
 func reviewsUsage() string {
 	return `Usage:
-  irgo reviews <ios|mac|android> [--limit N] [--new]
-  irgo reviews <ios|mac|android> --reply <reviewId> --text "reply text"
+  irgo app reviews <ios|mac|android> [--limit N] [--new]
+  irgo app reviews <ios|mac|android> --reply <reviewId> --text "reply text"
 
 Flags:
   --limit N     how many recent reviews to show (default 10)
@@ -55,7 +55,7 @@ Flags:
 
 Config (irgo.package.toml → [reviews]): ios_app_id, mac_app_id, ios_key_id,
 ios_issuer_id, ios_private_key, android_package, android_service_account.
-` + "`irgo package setup`" + ` explains where to get each.
+` + "`irgo app package setup`" + ` explains where to get each.
 
 Apple reviews use the official App Store Connect API (key needs Customer
 Reviews access); Android uses the Play Developer API (service account).`

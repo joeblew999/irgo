@@ -226,7 +226,7 @@ func findWindowsSDKTool(tool string) (string, error) {
 // PFX (pass "irgo") for test-signing MSIX packages.
 func generateTestCert(dir string) (string, string, error) {
 	ps := `
-$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=irgo test" -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable
+$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=irgo project test" -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable
 $pass = ConvertTo-SecureString "irgo" -Force -AsPlainText
 Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password $pass | Out-Null
 `

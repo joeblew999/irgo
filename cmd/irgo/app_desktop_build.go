@@ -10,7 +10,7 @@ import (
 )
 
 // runDesktop builds and runs a desktop app. With built=true it launches the
-// artifact `irgo build desktop` produced instead of `go run` — that is the one
+// artifact `irgo app build desktop` produced instead of `go run` — that is the one
 // that behaves like what ships (bundled resources, app icon, no toolchain).
 func runDesktop(devMode, built bool) error {
 	if built {
@@ -51,7 +51,7 @@ func ensureDesktopToolchain(target string) error {
 	switch target {
 	case "darwin", "macos":
 		if runtime.GOOS != "darwin" {
-			return fmt.Errorf("macOS desktop builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
+			return fmt.Errorf("macOS desktop builds require macOS (Xcode) — cannot cross-compile from %s.\n  Run `irgo tools doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 		if _, err := exec.LookPath("clang"); err != nil {
 			return fmt.Errorf("C compiler not found — install Xcode Command Line Tools: xcode-select --install")
@@ -73,11 +73,11 @@ func ensureDesktopToolchain(target string) error {
 				}
 			}
 		} else {
-			return fmt.Errorf("Windows desktop builds are supported from Windows or macOS (with mingw-w64), not %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
+			return fmt.Errorf("Windows desktop builds are supported from Windows or macOS (with mingw-w64), not %s.\n  Run `irgo tools doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 	case "linux":
 		if runtime.GOOS != "linux" {
-			return fmt.Errorf("Linux desktop builds require Linux (GTK3 + WebKit2GTK) — cannot cross-compile from %s.\n  Run `irgo doctor` to see everything this host can and cannot build", runtime.GOOS)
+			return fmt.Errorf("Linux desktop builds require Linux (GTK3 + WebKit2GTK) — cannot cross-compile from %s.\n  Run `irgo tools doctor` to see everything this host can and cannot build", runtime.GOOS)
 		}
 		if _, err := exec.LookPath("gcc"); err != nil {
 			return fmt.Errorf("gcc not found — install build-essential: sudo apt install build-essential")
@@ -201,7 +201,7 @@ func buildDesktopMacOS(modulePath string) error {
 	}
 
 	fmt.Printf("macOS app built: %s\n", appBundle)
-	runHint("open "+appBundle, "irgo run desktop --built")
+	runHint("open "+appBundle, "irgo app run desktop --built")
 	return nil
 }
 
@@ -261,7 +261,7 @@ func buildDesktopWindows(modulePath string) error {
 	}
 
 	fmt.Printf("Windows app built: %s\n", binaryPath)
-	runHint(binaryPath, "irgo run desktop --built  (on Windows)")
+	runHint(binaryPath, "irgo app run desktop --built  (on Windows)")
 	return nil
 }
 
@@ -294,7 +294,7 @@ func buildDesktopLinux(modulePath string) error {
 	}
 
 	fmt.Printf("Linux app built: %s\n", binaryPath)
-	runHint("./"+binaryPath, "irgo run desktop --built")
+	runHint("./"+binaryPath, "irgo app run desktop --built")
 	return nil
 }
 
@@ -433,7 +433,7 @@ func launchBuiltDesktop() error {
 	}
 
 	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("no built app at %s — build it first: irgo build desktop", path)
+		return fmt.Errorf("no built app at %s — build it first: irgo app build desktop", path)
 	}
 	fmt.Printf("Launching %s...\n", path)
 	return runCommand(cmd[0], cmd[1:]...)

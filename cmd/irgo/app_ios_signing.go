@@ -125,7 +125,7 @@ func resolveIOSTeam(flagTeam string) (team, source string, err error) {
 		return teams[0].id, "the Apple ID in Xcode", nil
 	default:
 		return "", "", fmt.Errorf("several development teams are available — pick one:\n\n%s\n"+
-			"  Choose per run:      irgo run ios --device --team <TEAM_ID>\n"+
+			"  Choose per run:      irgo app run ios --device --team <TEAM_ID>\n"+
 			"  Or record it once:   irgo ios team <TEAM_ID>\n"+
 			"                       (writes [ios] team to %s)",
 			formatTeams(teams, ""), packageConfigFile)

@@ -24,7 +24,7 @@ var ciTemplates embed.FS
 // local edits are never silently discarded.
 func runCI(force bool) error {
 	if _, err := os.Stat("go.mod"); err != nil {
-		return fmt.Errorf("no go.mod here — run irgo ci from your project root")
+		return fmt.Errorf("no go.mod here — run irgo project ci from your project root")
 	}
 	modulePath, err := getModulePath()
 	if err != nil {
@@ -88,6 +88,6 @@ func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error 
 	}
 	fmt.Println()
 	fmt.Println("The build workflow needs no secrets. For release packaging, see")
-	fmt.Println("what each store wants:  irgo package setup --check")
+	fmt.Println("what each store wants:  irgo app package setup --check")
 	return nil
 }

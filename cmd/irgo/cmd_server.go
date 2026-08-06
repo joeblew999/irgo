@@ -8,7 +8,7 @@ import (
 
 // runDev starts the development server with hot reload.
 //
-// air rebuilds on change using .air.toml, which calls `irgo assets` — so the
+// air rebuilds on change using .air.toml, which calls `irgo project assets` — so the
 // generate step lives in one place rather than being restated per project.
 func runDev() error {
 	if err := ensureGoTool("air"); err != nil {

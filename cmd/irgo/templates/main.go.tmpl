@@ -25,10 +25,10 @@ func main() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  go run . serve       Start development server")
-	fmt.Println("  irgo dev             Start dev server with hot reload")
-	fmt.Println("  irgo run desktop     Run as desktop app")
-	fmt.Println("  irgo run ios         Build and run on iOS Simulator")
-	fmt.Println("  irgo run android     Build and run on Android Emulator")
+	fmt.Println("  irgo server dev             Start dev server with hot reload")
+	fmt.Println("  irgo app run desktop     Run as desktop app")
+	fmt.Println("  irgo app run ios         Build and run on iOS Simulator")
+	fmt.Println("  irgo app run android     Build and run on Android Emulator")
 }
 
 // runDevServer starts an HTTP server for development with live reload

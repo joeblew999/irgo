@@ -1,11 +1,11 @@
 # Builds every target irgo supports, on the OS each one requires.
 #
-# Scaffolded by `irgo ci` — regenerate with `irgo ci --force`. The jobs mirror
+# Scaffolded by `irgo project ci` — regenerate with `irgo project ci --force`. The jobs mirror
 # what `irgo tools doctor` reports locally: iOS needs macOS, the Linux desktop needs
 # Linux, and Windows desktop builds natively here rather than cross-compiling.
 #
 # The CLI provisions its own toolchains, so there are no SDK/NDK/JDK setup
-# steps: `irgo build android` installs what it needs on a bare runner.
+# steps: `irgo app build android` installs what it needs on a bare runner.
 
 name: build
 
@@ -30,7 +30,7 @@ jobs:
         with:
           go-version-file: go.mod
       # _templ.go and output.css are generated and gitignored, but embedded in
-      # the binary. `irgo build` regenerates them; a plain `go build` needs this.
+      # the binary. `irgo app build` regenerates them; a plain `go build` needs this.
       # Framework-owned files (the native shells, .air.toml, these workflows)
       # are replaced by `irgo project upgrade`. Editing one here means the edit
       # disappears at the next upgrade, so say so now rather than then.

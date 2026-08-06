@@ -14,7 +14,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// irgo package setup — walk a dev through filling in the store config.
+// irgo app package setup — walk a dev through filling in the store config.
 //
 // Three modes, so it works identically on a laptop and in CI:
 //
@@ -71,7 +71,7 @@ func storeConfigValues(store string) []configValue {
 		return []configValue{
 			{tomlSection: "android", tomlKey: "keystore", env: "IRGO_ANDROID_KEYSTORE", flag: "--keystore",
 				display: "Signing keystore", url: urlPlayConsole,
-				how: "Debug keystore works by default (validation only). For release: keytool -genkey (see `irgo package setup`); keep it safe — it can't change after first upload.", required: false},
+				how: "Debug keystore works by default (validation only). For release: keytool -genkey (see `irgo app package setup`); keep it safe — it can't change after first upload.", required: false},
 		}
 	case "windows":
 		return []configValue{
@@ -328,7 +328,7 @@ func writeConfigValue(section, key, value string) error {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		seed := "# irgo package configuration — see: irgo package setup\n"
+		seed := "# irgo app package configuration — see: irgo app package setup\n"
 		if werr := os.WriteFile(packageConfigFile, []byte(seed), 0o644); werr != nil {
 			return fmt.Errorf("creating %s: %w", packageConfigFile, werr)
 		}
@@ -483,7 +483,7 @@ func checkStoreConfig(store string) {
 			fmt.Printf("        set it:    %s=...   (CI secret, or your shell)\n", cv.env)
 		}
 		if cv.flag != "" {
-			fmt.Printf("        or flag:   irgo package %s %s ...\n", store, cv.flag)
+			fmt.Printf("        or flag:   irgo app package %s %s ...\n", store, cv.flag)
 		}
 		if cv.secret {
 			fmt.Printf("        or file:   %s   (gitignored)\n", packageLocalFile)

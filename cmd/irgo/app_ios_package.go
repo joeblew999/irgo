@@ -56,7 +56,7 @@ func packageIOS(team, exportMethod, out string) error {
 	}
 
 	// The canonical ios/Example app — scaffolded from the embedded templates
-	// when missing, so `irgo package ios` works on a bare project.
+	// when missing, so `irgo app package ios` works on a bare project.
 	if err := scaffoldExamples(); err != nil {
 		return fmt.Errorf("iOS example scaffold failed: %w", err)
 	}
@@ -149,7 +149,7 @@ func packageIOS(team, exportMethod, out string) error {
 		"an .ipa installs on a device, not the simulator:",
 		"xcrun devicectl device install app --device <UDID> "+out,
 		"or upload to TestFlight: xcrun altool --upload-app -f "+out,
-		"for the simulator instead: irgo run ios",
+		"for the simulator instead: irgo app run ios",
 	)
 	return nil
 }

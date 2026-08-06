@@ -54,7 +54,7 @@ func buildIOSApp(modulePath string, device bool, team string) error {
 		return err
 	}
 
-	// A previous `irgo run ios --dev` leaves a dev-server URL in Info.plist;
+	// A previous `irgo app run ios --dev` leaves a dev-server URL in Info.plist;
 	// a plain build must produce a self-contained app.
 	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
 
@@ -73,8 +73,8 @@ func buildIOSApp(modulePath string, device bool, team string) error {
 // buildXcodeApp drives xcodebuild for the example project and returns the path
 // to the built .app.
 //
-// device=false is the Debug simulator build used by `irgo build ios --sim` and
-// by `irgo run ios` before it boots the simulator. device=true is the Release
+// device=false is the Debug simulator build used by `irgo app build ios --sim` and
+// by `irgo app run ios` before it boots the simulator. device=true is the Release
 // build for physical devices and the App Store, which needs a signing team —
 // supplied by --team or DEVELOPMENT_TEAM/IOS_TEAM_ID in the environment.
 func buildXcodeApp(iosProjectPath string, device bool, team string) (string, error) {
@@ -132,7 +132,7 @@ func buildXcodeApp(iosProjectPath string, device bool, team string) (string, err
 // Artifact version stamps: dev mode reuses previously built frameworks/AARs,
 // but a framework built by an older irgo exposes an older bridge API and the
 // native shells fail to compile against it. The stamp forces a rebuild after
-// an irgo upgrade.
+// an irgo project upgrade.
 
 func runIOS(devMode bool) error {
 	// Check for Xcode
@@ -587,14 +587,14 @@ func iosDeviceBuildHelp(out, team string) string {
 			"  Options, cheapest first:\n" +
 			"    1. Use a different Apple ID with a fresh free team:\n" +
 			"         Xcode → Settings → Apple Accounts → Add Apple Account\n" +
-			"         then: irgo run ios --device --team <NEW_TEAM_ID>\n" +
+			"         then: irgo app run ios --device --team <NEW_TEAM_ID>\n" +
 			"    2. Renew the paid Developer Program, which unlocks device\n" +
 			"       management at developer.apple.com → Devices, where old\n" +
 			"       devices can be removed. Only worth it if you want it anyway.\n" +
 			"\n" +
 			"  Nothing about your project is wrong — the build and signing both\n" +
 			"  worked, and the simulator needs none of this:\n" +
-			"    irgo run ios"
+			"    irgo app run ios"
 	}
 	if strings.Contains(out, "requires a development team") {
 		return "The build was not given a development team.\n" +
@@ -623,11 +623,11 @@ func iosSigningHelp(team string) string {
 	}
 	b.WriteString("  A free Apple ID is enough — no paid account needed:\n")
 	b.WriteString("    1. Xcode → Settings → Accounts → + → Apple ID → sign in\n")
-	b.WriteString("    2. irgo run ios --device --team <TEAM_ID>\n")
+	b.WriteString("    2. irgo app run ios --device --team <TEAM_ID>\n")
 	b.WriteString("       (or set IRGO_IOS_TEAM; find the ID under Manage Certificates)\n")
 	b.WriteString("  On first launch the device will refuse an untrusted developer:\n")
 	b.WriteString("    Settings → General → VPN & Device Management → trust the profile\n")
-	b.WriteString("  For the simulator instead, which needs no signing: irgo run ios")
+	b.WriteString("  For the simulator instead, which needs no signing: irgo app run ios")
 	return b.String()
 }
 
@@ -636,14 +636,14 @@ func developerModeHelp() string {
 	return "  Enable it on the phone:\n" +
 		"    1. Settings → Privacy & Security → Developer Mode → On\n" +
 		"    2. The phone restarts; unlock it and confirm Turn On\n" +
-		"    3. irgo run ios --device\n" +
+		"    3. irgo app run ios --device\n" +
 		"  If the menu entry is not there, plug the phone in and run\n" +
-		"  `irgo run ios --device` once — the entry appears after a Mac has\n" +
+		"  `irgo app run ios --device` once — the entry appears after a Mac has\n" +
 		"  tried to use the device for development."
 }
 
 // ensureIOSAppIcon writes the app icon into the Xcode asset catalog, which the
-// project requires to be non-empty. A project always has an icon: irgo new
+// project requires to be non-empty. A project always has an icon: irgo project new
 // ships a placeholder, so this only fails if one was deleted.
 func ensureIOSAppIcon(iosProjectPath string) error {
 	ic := findAppIcon("")

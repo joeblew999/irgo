@@ -159,7 +159,7 @@ func installTools() error {
 	fmt.Println("Done. Nothing else is required up front:")
 	fmt.Println("  Android — irgo installs the JDK, SDK and NDK on the first")
 	fmt.Println("            android build or run. Android Studio is NOT needed.")
-	fmt.Println("            Check it with: irgo doctor android")
+	fmt.Println("            Check it with: irgo tools doctor android")
 	if runtime.GOOS == "darwin" {
 		fmt.Println("  iOS     — needs Xcode from the App Store (the one thing irgo")
 		fmt.Println("            cannot install for you).")
@@ -170,7 +170,7 @@ func installTools() error {
 	return nil
 }
 
-// uninstallTools is the exact inverse of `irgo install-tools`: it removes the
+// uninstallTools is the exact inverse of `irgo tools install`: it removes the
 // Go tools irgo installed, and nothing else. Every install path in the CLI has
 // a matching uninstall — without one you cannot return a machine to a known
 // state, and a provisioning bug hides behind whatever was left lying around
