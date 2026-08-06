@@ -98,13 +98,22 @@ func packageMacOS(identity string, notarize bool, appleID, team, password string
 
 	if identity != "" {
 		entitlements := filepath.Join(tmp, "entitlements.plist")
+		// An irgo app runs an embedded HTTP server and points its own WebView
+		// at it, so under the hardened runtime it needs to both listen and
+		// connect. Without these two the app notarizes and ships, then fails
+		// at runtime with nothing explaining why.
 		ent := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- WebView JavaScript -->
 	<key>com.apple.security.cs.allow-jit</key><true/>
 	<key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
 	<key>com.apple.security.cs.disable-library-validation</key><true/>
+
+	<!-- Embedded HTTP server, and the WebView connecting to it -->
+	<key>com.apple.security.network.server</key><true/>
+	<key>com.apple.security.network.client</key><true/>
 </dict>
 </plist>
 `

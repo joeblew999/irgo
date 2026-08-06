@@ -89,7 +89,9 @@ func packageIOS(team, exportMethod, out string) error {
 		"-configuration", "Release",
 		"-destination", "generic/platform=iOS",
 		"-archivePath", archivePath,
-		"-DEVELOPMENT_TEAM", team,
+		// A build setting, not an option: xcodebuild rejects -DEVELOPMENT_TEAM
+		// outright ("invalid option"). Same mistake as the device build had.
+		"DEVELOPMENT_TEAM="+team,
 		"-allowProvisioningUpdates",
 		"archive",
 	)

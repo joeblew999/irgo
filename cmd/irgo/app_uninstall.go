@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -105,11 +106,27 @@ func uninstallDesktopApp() error {
 	if err != nil {
 		return err
 	}
-	app := "/Applications/" + baseName(modulePath) + ".app"
-	if !pathExists(app) {
-		fmt.Println("  desktop: not installed in /Applications")
-		return nil
+	name := baseName(modulePath)
+	found := false
+	for _, p := range []string{
+		"/Applications/" + name + ".app",
+		filepath.Join(homeDir(), "Applications", name+".app"),
+	} {
+		if pathExists(p) {
+			fmt.Printf("  desktop: removing %s\n", p)
+			if err := removeAllPath(p); err != nil {
+				return err
+			}
+			found = true
+		}
 	}
-	fmt.Printf("  desktop: removing %s\n", app)
-	return removeAllPath(app)
+	// Packaged output is `irgo clean`'s business, but say it is there —
+	// otherwise "uninstalled" is confusing when the app is still on disk.
+	if pathExists(filepath.Join("dist/macos", name+".app")) {
+		fmt.Printf("  desktop: dist/macos/%s.app remains (packaged output — irgo clean removes it)\n", name)
+	}
+	if !found {
+		fmt.Println("  desktop: not installed in /Applications")
+	}
+	return nil
 }

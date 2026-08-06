@@ -414,7 +414,13 @@ func launchBuiltDesktop() error {
 	var cmd []string
 	switch runtime.GOOS {
 	case "darwin":
-		path = filepath.Join("build/desktop/macos", app+".app")
+		// Prefer the packaged app when there is one: it is the artifact that
+		// actually ships (signed, entitled, notarized), so running it is what
+		// tells you whether shipping will work.
+		path = filepath.Join("dist/macos", app+".app")
+		if !pathExists(path) {
+			path = filepath.Join("build/desktop/macos", app+".app")
+		}
 		cmd = []string{"open", path}
 	case "windows":
 		path = filepath.Join("build/desktop/windows", app+".exe")
