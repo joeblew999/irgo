@@ -1,0 +1,70 @@
+# The framework's own tests, and proof that the CLI still produces a project
+# that builds.
+#
+# This repository had no CI at all while the demo it generates had eight jobs,
+# so every check ran against the output and none against the thing producing it.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  scaffold:
+    name: The CLI still produces a project that builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Generate a project from THIS checkout and build it. The unit tests
+      # cover the CLI's own logic; nothing else checks that its output is
+      # valid Go, which is the failure a user meets first.
+      - name: Scaffold and build
+        run: |
+          go build -o /tmp/irgo ./cmd/irgo
+          mkdir -p /tmp/scaffold && cd /tmp/scaffold
+          /tmp/irgo project new myapp
+          cd myapp
+          # Point the generated project at this checkout rather than a release,
+          # so the build exercises the code in the PR.
+          go mod edit -replace github.com/stukennedy/irgo=$GITHUB_WORKSPACE
+          go mod tidy
+          /tmp/irgo project assets
+          go build ./...
+          go test ./...
+
+  website:
+    name: Docs site builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # No Node: the scripts run vite and wrangler on bun's own runtime.
+      - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: website
+      - run: bun run build
+        working-directory: website

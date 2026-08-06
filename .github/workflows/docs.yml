@@ -1,0 +1,58 @@
+# Deploy the documentation site to Cloudflare Workers.
+#
+# It used to go out by hand from a laptop, which meant the published docs were
+# whoever's working copy ran wrangler last.
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docs
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    # Secrets cannot be referenced in `if:` — GitHub only exposes them through
+    # env — so map it here and skip cleanly when the repository has none,
+    # rather than failing every push until someone adds a token.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Check for credentials
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — building only, not deploying"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: website
+
+      # Always build, so a broken site is caught whether or not this repository
+      # can deploy it.
+      - run: bun run build
+        working-directory: website
+
+      - name: Deploy
+        if: steps.creds.outputs.deploy == 'true'
+        # workerd's postinstall is skipped above; wrangler needs it to run.
+        run: |
+          bun install --frozen-lockfile
+          bun --bun wrangler deploy
+        working-directory: website
