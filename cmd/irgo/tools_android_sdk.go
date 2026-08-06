@@ -558,7 +558,7 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 		emu += ".exe"
 	}
 	if !isDir(filepath.Dir(emu)) {
-		return fmt.Errorf("emulator not found at %s (run 'irgo install-tools android --emulator' first)", emu)
+		return fmt.Errorf("emulator not found at %s (run 'irgo tools install android --emulator' first)", emu)
 	}
 	// AVD must exist (created by installEmulator). Check the candidate homes —
 	// avdmanager/emulator can disagree on the AVD home depending on env vars
@@ -583,7 +583,7 @@ func ensureEmulatorRunning(avdName string, headless bool) error {
 		if out, err := exec.Command(emu, "-list-avds").CombinedOutput(); err == nil {
 			lines = append(lines, fmt.Sprintf("emulator -list-avds: %q", strings.TrimSpace(string(out))))
 		}
-		return fmt.Errorf("AVD %q not found — ANDROID_AVD_HOME=%q, ANDROID_SDK_HOME=%q; checked:\n  %s\n(run 'irgo install-tools android --emulator --avd %s')", avdName, os.Getenv("ANDROID_AVD_HOME"), os.Getenv("ANDROID_SDK_HOME"), strings.Join(lines, "\n  "), avdName)
+		return fmt.Errorf("AVD %q not found — ANDROID_AVD_HOME=%q, ANDROID_SDK_HOME=%q; checked:\n  %s\n(run 'irgo tools install android --emulator --avd %s')", avdName, os.Getenv("ANDROID_AVD_HOME"), os.Getenv("ANDROID_SDK_HOME"), strings.Join(lines, "\n  "), avdName)
 	}
 	fmt.Printf("Using AVD at %s\n", avdDir)
 	// Pin ANDROID_AVD_HOME so the emulator resolves the exact AVD we verified —
@@ -1027,7 +1027,7 @@ func doctorAndroid() error {
 		if len(names) > 0 {
 			fmt.Printf("  AVDs: %s\n", strings.Join(names, ", "))
 		} else {
-			fmt.Println("  AVDs: none (run 'irgo install-tools android --emulator')")
+			fmt.Println("  AVDs: none (run 'irgo tools install android --emulator')")
 		}
 	}
 

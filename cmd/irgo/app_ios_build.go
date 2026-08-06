@@ -58,15 +58,6 @@ func buildIOSApp(modulePath string, device bool, team string) error {
 	// a plain build must produce a self-contained app.
 	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
 
-	// Single-source app icon, same as macOS/Android/Windows.
-	if ic := findAppIcon(""); ic != "" {
-		if err := generateIOSIcons(ic, "ios/Example"); err != nil {
-			fmt.Printf("Warning: could not write iOS app icon: %v\n", err)
-		} else {
-			fmt.Println("  wrote iOS app icon from " + ic)
-		}
-	}
-
 	appPath, err := buildXcodeApp("ios/Example", device, team)
 	if err != nil {
 		return err
@@ -116,6 +107,15 @@ func buildXcodeApp(iosProjectPath string, device bool, team string) (string, err
 		args = append(args, "DEVELOPMENT_TEAM="+team, "CODE_SIGN_STYLE=Automatic")
 	}
 	args = append(args, "build")
+
+	// The Xcode project sets ASSETCATALOG_COMPILER_APPICON_NAME, so actool
+	// fails outright on an empty AppIcon set — "None of the input catalogs
+	// contained a matching app icon set". Generating here rather than in each
+	// caller is why: `irgo app build ios --sim` did it and `irgo app run ios`
+	// did not, so a run after a clean rebuilt the shell and then failed.
+	if err := ensureIOSAppIcon(iosProjectPath); err != nil {
+		return "", err
+	}
 
 	fmt.Printf("Building iOS app (%s)...\n", config)
 	if err := runCommand("xcodebuild", args...); err != nil {
@@ -513,9 +513,6 @@ func runIOSDevice(team string) error {
 		return err
 	}
 	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
-	if ic := findAppIcon(""); ic != "" {
-		_ = generateIOSIcons(ic, "ios/Example")
-	}
 
 	appPath, err := buildIOSDeviceApp(dev, team)
 	if err != nil {
@@ -643,4 +640,20 @@ func developerModeHelp() string {
 		"  If the menu entry is not there, plug the phone in and run\n" +
 		"  `irgo run ios --device` once — the entry appears after a Mac has\n" +
 		"  tried to use the device for development."
+}
+
+// ensureIOSAppIcon writes the app icon into the Xcode asset catalog, which the
+// project requires to be non-empty. A project always has an icon: irgo new
+// ships a placeholder, so this only fails if one was deleted.
+func ensureIOSAppIcon(iosProjectPath string) error {
+	ic := findAppIcon("")
+	if ic == "" {
+		return fmt.Errorf("no app icon found — iOS builds need one at appicon.png.\n" +
+			"  `irgo project new` ships a placeholder; restore it, or point\n" +
+			"  [common] icon in irgo.package.toml at your own")
+	}
+	if err := generateIOSIcons(ic, iosProjectPath); err != nil {
+		return fmt.Errorf("writing the iOS app icon from %s: %w", ic, err)
+	}
+	return nil
 }

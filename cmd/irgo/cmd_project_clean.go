@@ -84,7 +84,7 @@ func runClean(all bool) error {
 	if removed == 0 {
 		fmt.Println("Nothing to clean.")
 	} else {
-		fmt.Printf("\n%d path(s) removed. Rebuild with: irgo build <target>\n", removed)
+		fmt.Printf("\n%d path(s) removed. Rebuild with: irgo app build <target>\n", removed)
 	}
 	if skipped > 0 {
 		fmt.Printf("%d expensive path(s) kept (node_modules, caches) — use --all to remove them too.\n", skipped)

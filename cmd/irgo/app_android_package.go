@@ -176,7 +176,7 @@ func generateDebugKeystore(path string) error {
 	}
 	keytool, err := exec.LookPath("keytool")
 	if err != nil {
-		return fmt.Errorf("keytool not found (set JAVA_HOME or run 'irgo install-tools android'): %w", err)
+		return fmt.Errorf("keytool not found (set JAVA_HOME or run 'irgo tools install android'): %w", err)
 	}
 	cmd := exec.Command(keytool,
 		"-genkey", "-v",
