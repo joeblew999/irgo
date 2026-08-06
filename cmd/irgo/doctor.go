@@ -243,12 +243,17 @@ func iosDeviceCapability(xcodeState string) (state, note string) {
 	var parts []string
 	needsAction := false
 
-	out, err := exec.Command("security", "find-identity", "-v", "-p", "codesigning").Output()
-	if err != nil || strings.Contains(string(out), "0 valid identities") {
-		parts = append(parts, "no signing identity (Xcode → Settings → Accounts; a free Apple ID works)")
-		needsAction = true
-	} else {
+	if teams := xcodeTeams(); len(teams) > 0 {
+		kind := "team"
+		if teams[0].free {
+			kind = "free personal team"
+		}
+		parts = append(parts, fmt.Sprintf("%s %s (%s)", kind, teams[0].id, teams[0].name))
+	} else if hasSigningIdentity() {
 		parts = append(parts, "signing identity present")
+	} else {
+		parts = append(parts, "no Apple ID in Xcode (Settings → Accounts; a free one works)")
+		needsAction = true
 	}
 
 	// A device only matters for `irgo run ios --device`; packaging an .ipa

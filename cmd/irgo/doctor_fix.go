@@ -45,8 +45,8 @@ func runDoctorFix() error {
 	}
 
 	// Everything below needs a human.
-	if !hasSigningIdentity() {
-		manual = append(manual, "signing identity")
+	if !canSignForDevice() {
+		manual = append(manual, "Apple ID in Xcode")
 	}
 	if devs, err := listIOSDevices(); err == nil {
 		for _, d := range devs {
@@ -172,36 +172,146 @@ func hasSigningIdentity() bool {
 	return !strings.Contains(string(out), "0 valid identities")
 }
 
-// printManualSteps gives the shortest path through the two things that cannot
-// be automated, and opens Xcode so the account step is a click away.
+// printManualSteps spells out the two steps no tool can take. Each is written
+// as the exact taps, what you should see, and what to do when the thing is not
+// where it should be — a summary like "sign in" or "toggle it on" is not
+// actionable when the menu entry is missing, which is the usual case.
 func printManualSteps() {
-	if !hasSigningIdentity() {
+	if !canSignForDevice() {
 		fmt.Println()
-		fmt.Println("  Apple ID (needed to sign anything that runs on a real device)")
-		fmt.Println("    A free Apple ID is enough — no paid account.")
-		fmt.Println("      Xcode → Settings → Accounts → + → Apple ID → sign in")
-		fmt.Println("    Credentials and 2FA mean irgo cannot do this for you.")
+		fmt.Println("  ── Apple ID in Xcode ──────────────────────────────────────")
+		fmt.Println("  A free Apple ID works. No paid Developer Program needed.")
+		fmt.Println()
+		fmt.Println("   1. Xcode is opening now.")
+		fmt.Println("   2. Press Cmd+, (comma)          → Settings opens")
+		fmt.Println("      (or menu bar: Xcode → Settings…)")
+		fmt.Println("   3. Click the 'Accounts' tab      → top of the Settings window")
+		fmt.Println("   4. Click '+' at the bottom-left  → a chooser appears")
+		fmt.Println("   5. Choose 'Apple ID' → Continue")
+		fmt.Println("   6. Sign in (email, password, then the 2FA code on your devices)")
+		fmt.Println("   7. You should now see your name on the left, and on the right a")
+		fmt.Println("      team ending in '(Personal Team)'.")
+		fmt.Println("   8. Close Settings. That is all — irgo reads the Team ID itself,")
+		fmt.Println("      so you never have to find or type it.")
+		fmt.Println()
+		fmt.Println("   No signing certificate is created yet, and that is expected:")
+		fmt.Println("   Xcode makes it during the first device build.")
 		if _, err := exec.LookPath("open"); err == nil {
-			fmt.Println("    Opening Xcode now...")
 			_ = exec.Command("open", "-a", "Xcode").Start()
 		}
 	}
-	if devs, err := listIOSDevices(); err == nil {
-		for _, d := range devs {
-			if d.devModeOn {
-				continue
-			}
-			fmt.Println()
-			fmt.Printf("  Developer Mode on %s\n", d.name)
-			fmt.Println("      Settings → Privacy & Security → Developer Mode → On")
-			fmt.Println("    The phone restarts; unlock it and confirm Turn On.")
-			// Talking to the device is what makes the menu entry appear.
-			fmt.Println("    (waking the device so the menu entry appears...)")
-			_ = exec.Command("xcrun", "devicectl", "device", "info", "details",
-				"--device", d.identifier).Run()
-			fmt.Println("    Apple gates this on the device itself, so no tool can toggle it.")
+
+	for _, d := range devicesNeedingDeveloperMode() {
+		fmt.Println()
+		fmt.Println("  ── Developer Mode on " + d.name + " ──────────────────────────")
+		fmt.Println("  Apple gates this on the device itself, so no tool can set it.")
+		fmt.Println()
+		fmt.Println("   1. On the iPhone, open the 'Settings' app")
+		fmt.Println("   2. Tap 'Privacy & Security'      → about halfway down the list")
+		fmt.Println("   3. Scroll to the VERY BOTTOM     → tap 'Developer Mode'")
+		fmt.Println("   4. Turn the 'Developer Mode' switch ON")
+		fmt.Println("   5. Tap 'Restart' when prompted   → the phone reboots")
+		fmt.Println("   6. Unlock the phone after it restarts")
+		fmt.Println("   7. A dialog asks 'Turn on Developer Mode?' → tap 'Turn On'")
+		fmt.Println("   8. Enter your passcode")
+		fmt.Println()
+		fmt.Println("   If step 3 has no 'Developer Mode' entry, the phone has not yet")
+		fmt.Println("   been asked for development by a Mac. Keep it plugged in and")
+		fmt.Println("   unlocked, run `irgo run ios --device` once, then look again —")
+		fmt.Println("   the entry appears after that attempt. (Just done for you.)")
+		_ = exec.Command("xcrun", "devicectl", "device", "info", "details",
+			"--device", d.identifier).Run()
+	}
+
+	fmt.Println()
+	fmt.Println("  ── Then ───────────────────────────────────────────────────")
+	fmt.Println("   irgo doctor --fix     re-check (should report nothing left)")
+	fmt.Println("   irgo run ios --device build, install and launch on the phone")
+	fmt.Println()
+	fmt.Println("   First launch on the phone shows 'Untrusted Developer'. Fix on the")
+	fmt.Println("   phone: Settings → General → VPN & Device Management → tap your")
+	fmt.Println("   Apple ID → Trust. Then tap the app again.")
+}
+
+// devicesNeedingDeveloperMode lists attached devices with Developer Mode off.
+func devicesNeedingDeveloperMode() []iosDevice {
+	devs, err := listIOSDevices()
+	if err != nil {
+		return nil
+	}
+	var out []iosDevice
+	for _, d := range devs {
+		if !d.devModeOn {
+			out = append(out, d)
 		}
 	}
-	fmt.Println()
-	fmt.Println("Then: irgo run ios --device")
+	return out
+}
+
+// xcodeTeam is a provisioning team Xcode knows about from a signed-in Apple ID.
+type xcodeTeam struct {
+	id   string
+	name string
+	free bool
+}
+
+// xcodeTeams reads the teams Xcode has from its preferences.
+//
+// This is the right signal for "can this Mac sign a device build", not the
+// keychain: with automatic signing, the certificate is created during the first
+// build with -allowProvisioningUpdates. Checking for an existing certificate
+// reports a machine as unable to sign when it is merely one build away, and
+// sends the developer off to fix something that is not broken.
+func xcodeTeams() []xcodeTeam {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	out, err := exec.Command("defaults", "read", "com.apple.dt.Xcode", "IDEProvisioningTeams").Output()
+	if err != nil {
+		return nil
+	}
+	var teams []xcodeTeam
+	var cur xcodeTeam
+	for _, raw := range strings.Split(string(out), "\n") {
+		line := strings.TrimSpace(raw)
+		switch {
+		case strings.HasPrefix(line, "teamID = "):
+			cur.id = strings.Trim(strings.TrimSuffix(strings.TrimPrefix(line, "teamID = "), ";"), `"`)
+		case strings.HasPrefix(line, "teamName = "):
+			cur.name = strings.Trim(strings.TrimSuffix(strings.TrimPrefix(line, "teamName = "), ";"), `"`)
+		case strings.HasPrefix(line, "isFreeProvisioningTeam = "):
+			cur.free = strings.Contains(line, "1")
+		case line == "}" || line == "},":
+			if cur.id != "" {
+				teams = append(teams, cur)
+			}
+			cur = xcodeTeam{}
+		}
+	}
+	return teams
+}
+
+// xcodeAppleID returns the Apple ID signed into Xcode, or "".
+func xcodeAppleID() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	out, err := exec.Command("defaults", "read", "com.apple.dt.Xcode",
+		"DVTDeveloperAccountManagerAppleIDLists").Output()
+	if err != nil {
+		return ""
+	}
+	for _, raw := range strings.Split(string(out), "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "username = ") {
+			return strings.Trim(strings.TrimSuffix(strings.TrimPrefix(line, "username = "), ";"), `"`)
+		}
+	}
+	return ""
+}
+
+// canSignForDevice reports whether a device build can be signed — an Xcode team
+// is enough, since the certificate follows on the first build.
+func canSignForDevice() bool {
+	return len(xcodeTeams()) > 0 || hasSigningIdentity()
 }

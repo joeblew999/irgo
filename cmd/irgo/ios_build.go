@@ -514,6 +514,14 @@ func runIOSDevice(team string) error {
 func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
 	if team == "" {
 		team = firstNonEmpty(os.Getenv("DEVELOPMENT_TEAM"), os.Getenv("IRGO_IOS_TEAM"), deriveIOSTeamFromXcode())
+		// Fall back to the team from the Apple ID signed into Xcode, so a
+		// developer who has done the one manual step never has to find and
+		// type a Team ID.
+		if team == "" {
+			if teams := xcodeTeams(); len(teams) > 0 {
+				team = teams[0].id
+			}
+		}
 	}
 
 	args := []string{"-project", "ios/Example/Example.xcodeproj",
