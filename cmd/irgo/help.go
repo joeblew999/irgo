@@ -11,61 +11,56 @@ func printUsage() {
 	fmt.Println(`irgo - one Go codebase for web, desktop, iOS and Android
 
 Usage:
-  irgo <command> [arguments]
+  irgo <noun> <verb> [target] [flags]
 
-Commands are grouped by what they act on, so the object is always first.
+One grammar throughout: every command is a noun and a verb.
 
-PROJECT
-  new <name>              Create a project (or "." for the current directory)
-  upgrade [--diff|--force]  Take framework updates, leaving your code alone
-  pin [target]            Which irgo this project builds against
-  ci [--force]            Scaffold GitHub Actions workflows
-  clean [--all]           Remove generated output (--all: also caches)
+PROJECT   the repository you are in
+  project new <name>       Create one (or "." for the current directory)
+  project assets           Regenerate templ + Tailwind CSS
+  project test             Run the tests
+  project clean [--all]    Remove generated output
+  project ci [--force]     Scaffold GitHub Actions workflows
+  project upgrade          Take framework updates, leaving your code alone
+  project pin [target]     Which irgo this project builds against
 
-DEVELOP
-  dev                     Dev server with hot reload
-  serve                   Server without file watching
-  assets                  Regenerate templ + Tailwind CSS
-  test                    Run tests
+APP       what gets built, shipped and installed
+  app build <ios|android|desktop|all>      Build it
+  app run <ios|android|desktop>            Build and launch it
+  app package <ios|android|macos|windows>  Store artifacts
+  app install <platform>   Install what you already built — no rebuild
+  app remove <platform>    Uninstall it
+  app reviews <ios|mac|android>            Monitor store reviews
 
-BUILD & RUN
-  build <target>          ios, android, desktop, or all
-  run <platform>          ios, android, or desktop
+TOOLS     the toolchains on this machine
+  tools doctor [android]   What this host can build; --fix repairs it
+  tools install [android]  Install what builds need
+  tools remove [android]   Undo it — shows what it will delete, and asks
 
-SHIP
-  package <target>        ios .ipa, android .aab, macos .app/.dmg, windows .msix
-  package setup [--check] What each store needs, and where to get it
-  reviews <ios|mac|android>  Monitor store reviews (reply on android)
-
-APP  (installed on a device, simulator or this machine)
-  app install <platform>  Install what you already built — no rebuild
-  app remove <platform>   Remove it (ios, android, desktop, or all)
-
-TOOLS  (installed on this machine)
-  tools install [android] Install what builds need
-  tools remove [android]  Remove what irgo installed
-  tools doctor [android]  What this host can build; --fix repairs it
+SERVER    the development server
+  server dev               Hot reload
+  server serve             No file watching
 
 IOS
-  ios team [ID]           List signing teams, or select one
+  ios team [ID]            List signing teams, or select one
 
-  version                 Print version information
-  help [command]          Detail for one command
+  version                  Print version information
+  help [command]           Detail for one command
 
 Examples:
-  irgo new myapp                     Create a project
-  irgo dev                           Hot-reload server on :8080
+  irgo project new myapp             Create a project
+  irgo server dev                    Hot-reload server on :8080
   irgo tools doctor                  What can this machine build?
-  irgo run ios                       iOS Simulator
-  irgo run ios --device              A USB-connected iPhone
-  irgo run desktop --built           The app you just built
-  irgo build desktop all             Every desktop target this host supports
-  irgo build ios --sim               Runnable Simulator app
-  irgo package macos --dmg           Signed .app and a DMG
+  irgo app run ios                   iOS Simulator
+  irgo app run ios --device          A USB-connected iPhone
+  irgo app build desktop all         Every desktop target this host supports
+  irgo app package macos --dmg       Signed .app and a DMG
   irgo app install desktop           Put the built app in /Applications
-  irgo app remove android            Uninstall it from the emulator
   irgo tools remove --yes            Undo everything irgo installed
-  irgo pin --local ../irgo           Build a checkout you are editing
+  irgo project pin --local ../irgo   Build a checkout you are editing
+
+Earlier spellings (irgo build, irgo doctor, irgo dev, ...) still work and say
+where they moved.
 
 Nothing needs installing first: toolchains provision themselves when a command
 needs them, and go.mod pins the CLI so ` + "`go tool irgo`" + ` always matches the project.`)

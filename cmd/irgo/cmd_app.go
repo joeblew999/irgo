@@ -241,3 +241,60 @@ func uninstallDesktopApp() error {
 	}
 	return nil
 }
+
+// The app verbs that take a platform. Flag parsing lives here rather than in
+// the router so the router stays a table of what exists.
+
+func runAppBuild(target string, args []string) error {
+	if target == "desktop" {
+		platform := ""
+		for _, a := range args[1:] {
+			if !strings.HasPrefix(a, "-") {
+				platform = a
+				break
+			}
+		}
+		return buildDesktop(platform)
+	}
+	team := ""
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--team" {
+			team = args[i+1]
+		}
+	}
+	return runBuild(target,
+		hasFlag(args, "--sim", "-s"),
+		hasFlag(args, "--device", "-D"),
+		team)
+}
+
+func runAppRun(target string, args []string) error {
+	rest := args
+	if len(rest) > 0 {
+		rest = rest[1:]
+	}
+	devMode := hasFlag(rest, "--dev", "-d")
+	if target == "desktop" {
+		return runDesktop(devMode, hasFlag(rest, "--built", "-b"))
+	}
+	if target == "ios" && hasFlag(rest, "--device", "-D") {
+		team := ""
+		for i := 0; i < len(rest)-1; i++ {
+			if rest[i] == "--team" {
+				team = rest[i+1]
+			}
+		}
+		return runIOSDevice(team)
+	}
+	avd := "irgo"
+	for i := 0; i < len(rest)-1; i++ {
+		if rest[i] == "--avd" {
+			avd = rest[i+1]
+		}
+	}
+	return runMobile(target, devMode, avd, hasFlag(rest, "--no-window", "-nw"))
+}
+
+func runAppPackage(args []string) error {
+	return packageCommand(args)
+}

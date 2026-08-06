@@ -411,3 +411,118 @@ func copyTree(src, dst string) error {
 		return copyFile(path, target)
 	})
 }
+
+// packageCommand parses the flags for `irgo app package` and dispatches to the
+// per-store packager. Parsing lives here so the router stays a table of what
+// exists rather than a place flags accumulate.
+func packageCommand(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: irgo app package <ios|android|macos|windows> [flags]")
+	}
+	target := args[0]
+	team, exportMethod, out := "", "app-store", ""
+	keystore, keystorePass, keyAlias, keyPass := "", "", "", ""
+	version, publisher, icon, cert, certPass := "", "", "", "", ""
+	identity, appleID, password := "", "", ""
+	notarize, dmg := false, false
+	// setup has its own args (store / --check) — don't parse package flags.
+	if target != "setup" {
+		for i := 1; i < len(args); i++ {
+			next := func() string {
+				if i+1 < len(args) {
+					i++
+					return args[i]
+				}
+				return ""
+			}
+			switch args[i] {
+			case "--team":
+				team = next()
+			case "--export-method":
+				exportMethod = next()
+			case "--keystore":
+				keystore = next()
+			case "--keystore-pass":
+				keystorePass = next()
+			case "--key-alias":
+				keyAlias = next()
+			case "--key-pass":
+				keyPass = next()
+			case "--version":
+				version = next()
+			case "--publisher":
+				publisher = next()
+			case "--icon":
+				icon = next()
+			case "--cert":
+				cert = next()
+			case "--cert-pass":
+				certPass = next()
+			case "--identity":
+				identity = next()
+			case "--apple-id":
+				appleID = next()
+			case "--password":
+				password = next()
+			case "--notarize":
+				notarize = true
+			case "--dmg":
+				dmg = true
+			case "-o", "--output":
+				out = next()
+			default:
+				return fmt.Errorf("unknown flag: %s", args[i])
+			}
+		}
+	}
+	switch target {
+	case "setup":
+		// irgo package setup              → static guide (where to get every value)
+		// irgo package setup <store>      → interactive wizard for that store
+		// irgo package setup --check      → status report for every store
+		// irgo package setup --check <s>  → status report for one store
+		check := false
+		store := ""
+		for _, a := range args[1:] {
+			switch a {
+			case "--check", "-c":
+				check = true
+			default:
+				store = a
+			}
+		}
+		if check {
+			stores := []string{"ios", "android", "windows", "macos", "reviews-apple-ios", "reviews-apple-mac", "reviews-android"}
+			if store != "" {
+				stores = []string{store}
+			}
+			for _, s := range stores {
+				checkStoreConfig(s)
+			}
+		} else if store != "" {
+			if storeConfigValues(store) == nil {
+				fmt.Printf("unknown setup target: %s (use ios, android, windows, macos, or reviews-*)\n", store)
+				os.Exit(1)
+			}
+			missing := missingStoreConfig(store)
+			if len(missing) == 0 {
+				fmt.Printf("Nothing missing for %s — defaults cover it. Run `irgo package setup` for the full guide.\n", store)
+			} else if wErr := runSetupWizard(store, missing); wErr != nil {
+				return wErr
+			}
+		} else {
+			packageSetupGuide()
+		}
+	case "ios":
+		return packageIOS(team, exportMethod, out)
+	case "android":
+		return packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, icon, out)
+	case "macos":
+		return packageMacOS(identity, notarize, appleID, team, password, dmg, icon, out)
+	case "windows":
+		return packageWindows(publisher, version, icon, cert, certPass, out)
+	default:
+		return fmt.Errorf("unknown package target: %s (use ios, android, macos, windows, or setup)", target)
+	}
+	return nil
+}
