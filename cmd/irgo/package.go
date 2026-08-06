@@ -44,7 +44,13 @@ type packageConfig struct {
 	ReviewsAndroidServiceAcc string // reviews.android_service_account (JSON path)
 }
 
-const packageConfigFile = "irgo.package.toml"
+const (
+	packageConfigFile = "irgo.package.toml"
+	// packageLocalFile holds machine-local secrets. It is gitignored and
+	// overrides the shared file, so passwords and certificate paths never have
+	// to be committed to share the rest of the configuration.
+	packageLocalFile = "irgo.package.local.toml"
+)
 
 // parsePackageConfig reads the simple, fixed-format irgo.package.toml:
 //
@@ -58,8 +64,16 @@ const packageConfigFile = "irgo.package.toml"
 // back to built-in defaults + flags). Only `key = "value"` (with # comments
 // and [section] headers) is supported — this is our own file format.
 func parsePackageConfig() packageConfig {
-	var cfg packageConfig
-	data, err := os.ReadFile(packageConfigFile)
+	cfg := parsePackageConfigFile(packageConfigFile, packageConfig{})
+	// The local overlay wins: it is where secrets live.
+	return parsePackageConfigFile(packageLocalFile, cfg)
+}
+
+// parsePackageConfigFile layers one file over an existing config. Keys absent
+// from the file leave the previous value untouched, so the local overlay only
+// has to name what it changes.
+func parsePackageConfigFile(path string, cfg packageConfig) packageConfig {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return cfg
 	}

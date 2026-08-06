@@ -444,42 +444,104 @@ func macIdentities() []string {
 // checkStoreConfig prints a per-value status report with URLs + env vars.
 func checkStoreConfig(store string) {
 	fmt.Printf("── %s ──\n", describeTarget(store))
-	cfg := parsePackageConfig()
-	_ = cfg
 	for _, cv := range storeConfigValues(store) {
-		val := valueFromEnv(cv)
-		src := "env"
-		if val == "" {
-			val = valueFromConfig(cv)
-			src = "irgo.package.toml"
+		val, src := resolveConfigValue(cv)
+
+		label := val
+		switch {
+		case val == "":
+			label = "—"
+		case cv.secret:
+			label = "•••••• (set)"
 		}
-		if val == "" {
-			if d := deriveConfigValue(cv); d != "" {
-				val = d
-				src = "auto-derived"
-			}
-		}
-		if val == "" {
-			src = "missing"
-		}
+
 		status := "✓"
 		if val == "" {
 			status = "✗"
+			if !cv.required {
+				status = "·" // optional: a default covers it
+			}
 		}
-		secret := ""
-		if cv.secret && val != "" {
-			secret = " (set)"
+		fmt.Printf("  %s %-30s %-24s [%s]\n", status, cv.display, label, src)
+
+		if val != "" {
+			continue
 		}
-		label := val
-		if label == "" {
-			label = "—"
+		// Say exactly how to supply it — in CI that means the env var name,
+		// which is what a repository secret has to be called.
+		if cv.env != "" {
+			fmt.Printf("        set it:    %s=...   (CI secret, or your shell)\n", cv.env)
 		}
-		if cv.secret && label != "—" {
-			label = "••••••" + secret
+		if cv.flag != "" {
+			fmt.Printf("        or flag:   irgo package %s %s ...\n", store, cv.flag)
 		}
-		fmt.Printf("  %s %-28s %s  [%s]\n", status, cv.display, label, src)
-		if val == "" && cv.url != "" {
-			fmt.Printf("        get it at: %s (%s)\n", cv.url, cv.how)
+		if cv.secret {
+			fmt.Printf("        or file:   %s   (gitignored)\n", packageLocalFile)
+		} else if cv.tomlSection != "" {
+			fmt.Printf("        or file:   %s   [%s] %s\n", packageConfigFile, cv.tomlSection, cv.tomlKey)
+		}
+		if cv.url != "" {
+			fmt.Printf("        get it at: %s\n", cv.url)
+			if cv.how != "" {
+				fmt.Printf("                   %s\n", cv.how)
+			}
 		}
 	}
+}
+
+// resolveConfigValue applies the documented precedence and reports which layer
+// answered, so a surprising value can be traced to its source.
+func resolveConfigValue(cv configValue) (val, src string) {
+	if v := valueFromEnv(cv); v != "" {
+		return v, "env " + cv.env
+	}
+	if v := valueFromConfig(cv); v != "" {
+		// parsePackageConfig already merged the local overlay; report the file
+		// that actually carries the key.
+		return v, configSourceFile(cv)
+	}
+	if v := deriveConfigValue(cv); v != "" {
+		return v, "auto-derived"
+	}
+	if !cv.required {
+		return "", "default"
+	}
+	return "", "missing"
+}
+
+// configSourceFile reports which of the two files a key came from.
+func configSourceFile(cv configValue) string {
+	if fileHasKey(packageLocalFile, cv.tomlSection, cv.tomlKey) {
+		return packageLocalFile
+	}
+	return packageConfigFile
+}
+
+// fileHasKey reports whether a toml file sets section.key. Deliberately as
+// simple as parsePackageConfigFile — this is our own file format.
+func fileHasKey(path, section, key string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	cur := ""
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			cur = strings.TrimSpace(line[1 : len(line)-1])
+			continue
+		}
+		eq := strings.Index(line, "=")
+		if eq < 0 || cur != section {
+			continue
+		}
+		if strings.TrimSpace(line[:eq]) != key {
+			continue
+		}
+		return strings.Trim(strings.TrimSpace(line[eq+1:]), `"'`) != ""
+	}
+	return false
 }

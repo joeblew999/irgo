@@ -593,7 +593,15 @@ Usage:
   irgo package macos     [--identity ID] [--notarize --apple-id ID --team ID --password P] [--dmg]   (macOS only)
   irgo package windows   [--publisher CN] [--version V] [--cert F --cert-pass P]   .msix
   irgo package setup [store]     Interactive wizard for the values a store needs
-  irgo package setup --check     Report what is configured and what is missing
+  irgo package setup --check     Report what is set, where it came from, and
+                                 exactly how to supply what is missing
+
+Configuration precedence, highest first:
+  1. CLI flag                    irgo package android --keystore ...
+  2. Environment                 IRGO_ANDROID_KEYSTORE=...  (what CI secrets set)
+  3. irgo.package.local.toml     your machine, gitignored — SECRETS go here
+  4. irgo.package.toml           shared with your team, committed
+  5. auto-derived                e.g. the Team ID read from Xcode
 
 Config is read from irgo.package.toml; flags override it. App icons come from
 a single appicon.png. Signing material is never written to the repo.`)

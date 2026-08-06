@@ -1,8 +1,19 @@
-# irgo package configuration — defaults for `irgo package <ios|android|macos|windows>`
+# irgo package configuration — defaults for: irgo package <ios|android|macos|windows>
 #
-# CLI flags override any value here (e.g. `irgo package android --keystore ...`).
-# Run `irgo package setup` for a step-by-step guide to obtaining every value
-# below for each store.
+# Precedence, highest first:
+#   1. CLI flag           irgo package android --keystore ...
+#   2. Environment        IRGO_ANDROID_KEYSTORE=...   (what CI secrets set)
+#   3. irgo.package.local.toml   your machine, gitignored — put SECRETS here
+#   4. this file          shared with your team, committed
+#   5. auto-derived       e.g. your Team ID read from Xcode
+#
+# COMMIT THIS FILE. Keep passwords, certificates and private keys out of it —
+# put them in irgo.package.local.toml (gitignored) or set the environment
+# variable, which is how CI supplies them.
+#
+#   irgo package setup            what every value is and where to get it
+#   irgo package setup --check    what is set, where it came from, what is missing
+#   irgo package setup <store>    fill in one store interactively
 
 [common]
 version = "0.1.0"
@@ -21,6 +32,9 @@ export_method = "app-store"
 # first upload:
 #   keytool -genkey -v -keystore ~/keys/release.keystore -alias myapp \
 #     -keyalg RSA -keysize 2048 -validity 10000
+# The debug keystore and its well-known password are public knowledge — safe
+# to commit, and enough to validate a build. A RELEASE keystore password is a
+# secret: put it in irgo.package.local.toml or IRGO_ANDROID_KEYSTORE_PASS.
 keystore = "~/.android/debug.keystore"
 keystore_pass = "android"
 # Empty = auto-detected from the keystore.
@@ -34,7 +48,8 @@ key_pass = "android"
 # Store developer account costs US$19 one-time. Empty = test-signed with
 # "CN=<app>".
 publisher = ""
-# Optional real code-signing cert (PFX) + password; empty = self-signed test cert.
+# Optional real code-signing cert (PFX); empty = self-signed test cert.
+# cert_pass is a SECRET — irgo.package.local.toml or IRGO_WINDOWS_CERT_PASS.
 cert = ""
 cert_pass = ""
 icon = ""
@@ -50,12 +65,13 @@ identity = ""
 notarize = false
 apple_id = ""
 team = ""
+# SECRET — irgo.package.local.toml or IRGO_APPLE_PASSWORD.
 password = ""
 # Also produce a .dmg
 dmg = false
 
 [reviews]
-# App Store review monitoring (` + "`irgo reviews <ios|mac|android>`" + `).
+# App Store review monitoring: irgo reviews <ios|mac|android>
 # Apple (iOS + Mac) uses the official App Store Connect API — a key with
 # Customer Reviews access. Android uses the Play Developer API (service
 # account) and can also reply from the terminal.
@@ -68,6 +84,7 @@ mac_app_id = ""
 # Reviews, then download the .p8 (it can only be downloaded once).
 ios_key_id = ""
 ios_issuer_id = ""
+# Path to the .p8 — the file itself is a SECRET; keep it out of the repo.
 ios_private_key = ""
 # Android: Play package name, e.g. "com.example.myapp".
 android_package = ""
