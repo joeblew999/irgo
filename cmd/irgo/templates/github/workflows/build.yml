@@ -25,8 +25,8 @@ jobs:
     name: Check (tests + web)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # _templ.go and output.css are generated and gitignored, but embedded in
@@ -34,7 +34,7 @@ jobs:
       - run: go tool irgo assets
       - run: go test ./...
       - run: go build -o build/{{PROJECT_NAME}} .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web
           path: build/{{PROJECT_NAME}}
@@ -52,14 +52,14 @@ jobs:
           - { name: Windows, os: windows-latest, target: windows, artifact: desktop-windows }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
       - run: go tool irgo install-tools
       - run: go tool irgo build desktop ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: build/desktop/${{ matrix.target == 'darwin' && 'macos' || matrix.target }}/
@@ -69,12 +69,12 @@ jobs:
     name: iOS (framework + simulator)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go tool irgo build ios --sim
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-simulator
           path: build/ios/DerivedData/Build/Products/Debug-iphonesimulator/
@@ -84,14 +84,14 @@ jobs:
     name: Android (AAR)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
       - run: go tool irgo build android
       - run: go tool irgo doctor android
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-framework
           path: build/android/
