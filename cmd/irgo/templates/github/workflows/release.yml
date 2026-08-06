@@ -36,6 +36,10 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install irgo
+        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
+        # ships on every GitHub runner, so pin the shell rather than writing
+        # the logic twice.
+        shell: bash
         run: |
           if [ -n "$IRGO_FORK_REPO" ]; then
             tmp="$(mktemp -d)"
@@ -71,6 +75,10 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install irgo
+        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
+        # ships on every GitHub runner, so pin the shell rather than writing
+        # the logic twice.
+        shell: bash
         run: |
           if [ -n "$IRGO_FORK_REPO" ]; then
             tmp="$(mktemp -d)"
@@ -104,6 +112,10 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install irgo
+        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
+        # ships on every GitHub runner, so pin the shell rather than writing
+        # the logic twice.
+        shell: bash
         run: |
           if [ -n "$IRGO_FORK_REPO" ]; then
             tmp="$(mktemp -d)"
@@ -135,6 +147,10 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install irgo
+        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
+        # ships on every GitHub runner, so pin the shell rather than writing
+        # the logic twice.
+        shell: bash
         run: |
           if [ -n "$IRGO_FORK_REPO" ]; then
             tmp="$(mktemp -d)"
