@@ -9,10 +9,10 @@
 # Dev server reload marker
 .reload-signal
 
-# Build outputs
-/build/ios/
-/build/android/
-build/ios/DerivedData/
+# Build outputs. These were carve-outs because build/macos/ held tracked shell
+# scripts; those are gone (irgo package macos does the work), so the whole
+# directory is generated now.
+/build/
 /dist/
 
 # Node dependencies
