@@ -25,17 +25,17 @@ func runPin(args []string) error {
 		return showPin()
 	}
 
-	// Bare words as well as flags: every other command in the CLI is spelled
-	// without dashes, so `pin local` is what people type first.
+	// Bare words, like every other command: nothing in the CLI takes a flag
+	// where a word will do.
 	target := args[0]
 	switch {
-	case target == "local" || target == "--local" || target == "-l":
+	case target == "local":
 		dir := "."
 		if len(args) > 1 {
 			dir = args[1]
 		}
 		return pinLocal(dir)
-	case target == "release" || target == "--release" || target == "-r":
+	case target == "release":
 		return pinRelease()
 	default:
 		return pinVersion(target)
@@ -101,7 +101,7 @@ func pinLocal(dir string) error {
 		return err
 	}
 	if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
-		return fmt.Errorf("%s is not a Go module — point --local at an irgo checkout", abs)
+		return fmt.Errorf("%s is not a Go module — point it at an irgo checkout", abs)
 	}
 	data, err := os.ReadFile(filepath.Join(abs, "go.mod"))
 	if err != nil {

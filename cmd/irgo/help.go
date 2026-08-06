@@ -257,6 +257,18 @@ Usage:
   irgo app package windows    .msix
   irgo app package setup --check   What each store needs, and what is missing
 
+Every signing setting can be given on the command line as well as in
+irgo.package.toml, which is how CI supplies secrets without writing them to disk:
+
+  iOS       --team <id>  --export-method <app-store|ad-hoc|development>
+  Android   --keystore <path>  --keystore-pass <s>  --key-alias <s>  --key-pass <s>
+  macOS     --identity <cert>  --notarize  --apple-id <email>  --password <s>  --dmg
+  Windows   --publisher <dn>  --cert <pfx>  --cert-pass <s>
+
+  --version <v>   Override common.version
+  --icon <path>   Override the source icon
+  --output, -o    Where to write the artifact
+
 Assets are regenerated first, so a package cannot ship a stale stylesheet.
 
 Signing settings come from irgo.package.toml — see irgo project config. Missing
@@ -285,12 +297,18 @@ The exact inverse of irgo app install. Every install irgo performs can be
 undone by irgo, so nothing it puts on a machine has to be hunted down by hand.`)
 
 	case "app reviews":
-		fmt.Println(`irgo app reviews - Read store reviews
+		fmt.Println(`irgo app reviews - Read and answer store reviews
 
 Usage:
-  irgo app reviews ios
-  irgo app reviews mac
-  irgo app reviews android
+  irgo app reviews <ios|mac|android>
+  irgo app reviews ios --new
+  irgo app reviews ios --reply <id> --text "..."
+
+Flags:
+  --limit <n>     How many to fetch
+  --new           Only ones you have not seen
+  --reply <id>    Reply to one review
+  --text "..."    The reply body
 
 Needs the store credentials in irgo.package.toml under [reviews] — see
 irgo project config.`)
