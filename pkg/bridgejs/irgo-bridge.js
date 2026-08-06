@@ -452,6 +452,22 @@
     }
   }
 
+  // Drop the "//app" authority the two WebViews disagree about.
+  //
+  // irgo: is not a scheme either engine knows, and they parse unknown schemes
+  // differently: WebKit reads irgo://app/api/init as host "app" with path
+  // "/api/init", while Chromium treats everything after the colon as one
+  // opaque path and reports "//app/api/init". Passing that straight to Go
+  // matches no route, so every request 404s on Android while iOS works —
+  // including the SSE stream, which just leaves the UI saying "Connecting...".
+  function stripSchemeAuthority(path) {
+    if (!path.startsWith("//")) {
+      return path;
+    }
+    const slash = path.indexOf("/", 2);
+    return slash === -1 ? "/" : path.slice(slash);
+  }
+
   // Resolve a fetch() URL to an app-relative path (e.g. "/todos?x=1") when the
   // request targets the native app, or return null for external http(s) URLs
   // that should use the real network.
@@ -464,7 +480,7 @@
       return rawUrl.startsWith("/") ? rawUrl : "/" + rawUrl;
     }
     if (u.protocol === "irgo:") {
-      return u.pathname + u.search;
+      return stripSchemeAuthority(u.pathname) + u.search;
     }
     if (u.origin === window.location.origin) {
       return u.pathname + u.search;
