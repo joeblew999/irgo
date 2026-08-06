@@ -30,6 +30,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
+      # vite runs on bun; wrangler does not — Cloudflare states plainly that
+      # the bun runtime is unsupported, and `wrangler dev` fails outright on
+      # it. GitHub runners ship Node, so the deploy step has one.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Check for credentials
         id: creds
@@ -54,5 +60,5 @@ jobs:
         # workerd's postinstall is skipped above; wrangler needs it to run.
         run: |
           bun install --frozen-lockfile
-          bun --bun wrangler deploy
+          bunx wrangler deploy
         working-directory: website
