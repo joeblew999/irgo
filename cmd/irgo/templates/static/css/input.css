@@ -191,8 +191,17 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
+  /* 100vh ignores the browser chrome and the home indicator; dvh tracks the
+     actually-visible height, with vh kept as the fallback for older engines. */
   height: 100vh;
-  padding: 2rem;
+  height: 100dvh;
+  /* The container above is position:fixed, so it escapes any padding on body —
+     the safe-area inset has to be applied here, on the content itself, or the
+     header sits under the status bar and Dynamic Island. */
+  padding-top: calc(2rem + var(--safe-top, 0px));
+  padding-right: calc(2rem + var(--safe-right, 0px));
+  padding-bottom: calc(2rem + var(--safe-bottom, 0px));
+  padding-left: calc(2rem + var(--safe-left, 0px));
   pointer-events: none;
 }
 
@@ -438,7 +447,10 @@ html, body {
 
 @media (max-width: 640px) {
   .ui-overlay {
-    padding: 1.5rem 1rem;
+    padding-top: calc(1.5rem + var(--safe-top, 0px));
+    padding-right: calc(1rem + var(--safe-right, 0px));
+    padding-bottom: calc(1.5rem + var(--safe-bottom, 0px));
+    padding-left: calc(1rem + var(--safe-left, 0px));
   }
 
   .stats-panel {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // runBuild builds for mobile platforms. sim additionally builds the runnable
@@ -75,6 +76,13 @@ func requireMacOS(what string) error {
 
 // runMobile builds and runs on mobile simulator
 func runMobile(platform string, devMode bool, avdName string, headless bool) error {
+	// Same as the build paths: _templ.go and output.css are generated and
+	// gitignored but compiled into the app, so running without regenerating
+	// them ships whatever happened to be on disk — or, after irgo clean,
+	// nothing at all, which looks like a broken app rather than a missing step.
+	if err := ensureAssets(); err != nil {
+		return err
+	}
 	switch platform {
 	case "ios":
 		return runIOS(devMode)
@@ -181,9 +189,44 @@ func writeArtifactStamp(dir string) {
 }
 
 func artifactUpToDate(artifact, stampDir string) bool {
-	if _, err := os.Stat(artifact); err != nil {
+	fi, err := os.Stat(artifact)
+	if err != nil {
 		return false
 	}
-	data, err := os.ReadFile(filepath.Join(stampDir, ".irgo-version"))
-	return err == nil && strings.TrimSpace(string(data)) == version
+	data, rerr := os.ReadFile(filepath.Join(stampDir, ".irgo-version"))
+	if rerr != nil || strings.TrimSpace(string(data)) != version {
+		return false
+	}
+	// The framework embeds the app's Go code and static assets, so a source
+	// edit makes it stale even when the CLI version is unchanged. Without this
+	// dev mode reuses a framework built before the change and the app runs
+	// old code with no indication why.
+	return !anySourceNewerThan(fi.ModTime())
+}
+
+// anySourceNewerThan reports whether any embedded source is newer than t.
+func anySourceNewerThan(t time.Time) bool {
+	for _, dir := range []string{"static", "templates", "handlers", "app", "mobile"} {
+		newer := false
+		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			if info, ierr := d.Info(); ierr == nil && info.ModTime().After(t) {
+				newer = true
+				return filepath.SkipAll
+			}
+			return nil
+		})
+		if newer {
+			return true
+		}
+	}
+	// main.go and go.mod sit at the root rather than in a package directory.
+	for _, f := range []string{"main.go", "go.mod"} {
+		if info, err := os.Stat(f); err == nil && info.ModTime().After(t) {
+			return true
+		}
+	}
+	return false
 }

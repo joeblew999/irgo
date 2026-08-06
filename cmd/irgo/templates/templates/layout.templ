@@ -18,6 +18,33 @@ templ Layout(title string) {
 			     (iOS/Android) before any requests are made. -->
 			<script src="/_irgo/bridge.js"></script>
 			<script type="module" src="/static/js/datastar.js"></script>
+			<style>
+				/* viewport-fit=cover deliberately extends the page under the
+				   status bar, notch and home indicator, so the page has to put
+				   that space back. Without this the header sits beneath the
+				   clock and Dynamic Island on every notched iPhone, and the
+				   last row is hidden by the home indicator.
+
+				   Exposed as variables as well so a layout can inset one edge
+				   itself (a full-bleed hero, a bottom bar) without giving up
+				   the padding everywhere else. */
+				:root {
+					--safe-top: env(safe-area-inset-top, 0px);
+					--safe-right: env(safe-area-inset-right, 0px);
+					--safe-bottom: env(safe-area-inset-bottom, 0px);
+					--safe-left: env(safe-area-inset-left, 0px);
+				}
+				body {
+					padding-top: var(--safe-top);
+					padding-right: var(--safe-right);
+					padding-bottom: var(--safe-bottom);
+					padding-left: var(--safe-left);
+					/* Rubber-band scrolling reveals the page background past
+					   the inset padding; matching it keeps that band from
+					   flashing white on a dark app. */
+					background-color: inherit;
+				}
+			</style>
 		</head>
 		<body class="bg-gray-100 min-h-screen">
 			{ children... }
@@ -92,6 +119,33 @@ templ FullscreenPage(title string) {
 			     (iOS/Android) before any requests are made. -->
 			<script src="/_irgo/bridge.js"></script>
 			<script type="module" src="/static/js/datastar.js"></script>
+			<style>
+				/* viewport-fit=cover deliberately extends the page under the
+				   status bar, notch and home indicator, so the page has to put
+				   that space back. Without this the header sits beneath the
+				   clock and Dynamic Island on every notched iPhone, and the
+				   last row is hidden by the home indicator.
+
+				   Exposed as variables as well so a layout can inset one edge
+				   itself (a full-bleed hero, a bottom bar) without giving up
+				   the padding everywhere else. */
+				:root {
+					--safe-top: env(safe-area-inset-top, 0px);
+					--safe-right: env(safe-area-inset-right, 0px);
+					--safe-bottom: env(safe-area-inset-bottom, 0px);
+					--safe-left: env(safe-area-inset-left, 0px);
+				}
+				body {
+					padding-top: var(--safe-top);
+					padding-right: var(--safe-right);
+					padding-bottom: var(--safe-bottom);
+					padding-left: var(--safe-left);
+					/* Rubber-band scrolling reveals the page background past
+					   the inset padding; matching it keeps that band from
+					   flashing white on a dark app. */
+					background-color: inherit;
+				}
+			</style>
 		</head>
 		<body>
 			{ children... }

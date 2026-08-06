@@ -18,6 +18,11 @@ func runDesktop(devMode, built bool) error {
 	}
 	fmt.Println("Starting desktop app...")
 
+	// Regenerate the gitignored-but-embedded assets, as the build paths do.
+	if err := ensureAssets(); err != nil {
+		return err
+	}
+
 	// Verify the toolchain before running (clear errors, idempotent — never
 	// assume the machine is pre-configured).
 	if err := ensureDesktopToolchain(runtime.GOOS); err != nil {
