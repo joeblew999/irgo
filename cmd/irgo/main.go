@@ -595,6 +595,21 @@ An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
 with old assets or an old bridge API and nothing explains why.`)
 
+	case "ios":
+		fmt.Println(`irgo ios - iOS-specific settings
+
+Usage:
+  irgo ios team          List the development teams Xcode knows about
+  irgo ios team <ID>     Use that team for device builds and packaging
+
+The selection is written to irgo.package.toml under [ios] team, so it applies
+to every later build without being passed again. A flag or IRGO_IOS_TEAM still
+wins for a one-off.
+
+With several teams and none chosen, a device build stops and lists them rather
+than picking one — the wrong team fails later as an Apple-side error that never
+mentions the team.`)
+
 	case "pin":
 		fmt.Println(`irgo pin - Which irgo does this project build against?
 
