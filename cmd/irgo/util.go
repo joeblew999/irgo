@@ -57,12 +57,27 @@ func splitLines(s string) []string {
 	return lines
 }
 
+// copyFile copies src to dst, preserving permissions.
+//
+// The mode matters: a hardcoded 0644 strips the execute bit from any binary
+// copied through here, and the result is an .app bundle that launchd refuses
+// to spawn with "Launchd job spawn failed" — a failure that says nothing about
+// permissions and only shows up after packaging.
 func copyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0644)
+	mode := os.FileMode(0o644)
+	if fi, serr := os.Stat(src); serr == nil {
+		mode = fi.Mode().Perm()
+	}
+	if err := os.WriteFile(dst, data, mode); err != nil {
+		return err
+	}
+	// WriteFile only applies mode when it creates the file, so set it
+	// explicitly for the overwrite case.
+	return os.Chmod(dst, mode)
 }
 
 // toolBinDirs lists the directories a `go install` may have placed a binary in.
