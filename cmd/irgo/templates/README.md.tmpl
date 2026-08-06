@@ -13,7 +13,7 @@ Go + [templ](https://templ.guide) + [Datastar](https://data-star.dev).
 
 ```bash
 go tool irgo tools doctor      # what this machine can build, and what needs setup
-go tool irgo dev         # hot-reload server on http://localhost:8080
+go tool irgo server server dev         # hot-reload server on http://localhost:8080
 ```
 
 Starting a *new* project is the one case `go tool` cannot cover — it needs a
@@ -101,10 +101,10 @@ There is no separate setup for contributors, and no second toolchain. Using
 irgo and working on irgo are the same activity pointed at different versions:
 
 ```bash
-go tool irgo pin                      # what am I building against?
-go tool irgo pin --local ../irgo      # build a checkout you are editing
+go tool irgo project pin                      # what am I building against?
+go tool irgo project pin --local ../irgo      # build a checkout you are editing
 # edit the CLI — the next `go tool irgo` already runs your change
-go tool irgo pin --release            # back to the published build
+go tool irgo project pin --release            # back to the published build
 ```
 
 `--local` writes a `replace` into go.mod, so nothing is installed, nothing is
@@ -112,7 +112,7 @@ tagged, and nothing has to be reinstalled between edits. The same command
 tracks a fork:
 
 ```bash
-go tool irgo pin joeblew999/irgo@v0.4.0-androidapi21.65
+go tool irgo project pin joeblew999/irgo@v0.4.0-androidapi21.65
 go env -w GOPRIVATE='github.com/joeblew999/*'   # forks bypass the proxy, once
 ```
 
@@ -122,7 +122,7 @@ transparent, and also why Go fetches it from GitHub rather than the proxy.
 ## Updating the framework
 
 ```bash
-go tool irgo upgrade
+go tool irgo project upgrade
 ```
 
 Refreshes framework-owned files — the native shells, `.air.toml`, `.gitignore`,
@@ -493,7 +493,7 @@ The framework uses Go build tags to separate platform code:
 
 - `go build .` → uses `main.go` (mobile/web)
 - `go build -tags desktop .` → uses `main_desktop.go`
-- `go tool irgo run desktop` → automatically adds `-tags desktop`
+- `go tool irgo app run desktop` → automatically adds `-tags desktop`
 
 ## Common Handler Patterns
 
@@ -595,10 +595,10 @@ r.DSPost("/register", func(ctx *router.Context) error {
 ## Tips
 
 1. **Always read files before editing** - understand existing code first
-2. **You do not need to run templ by hand** — every build and `go tool irgo dev` regenerates `_templ.go` and the stylesheet
-3. **Use `go tool irgo dev`** during development for hot reload
+2. **You do not need to run templ by hand** — every build and `go tool irgo server server dev` regenerates `_templ.go` and the stylesheet
+3. **Use `go tool irgo server server dev`** during development for hot reload
 4. **Return HTML fragments via SSE**, not JSON - this is hypermedia-driven
 5. **Elements need IDs** for Datastar to patch them
 6. **Use signals for client state** - avoid unnecessary server roundtrips
 7. **Prefer small, focused components** that can be reused and patched independently
-8. **Test in desktop mode** with `go tool irgo run desktop --dev` for browser devtools
+8. **Test in desktop mode** with `go tool irgo app run desktop --dev` for browser devtools

@@ -31,7 +31,7 @@ jobs:
           go-version-file: go.mod
       # _templ.go and output.css are generated and gitignored, but embedded in
       # the binary. `irgo build` regenerates them; a plain `go build` needs this.
-      - run: go tool irgo assets
+      - run: go tool irgo project assets
       - run: go test ./...
       - run: go build -o build/{{PROJECT_NAME}} .
       - uses: actions/upload-artifact@v7
@@ -58,7 +58,7 @@ jobs:
           go-version-file: go.mod
       # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
       - run: go tool irgo tools install
-      - run: go tool irgo build desktop ${{ matrix.target }}
+      - run: go tool irgo app build desktop ${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
@@ -73,7 +73,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go tool irgo build ios --sim
+      - run: go tool irgo app build ios --sim
       - uses: actions/upload-artifact@v7
         with:
           name: ios-simulator
@@ -89,7 +89,7 @@ jobs:
         with:
           go-version-file: go.mod
       # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
-      - run: go tool irgo build android
+      - run: go tool irgo app build android
       - run: go tool irgo tools doctor android
       - uses: actions/upload-artifact@v7
         with:

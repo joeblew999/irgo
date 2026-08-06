@@ -7,7 +7,7 @@ tmp_dir = "tmp"
   # happened to be installed; go tool builds the one go.mod pins, which is the
   # whole point. Using the PATH copy here meant hot reload ran an older CLI and
   # died on a command it did not have.
-  cmd = "go tool irgo assets && go build -o ./tmp/main ."
+  cmd = "go tool irgo project assets && go build -o ./tmp/main ."
   delay = 1000
   # dist/ holds packaged output: rebuilding on a package would loop.
   exclude_dir = ["assets", "tmp", "vendor", "ios", "android", "build", "dist"]

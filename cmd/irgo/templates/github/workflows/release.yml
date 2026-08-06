@@ -63,7 +63,7 @@ jobs:
       # runner keychain — e.g. apple-actions/import-codesign-certs.
       - name: Package
         if: env.IOS_TEAM_ID != ''
-        run: go tool irgo package ios --team "$IOS_TEAM_ID"
+        run: go tool irgo app package ios --team "$IOS_TEAM_ID"
       - uses: actions/upload-artifact@v7
         if: env.IOS_TEAM_ID != ''
         with:
@@ -83,7 +83,7 @@ jobs:
           go-version-file: go.mod
       - name: Package
         if: env.MACOS_IDENTITY != ''
-        run: go tool irgo package macos --identity "$MACOS_IDENTITY" --dmg
+        run: go tool irgo app package macos --identity "$MACOS_IDENTITY" --dmg
       - uses: actions/upload-artifact@v7
         if: env.MACOS_IDENTITY != ''
         with:
@@ -104,7 +104,7 @@ jobs:
       # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
       - name: Package
         if: env.WINDOWS_PUBLISHER != ''
-        run: go tool irgo package windows --publisher "$env:WINDOWS_PUBLISHER"
+        run: go tool irgo app package windows --publisher "$env:WINDOWS_PUBLISHER"
       - uses: actions/upload-artifact@v7
         if: env.WINDOWS_PUBLISHER != ''
         with:
