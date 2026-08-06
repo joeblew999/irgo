@@ -108,7 +108,7 @@ func packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, iconPath
 		// Default to the first alias in the keystore — the Android SDK's own
 		// debug.keystore uses "androiddebugkey", gogio-style ones use
 		// "android"; a real release keystore may use anything.
-		keyAlias = "android"
+		keyAlias = "androiddebugkey"
 		if a, err := firstKeystoreAlias(keystore, keystorePass); err == nil && a != "" {
 			keyAlias = a
 		}
@@ -181,7 +181,12 @@ func generateDebugKeystore(path string) error {
 	cmd := exec.Command(keytool,
 		"-genkey", "-v",
 		"-keystore", path,
-		"-alias", "android",
+		// androiddebugkey, not anything else: this writes ~/.android/debug.keystore,
+		// the path the Android SDK and Gradle share, and Gradle's built-in debug
+		// signing looks for exactly this alias. Generating another name left every
+		// later `gradlew assembleDebug` failing with "No key with alias
+		// AndroidDebugKey found" — packaging silently breaking run.
+		"-alias", "androiddebugkey",
 		"-keyalg", "RSA", "-keysize", "2048",
 		"-validity", "10000",
 		"-storepass", "android", "-keypass", "android",

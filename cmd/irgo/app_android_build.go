@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func buildAndroid(modulePath string) error {
@@ -61,10 +62,32 @@ func buildAndroid(modulePath string) error {
 	return nil
 }
 
+// checkDebugKeystore reports a debug keystore Gradle cannot sign with.
+//
+// Gradle's debug signing requires the androiddebugkey alias in
+// ~/.android/debug.keystore. When the file exists with a different alias the
+// build fails deep inside Gradle with a KeytoolException that never mentions
+// which file or what to do.
+func checkDebugKeystore() error {
+	ks := filepath.Join(homeDir(), ".android", "debug.keystore")
+	if !pathExists(ks) {
+		return nil // Gradle creates a correct one
+	}
+	alias, err := firstKeystoreAlias(ks, "android")
+	if err != nil || strings.EqualFold(alias, "androiddebugkey") {
+		return nil
+	}
+	return fmt.Errorf("%s cannot sign debug builds: it holds alias %q, and Gradle requires \"androiddebugkey\".\n"+
+		"  Delete it and it will be recreated correctly:\n    rm %s", ks, alias, ks)
+}
+
 func runAndroid(devMode bool, avdName string, headless bool) error {
 	// Self-provision the Android toolchain (JDK/SDK/NDK/gomobile, plus the
 	// emulator + AVD when no device is connected) — devs and CI never need a
 	// separate setup step. Idempotent: only installs what is missing.
+	if err := checkDebugKeystore(); err != nil {
+		return err
+	}
 	if err := ensureAndroidToolchain(!adbRunning(), avdName); err != nil {
 		return err
 	}
@@ -192,6 +215,16 @@ func runAndroid(devMode bool, avdName string, headless bool) error {
 	fmt.Println("Launching app...")
 	packageName := "com.irgo.example"
 	activityName := ".MainActivity"
+
+	// Force-stop first. `adb install -r` keeps the app's task, and `am start`
+	// re-delivers that task's base intent rather than the one just built — so
+	// a plain `app run android` after a `dev android` silently relaunches in
+	// dev mode, pointing the WebView at a dev server that is no longer
+	// running. The app comes up and renders a cached page, so the only symptom
+	// is that nothing is reactive. Starting from a stopped app makes the new
+	// intent the one that takes effect, in both directions.
+	_, _ = runCommandQuiet(adbBin(), "shell", "am", "force-stop", packageName)
+
 	launchArgs := []string{"shell", "am", "start", "-n", packageName + "/" + packageName + activityName}
 	if devMode {
 		// IrgoActivity reads the irgoDevServer extra and loads that URL
