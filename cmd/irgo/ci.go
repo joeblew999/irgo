@@ -30,17 +30,29 @@ func runCI(force bool) error {
 	if err != nil {
 		return fmt.Errorf("could not determine module path: %w", err)
 	}
+	return writeCIWorkflows(".", modulePath, force, true)
+}
+
+// runCIIn scaffolds CI into a freshly created project. Quiet and never
+// overwriting, since nothing can exist yet.
+func runCIIn(projectDir, modulePath string) error {
+	return writeCIWorkflows(projectDir, modulePath, false, false)
+}
+
+func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error {
 
 	var written, skipped int
-	err = fs.WalkDir(ciTemplates, "templates/github", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(ciTemplates, "templates/github", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
 		rel := strings.TrimPrefix(path, "templates/github/")
-		dest := filepath.Join(".github", rel)
+		dest := filepath.Join(projectDir, ".github", rel)
 
 		if _, err := os.Stat(dest); err == nil && !force {
-			fmt.Printf("  exists (skipped): %s\n", dest)
+			if verbose {
+				fmt.Printf("  exists (skipped): %s\n", dest)
+			}
 			skipped++
 			return nil
 		}
@@ -57,7 +69,9 @@ func runCI(force bool) error {
 		if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
 			return err
 		}
-		fmt.Printf("  created: %s\n", dest)
+		if verbose {
+			fmt.Printf("  created: %s\n", dest)
+		}
 		written++
 		return nil
 	})
@@ -65,6 +79,10 @@ func runCI(force bool) error {
 		return err
 	}
 
+	if !verbose {
+		fmt.Printf("  created: .github/workflows (build + release)\n")
+		return nil
+	}
 	fmt.Printf("\n%d workflow(s) written, %d skipped.\n", written, skipped)
 	if skipped > 0 {
 		fmt.Println("Re-run with --force to overwrite.")

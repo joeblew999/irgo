@@ -270,6 +270,14 @@ func newProject(name string) error {
 			return err
 		}
 
+		// The CI workflows live under templates/github but are not part of a
+		// new project — `irgo ci` scaffolds them to .github/ on request.
+		// Without this they land in every project as a stray github/ folder
+		// that GitHub ignores, so nothing runs and nothing says why.
+		if path == "templates/github" {
+			return fs.SkipDir
+		}
+
 		// Skip the root templates directory
 		if path == "templates" {
 			return nil
@@ -335,13 +343,19 @@ func newProject(name string) error {
 	}
 
 	// Make scripts executable
-	scripts := []string{"dev.sh"}
+	scripts := []string{}
 	for _, script := range scripts {
 		path := filepath.Join(projectDir, script)
 		if err := os.Chmod(path, 0755); err != nil {
 			// Ignore if file doesn't exist
 			continue
 		}
+	}
+
+	// Every project wants CI, so scaffold it rather than making it a step
+	// people have to know about. `irgo ci --force` regenerates it later.
+	if err := runCIIn(projectDir, modulePath); err != nil {
+		fmt.Printf("Warning: could not scaffold CI workflows: %v\n", err)
 	}
 
 	// Generate templ files BEFORE tidy. Only the generated _templ.go files

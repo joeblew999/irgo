@@ -6,38 +6,37 @@ import (
 	"os"
 )
 
-// runDev starts the development server with hot reload
+// runDev starts the development server with hot reload.
+//
+// air rebuilds on change using .air.toml, which calls `irgo assets` — so the
+// generate step lives in one place rather than being restated per project.
 func runDev() error {
-	// Check for required tools
 	if err := ensureGoTool("air"); err != nil {
 		return err
 	}
 	if err := ensureGoTool("templ"); err != nil {
 		return err
 	}
+	// entr is what air shells out to for watching on some setups, and is the
+	// documented requirement for hot reload.
+	if err := ensureOSPackage("entr"); err != nil {
+		fmt.Printf("Warning: %v\n", err)
+	}
 
-	// dev.sh watches files with entr — provision it rather than failing later
-	// with a bare "entr: command not found" from inside the script.
-	if _, err := os.Stat("dev.sh"); err == nil {
-		if err := ensureOSPackage("entr"); err != nil {
-			return err
+	// Generate once up front so the first build is correct; air regenerates on
+	// every change after that.
+	if err := ensureAssets(); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat("main.go"); err != nil {
+		// Framework checkout rather than a generated project.
+		if _, e := os.Stat("examples/todo/main.go"); e != nil {
+			return fmt.Errorf("no main.go found - are you in an irgo project?")
 		}
 	}
 
-	// Check if dev.sh exists (user project) or we're in framework
-	if _, err := os.Stat("dev.sh"); err == nil {
-		// User project - run dev.sh
-		return runCommand("./dev.sh")
-	}
-
-	// Framework development - run air directly
-	fmt.Println("Starting development server...")
-
-	// Generate templ files first
-	if err := runTempl(); err != nil {
-		fmt.Printf("Warning: templ generate failed: %v\n", err)
-	}
-
+	fmt.Println("Starting development server (http://localhost:8080)...")
 	return runCommand("air")
 }
 

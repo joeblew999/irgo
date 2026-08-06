@@ -3,7 +3,10 @@ tmp_dir = "tmp"
 
 [build]
   bin = "./tmp/main"
-  cmd = "templ generate && npx tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify && go build -o ./tmp/main ."
+  # `irgo assets` regenerates templ and the stylesheet using whichever package
+  # runner the project has (bun or npm). Spelling the pipeline out again here
+  # meant it drifted: this hardcoded npx while the project uses bun.
+  cmd = "irgo assets && go build -o ./tmp/main ."
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "node_modules", "ios", "android", "build"]
   exclude_file = []
