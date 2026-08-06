@@ -225,6 +225,9 @@ func main() {
 	case "ci":
 		err = runCI(hasFlag(os.Args[2:], "--force", "-f"))
 
+	case "pin":
+		err = runPin(os.Args[2:])
+
 	case "upgrade":
 		err = runUpgrade(hasFlag(os.Args[2:], "--force"), hasFlag(os.Args[2:], "--diff"))
 
@@ -313,6 +316,7 @@ Commands:
   templ            Generate templ files
   assets           Regenerate embedded assets (templ + Tailwind CSS)
   ci [--force]     Scaffold GitHub Actions workflows for every target
+  pin [target]     Show or change which irgo this project builds against
   upgrade          Refresh framework scaffolding, leaving your code alone
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
@@ -541,6 +545,29 @@ removes the toolchain rather than the app.
 An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
 with old assets or an old bridge API and nothing explains why.`)
+
+	case "pin":
+		fmt.Println(`irgo pin - Which irgo does this project build against?
+
+Usage:
+  irgo pin                        Show the current pin and what it means
+  irgo pin --release              Track the published module
+  irgo pin <version>              Track a specific published version
+  irgo pin <owner>/<repo>@<tag>   Track a fork
+  irgo pin --local [dir]          Build a checkout you are editing
+
+Using irgo and working on irgo are the same activity pointed at different
+versions. 'go tool irgo' builds whatever go.mod names, so this is the only
+difference between the two — there is no separate toolchain, install step or
+set of commands for contributors.
+
+  irgo pin --local ../irgo    then edit the CLI; the next 'go tool irgo'
+                              already runs your change, with nothing to
+                              reinstall and nothing to tag
+  irgo pin --release          go back to the published build
+
+A fork keeps the upstream module path, so Go fetches it from GitHub rather
+than the proxy:  go env -w GOPRIVATE='github.com/<owner>/*'`)
 
 	case "upgrade":
 		fmt.Println(`irgo upgrade - Move an existing project to this CLI version
