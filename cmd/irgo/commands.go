@@ -17,12 +17,6 @@ func runDev() error {
 	if err := ensureGoTool("templ"); err != nil {
 		return err
 	}
-	// entr is what air shells out to for watching on some setups, and is the
-	// documented requirement for hot reload.
-	if err := ensureOSPackage("entr"); err != nil {
-		fmt.Printf("Warning: %v\n", err)
-	}
-
 	// Generate once up front so the first build is correct; air regenerates on
 	// every change after that.
 	if err := ensureAssets(); err != nil {

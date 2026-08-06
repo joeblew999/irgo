@@ -2,11 +2,12 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  bin = "./tmp/main"
-  # `irgo assets` regenerates templ and the stylesheet. Spelling the pipeline
-  # out again here meant it drifted — it hardcoded npx, and Tailwind is now a
-  # standalone binary with no Node involved at all.
-  cmd = "irgo assets && go build -o ./tmp/main ."
+  entrypoint = "./tmp/main"
+  # `go tool irgo` — not a bare `irgo`. A binary on PATH is whatever version
+  # happened to be installed; go tool builds the one go.mod pins, which is the
+  # whole point. Using the PATH copy here meant hot reload ran an older CLI and
+  # died on a command it did not have.
+  cmd = "go tool irgo assets && go build -o ./tmp/main ."
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "ios", "android", "build"]
   exclude_file = []

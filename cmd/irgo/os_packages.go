@@ -1,6 +1,10 @@
 // Host OS packages: the native dependencies irgo cannot install with `go
-// install` — entr for hot reload, mingw-w64 for Windows cross-compilation,
-// GTK3 + WebKit2GTK for Linux desktop builds.
+// install` — mingw-w64 for Windows cross-compilation, GTK3 + WebKit2GTK for
+// Linux desktop builds.
+//
+// Both are needed only by a specific build, and are installed at that point
+// rather than up front, so a machine that never cross-compiles never sees a
+// package manager run.
 //
 // These used to be a per-project shell task that every consumer re-implemented
 // for brew/apt/pacman. Installing them is the build's own business, so each is
@@ -34,11 +38,6 @@ type osPackage struct {
 
 func osPackages() []osPackage {
 	return []osPackage{
-		{
-			key: "entr", brew: "entr", apt: "entr", pacman: "entr",
-			probe: func() bool { _, err := exec.LookPath("entr"); return err == nil },
-			why:   "file watching for `irgo dev` hot reload",
-		},
 		{
 			key: "mingw-w64", brew: "mingw-w64", pacman: "mingw-w64-x86_64-gcc",
 			probe: func() bool {
