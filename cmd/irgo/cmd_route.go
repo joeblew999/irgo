@@ -72,7 +72,7 @@ func route(noun, verb string, args []string) (error, bool) {
 		switch verb {
 		case "build":
 			if target == "all" && len(args) == 0 {
-				return fmt.Errorf("usage: irgo app build <ios|android|desktop|all>"), true
+				return fmt.Errorf("usage: irgo app build <ios|android|desktop|cloudflare|all>"), true
 			}
 			return runAppBuild(target, args), true
 		case "run":

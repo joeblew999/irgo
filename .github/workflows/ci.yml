@@ -30,6 +30,11 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
+      # The Cloudflare target compiles the framework for GOOS=js GOARCH=wasm,
+      # where a different set of files is selected. Building it here is what
+      # catches a file that silently left one platform's build — a stronger
+      # check than any naming rule, since it fails on the symptom.
+      - run: GOOS=js GOARCH=wasm go build ./...
       # This includes TestScaffoldedProjectBuilds, which generates a project
       # from this checkout and compiles it. It is a test rather than steps in
       # this file so it runs the same way on a laptop as it does here.

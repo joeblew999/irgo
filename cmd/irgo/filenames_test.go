@@ -17,6 +17,12 @@ import (
 // The naming convention puts the platform first (ios_build.go) partly for
 // readability and mostly to avoid this. A comment did not prevent a repeat;
 // a failing test does.
+//
+// Scoped to this package deliberately. Elsewhere the suffix is a feature —
+// desktop/menu_darwin.go is meant to compile only on macOS. What protects
+// platform-specific code outside the CLI is that every target is built in CI,
+// so a file that vanished from one would fail to compile rather than fail to
+// exist.
 func TestNoFilenameEndsInGOOS(t *testing.T) {
 	// The full set Go recognises, so a file named for a platform irgo does not
 	// target today still fails rather than waiting to surprise someone.

@@ -215,12 +215,18 @@ Usage:
   irgo app build android          AAR for the native shell
   irgo app build desktop          This host
   irgo app build desktop <goos>   linux, darwin or windows
+  irgo app build cloudflare       A Cloudflare Worker (WASM) in build/worker
   irgo app build all              Everything this host can produce
 
 Flags:
   --sim, -s        Simulator rather than device (iOS)
   --device, -D     A real device (iOS)
   --team <id>      Apple Team ID to sign with
+
+Cloudflare compiles the same router to WebAssembly and serves it from a
+Worker, SSE included. Shared state cannot live in a Go variable there — every
+request gets a fresh runtime — so keep it in a KV, D1 or Durable Object
+binding. Per-connection state within one SSE stream is fine.
 
 Toolchains install themselves: the Android SDK, NDK, JDK and gomobile are
 provisioned on first use. Cross-building is limited by the host — macOS can
@@ -428,7 +434,7 @@ var verbSummary = map[string]string{
 	"project test":    "Run the tests",
 	"project config":  "Show or set a setting (signing, stores, version)",
 
-	"app build":   "Build for ios, android, desktop, or all",
+	"app build":   "Build for ios, android, desktop, cloudflare, or all",
 	"app run":     "Build and launch; --dev for hot reload",
 	"app package": "Store artifacts (.ipa, .aab, .app, .msix)",
 	"app install": "Install what you already built — no rebuild",

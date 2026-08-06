@@ -53,6 +53,8 @@ func runBuild(target string, sim, device bool, team string) error {
 		return buildIOS(modulePath)
 	case "android":
 		return buildAndroid(modulePath)
+	case "cloudflare":
+		return buildCloudflare(modulePath)
 	case "all":
 		// Android builds anywhere; iOS cannot leave macOS. Skip rather than
 		// fail so `irgo app build all` stays usable on Linux/Windows CI.
