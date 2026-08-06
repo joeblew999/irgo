@@ -254,18 +254,20 @@ func main() {
 		// from the command itself. `uninstall` and `uninstall-tools` used to
 		// sit one hyphen apart while removing entirely different things.
 		if len(os.Args) < 3 {
-			err = fmt.Errorf("usage: irgo app remove [ios|android|desktop|all]")
+			err = fmt.Errorf("usage: irgo app <install|remove> [ios|android|desktop|all]")
 			break
 		}
+		target := "all"
+		if len(os.Args) > 3 {
+			target = os.Args[3]
+		}
 		switch os.Args[2] {
+		case "install":
+			err = runAppInstall(target)
 		case "remove", "uninstall":
-			target := "all"
-			if len(os.Args) > 3 {
-				target = os.Args[3]
-			}
 			err = runAppUninstall(target)
 		default:
-			err = fmt.Errorf("unknown app command: %s (use: irgo app remove)", os.Args[2])
+			err = fmt.Errorf("unknown app command: %s (use: install, remove)", os.Args[2])
 		}
 
 	case "uninstall":
@@ -441,6 +443,7 @@ SHIP
   reviews <ios|mac|android>  Monitor store reviews (reply on android)
 
 APP  (installed on a device, simulator or this machine)
+  app install <platform>  Install what you already built — no rebuild
   app remove <platform>   Remove it (ios, android, desktop, or all)
 
 TOOLS  (installed on this machine)
@@ -464,6 +467,7 @@ Examples:
   irgo build desktop all             Every desktop target this host supports
   irgo build ios --sim               Runnable Simulator app
   irgo package macos --dmg           Signed .app and a DMG
+  irgo app install desktop           Put the built app in /Applications
   irgo app remove android            Uninstall it from the emulator
   irgo tools remove android --remove-jdk   Undo the Android toolchain
   irgo pin --local ../irgo           Build a checkout you are editing
@@ -656,6 +660,9 @@ hot reload, which air provides natively — neither needs anything installed.`)
 		fmt.Println(`irgo app - The app installed on a device, simulator or this machine
 
 Usage:
+  irgo app install <platform>   Install an already-built app
+  irgo app remove <platform>    Remove it
+
   irgo app remove ios       From the booted simulator
   irgo app remove android   From the attached device or emulator
   irgo app remove desktop   From /Applications (macOS)
@@ -663,6 +670,14 @@ Usage:
 
 The inverse of irgo run. 'irgo tools remove' is the separate thing that removes
 the toolchain — these used to be one hyphen apart, which was a trap.
+
+install does not build. It takes what is already there — the packaged artifact
+if one exists, since that is what ships, otherwise the development build — so
+you can check the thing itself rather than the thing plus a rebuild:
+
+  ios       the Simulator app from 'irgo build ios --sim'
+  android   the debug APK, via adb
+  desktop   the .app into /Applications (macOS), packaged build preferred
 
 An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
