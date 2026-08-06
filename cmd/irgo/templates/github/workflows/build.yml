@@ -19,13 +19,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Pin the CLI so CI and developers build with the same version.
-  IRGO_VERSION: "{{IRGO_VERSION}}"
-  # Set when the project pins a fork. A fork keeps the upstream module path, so
-  # `go install` cannot fetch it by repo — it has to be cloned and built.
-  # Empty means the published module, which is the normal case.
-  IRGO_FORK_REPO: "{{IRGO_FORK_REPO}}"
 
 jobs:
   check:
@@ -36,24 +29,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # _templ.go and output.css are generated and gitignored, but embedded in
       # the binary. `irgo build` regenerates them; a plain `go build` needs this.
-      - run: irgo assets
+      - run: go tool irgo assets
       - run: go test ./...
       - run: go build -o build/{{PROJECT_NAME}} .
       - uses: actions/upload-artifact@v4
@@ -78,24 +56,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
-      - run: irgo install-tools
-      - run: irgo build desktop ${{ matrix.target }}
+      - run: go tool irgo install-tools
+      - run: go tool irgo build desktop ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -110,22 +73,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - run: irgo build ios --sim
+      - run: go tool irgo build ios --sim
       - uses: actions/upload-artifact@v4
         with:
           name: ios-simulator
@@ -140,24 +88,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
-      - run: irgo build android
-      - run: irgo doctor android
+      - run: go tool irgo build android
+      - run: go tool irgo doctor android
       - uses: actions/upload-artifact@v4
         with:
           name: android-framework

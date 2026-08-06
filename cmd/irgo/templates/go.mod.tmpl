@@ -6,4 +6,10 @@ require (
 	github.com/a-h/templ v0.3.977
 	github.com/stukennedy/irgo v0.4.0
 )
+
+// The CLI is a tool dependency, so `go tool irgo` builds the exact version
+// this module requires — including through the replace below when you track a
+// fork. That makes go.mod the single pin: nothing has to be installed first,
+// put on PATH, or kept in step by hand.
+tool github.com/stukennedy/irgo/cmd/irgo
 {{REPLACE_DIRECTIVE}}

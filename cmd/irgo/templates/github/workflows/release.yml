@@ -35,21 +35,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
         if: env.KEYSTORE_B64 != ''
         run: |
@@ -74,26 +59,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # Signing needs a Distribution cert and provisioning profile in the
       # runner keychain — e.g. apple-actions/import-codesign-certs.
       - name: Package
         if: env.IOS_TEAM_ID != ''
-        run: irgo package ios --team "$IOS_TEAM_ID"
+        run: go tool irgo package ios --team "$IOS_TEAM_ID"
       - uses: actions/upload-artifact@v4
         if: env.IOS_TEAM_ID != ''
         with:
@@ -111,24 +81,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
         if: env.MACOS_IDENTITY != ''
-        run: irgo package macos --identity "$MACOS_IDENTITY" --dmg
+        run: go tool irgo package macos --identity "$MACOS_IDENTITY" --dmg
       - uses: actions/upload-artifact@v4
         if: env.MACOS_IDENTITY != ''
         with:
@@ -146,25 +101,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install irgo
-        # Windows runners default to pwsh; this block is POSIX shell. Git Bash
-        # ships on every GitHub runner, so pin the shell rather than writing
-        # the logic twice.
-        shell: bash
-        run: |
-          if [ -n "$IRGO_FORK_REPO" ]; then
-            tmp="$(mktemp -d)"
-            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
-              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
-            (cd "$tmp/irgo" && go install ./cmd/irgo)
-          else
-            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
-          fi
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
       - name: Package
         if: env.WINDOWS_PUBLISHER != ''
-        run: irgo package windows --publisher "$env:WINDOWS_PUBLISHER"
+        run: go tool irgo package windows --publisher "$env:WINDOWS_PUBLISHER"
       - uses: actions/upload-artifact@v4
         if: env.WINDOWS_PUBLISHER != ''
         with:

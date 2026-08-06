@@ -586,12 +586,13 @@ Writes two workflows:
   release.yml  Store packages on tag push. Every job is skipped unless its
                signing secrets exist, so this is useful before you have any.
 
-There are no SDK/NDK/JDK setup steps: the CLI provisions its own toolchains,
-so 'irgo build android' works on a bare runner.
+Nothing is installed first. The workflows call 'go tool irgo', which builds the
+CLI version this module requires straight from go.mod — including through a
+replace directive when you track a fork. So the pin is go.mod and there is
+nothing to keep in step by hand.
 
-The irgo version is pinned into the workflows so CI and developers build with
-the same CLI. When the project pins a fork through IRGO_REPLACE, that version
-is used instead.`)
+There are no SDK/NDK/JDK setup steps either: the CLI provisions its own
+toolchains, so 'go tool irgo build android' works on a bare runner.`)
 
 	case "clean":
 		fmt.Println(`irgo clean - Remove generated output

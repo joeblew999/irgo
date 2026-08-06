@@ -61,8 +61,6 @@ func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error 
 			return err
 		}
 		body := strings.ReplaceAll(string(data), "{{PROJECT_NAME}}", filepath.Base(modulePath))
-		body = strings.ReplaceAll(body, "{{IRGO_VERSION}}", ciPinnedVersion())
-		body = strings.ReplaceAll(body, "{{IRGO_FORK_REPO}}", ciForkRepo())
 
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
@@ -92,43 +90,4 @@ func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error 
 	fmt.Println("The build workflow needs no secrets. For release packaging, see")
 	fmt.Println("what each store wants:  irgo package setup --check")
 	return nil
-}
-
-// ciPinnedVersion is the irgo version CI installs. Pinning it keeps CI and
-// developers on the same CLI; an unpinned @latest silently changes the build
-// under you.
-func ciPinnedVersion() string {
-	// A project pinned to a fork should track that fork in CI too.
-	if r := strings.TrimSpace(os.Getenv("IRGO_REPLACE")); r != "" {
-		if i := strings.LastIndex(r, " "); i > 0 {
-			return strings.TrimSpace(r[i+1:])
-		}
-		if i := strings.LastIndex(r, "@"); i > 0 {
-			return strings.TrimSpace(r[i+1:])
-		}
-	}
-	return "v" + version
-}
-
-// ciForkRepo returns "owner/repo" when the project pins a fork, else "".
-//
-// A fork keeps the upstream module path so the replace directive stays
-// transparent, which also means `go install` cannot fetch it by repository —
-// CI has to clone and build. Deriving this from IRGO_REPLACE keeps the
-// workflow generic: the same file works for a published module and a fork,
-// differing only in an env value.
-func ciForkRepo() string {
-	r := strings.TrimSpace(os.Getenv("IRGO_REPLACE"))
-	if r == "" {
-		return ""
-	}
-	mod := r
-	if i := strings.IndexAny(mod, " @"); i > 0 {
-		mod = mod[:i]
-	}
-	const upstream = "github.com/stukennedy/irgo"
-	if mod == upstream || !strings.HasPrefix(mod, "github.com/") {
-		return ""
-	}
-	return strings.TrimPrefix(mod, "github.com/")
 }
