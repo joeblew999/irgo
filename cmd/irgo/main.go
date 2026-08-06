@@ -70,8 +70,16 @@ func main() {
 			}
 		}
 
+		team := ""
+		for i := 3; i < len(os.Args)-1; i++ {
+			if os.Args[i] == "--team" {
+				team = os.Args[i+1]
+			}
+		}
 		if platform == "desktop" {
 			err = runDesktop(devMode, hasFlag(os.Args[3:], "--built", "-b"))
+		} else if platform == "ios" && hasFlag(os.Args[3:], "--device", "-D") {
+			err = runIOSDevice(team)
 		} else {
 			err = runMobile(platform, devMode, avd, headless)
 		}
@@ -307,6 +315,7 @@ Examples:
   irgo dev               Start dev server with hot reload
   irgo run ios           Build and run on iOS Simulator
   irgo run ios --dev     Hot-reload mode (connects to dev server)
+  irgo run ios --device  Build, install and launch on a USB-connected iPhone
   irgo run android       Build and run on Android Emulator
   irgo run android --dev Hot-reload mode (connects to dev server)
   irgo run desktop       Run as desktop app

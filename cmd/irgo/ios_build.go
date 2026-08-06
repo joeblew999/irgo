@@ -2,12 +2,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+// iosBundleID is the identifier the Example project ships with; it is set in
+// the Xcode project rather than derived from the Go module path.
+const iosBundleID = "com.irgo.Example"
 
 func buildIOS(modulePath string) error {
 	fmt.Println("Building iOS framework...")
@@ -370,4 +375,175 @@ func clearDevServerInPlist(plistPath string) {
 
 	newContent := content[:entryStart] + content[entryEnd:]
 	os.WriteFile(plistPath, []byte(newContent), 0644)
+}
+
+// iosDevice is a physical iPhone/iPad attached to this Mac.
+type iosDevice struct {
+	name       string
+	identifier string
+	model      string
+}
+
+// listIOSDevices returns the connected devices via devicectl (Xcode 15+).
+func listIOSDevices() ([]iosDevice, error) {
+	tmp, err := os.CreateTemp("", "irgo-devices-*.json")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp.Name())
+	tmp.Close()
+
+	if err := exec.Command("xcrun", "devicectl", "list", "devices",
+		"--json-output", tmp.Name()).Run(); err != nil {
+		return nil, fmt.Errorf("devicectl failed (needs Xcode 15+): %w", err)
+	}
+	data, err := os.ReadFile(tmp.Name())
+	if err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Result struct {
+			Devices []struct {
+				Identifier       string `json:"identifier"`
+				DeviceProperties struct {
+					Name string `json:"name"`
+				} `json:"deviceProperties"`
+				HardwareProperties struct {
+					ProductType string `json:"productType"`
+				} `json:"hardwareProperties"`
+				ConnectionProperties struct {
+					TunnelState string `json:"tunnelState"`
+				} `json:"connectionProperties"`
+			} `json:"devices"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("could not read devicectl output: %w", err)
+	}
+	var out []iosDevice
+	for _, d := range payload.Result.Devices {
+		out = append(out, iosDevice{
+			name:       d.DeviceProperties.Name,
+			identifier: d.Identifier,
+			model:      d.HardwareProperties.ProductType,
+		})
+	}
+	return out, nil
+}
+
+// runIOSDevice builds, installs and launches on a physically attached device.
+//
+// Kept separate from runIOS (simulator): a device build must be signed, is
+// installed through devicectl rather than simctl, and fails in ways a
+// simulator never does — so the errors need to name provisioning explicitly.
+func runIOSDevice(team string) error {
+	if err := requireMacOS("iOS device"); err != nil {
+		return err
+	}
+	if err := checkTool("xcodebuild", "Install Xcode from the App Store"); err != nil {
+		return err
+	}
+
+	devices, err := listIOSDevices()
+	if err != nil {
+		return err
+	}
+	if len(devices) == 0 {
+		return fmt.Errorf("no iOS device found.\n" +
+			"  Connect it by USB, unlock it, and tap Trust This Computer.\n" +
+			"  Check what the Mac sees with: xcrun devicectl list devices")
+	}
+	dev := devices[0]
+	fmt.Printf("Device: %s (%s)\n", dev.name, dev.model)
+
+	modulePath, err := getModulePath()
+	if err != nil {
+		return err
+	}
+	if err := ensureAssets(); err != nil {
+		return err
+	}
+	if err := scaffoldExamples(); err != nil {
+		return fmt.Errorf("iOS example scaffold failed: %w", err)
+	}
+	if err := buildIOS(modulePath); err != nil {
+		return err
+	}
+	clearDevServerInPlist(filepath.Join("ios/Example", "Example/Info.plist"))
+	if ic := findAppIcon(""); ic != "" {
+		_ = generateIOSIcons(ic, "ios/Example")
+	}
+
+	appPath, err := buildIOSDeviceApp(dev, team)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Installing on device...")
+	if err := runCommand("xcrun", "devicectl", "device", "install", "app",
+		"--device", dev.identifier, appPath); err != nil {
+		return fmt.Errorf("install failed: %w", err)
+	}
+
+	fmt.Println("Launching...")
+	if err := runCommand("xcrun", "devicectl", "device", "process", "launch",
+		"--device", dev.identifier, iosBundleID); err != nil {
+		return fmt.Errorf("launch failed (the app is installed — you can tap it on the device): %w", err)
+	}
+	fmt.Printf("\nRunning on %s.\n", dev.name)
+	return nil
+}
+
+// buildIOSDeviceApp builds a signed Debug build for the attached device.
+//
+// -allowProvisioningUpdates lets Xcode register the device and create the
+// profile, which is what makes a free personal Apple ID work without any
+// manual portal steps.
+func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
+	if team == "" {
+		team = firstNonEmpty(os.Getenv("DEVELOPMENT_TEAM"), os.Getenv("IRGO_IOS_TEAM"), deriveIOSTeamFromXcode())
+	}
+
+	args := []string{"-project", "ios/Example/Example.xcodeproj",
+		"-scheme", "Example", "-configuration", "Debug",
+		"-destination", "id=" + dev.identifier,
+		"-derivedDataPath", "build/ios/DerivedData-Device",
+		"-allowProvisioningUpdates"}
+	if team != "" {
+		args = append(args, "-DEVELOPMENT_TEAM="+team)
+		fmt.Printf("Signing with team %s\n", team)
+	}
+	args = append(args, "build")
+
+	fmt.Println("Building for device...")
+	if err := runCommand("xcodebuild", args...); err != nil {
+		return "", fmt.Errorf("%w\n\n%s", err, iosSigningHelp(team))
+	}
+
+	appPath := "build/ios/DerivedData-Device/Build/Products/Debug-iphoneos/Example.app"
+	if _, err := os.Stat(appPath); err != nil {
+		return "", fmt.Errorf("built app not found at %s", appPath)
+	}
+	return appPath, nil
+}
+
+// iosSigningHelp explains the one thing irgo cannot do for you. Running on a
+// real device requires an Apple ID; a free one is enough, but it has to be
+// added to Xcode by hand.
+func iosSigningHelp(team string) string {
+	var b strings.Builder
+	b.WriteString("Running on a physical device requires code signing.\n")
+	if team == "" {
+		b.WriteString("  No development team was found.\n")
+	} else {
+		b.WriteString("  Team " + team + " was used.\n")
+	}
+	b.WriteString("  A free Apple ID is enough — no paid account needed:\n")
+	b.WriteString("    1. Xcode → Settings → Accounts → + → Apple ID → sign in\n")
+	b.WriteString("    2. irgo run ios --device --team <TEAM_ID>\n")
+	b.WriteString("       (or set IRGO_IOS_TEAM; find the ID under Manage Certificates)\n")
+	b.WriteString("  On first launch the device will refuse an untrusted developer:\n")
+	b.WriteString("    Settings → General → VPN & Device Management → trust the profile\n")
+	b.WriteString("  For the simulator instead, which needs no signing: irgo run ios")
+	return b.String()
 }
