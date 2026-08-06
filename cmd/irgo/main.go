@@ -571,7 +571,7 @@ Desktop mode:
 Usage: irgo serve
 
 Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
-hot reload (that path needs entr; this one has no extra dependency).`)
+hot reload, which air provides natively — neither needs anything installed.`)
 
 	case "uninstall":
 		fmt.Println(`irgo uninstall - Remove the installed app
