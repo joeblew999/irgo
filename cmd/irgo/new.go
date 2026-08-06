@@ -386,6 +386,15 @@ func newProject(name string) error {
 	// import templ directly; tidy run first sees no importer and records templ
 	// as `// indirect`, which the first `irgo templ` then flips back to direct
 	// — dirtying go.mod, a generated file, on the very first build.
+	// Install templ rather than skipping when it is absent. Skipping is not
+	// harmless: tidy then runs with no _templ.go on disk, concludes nothing
+	// imports templ, and records it as an indirect dependency — so the
+	// generated go.mod depends on whether a tool happened to be installed.
+	// That is exactly what made the demo's regen check fail in CI and pass
+	// locally.
+	if err := ensureGoTool("templ"); err != nil {
+		fmt.Printf("Warning: %v\n", err)
+	}
 	if _, err := exec.LookPath("templ"); err == nil {
 		fmt.Println("Generating templ files...")
 		cmd := exec.Command("templ", "generate")
