@@ -730,46 +730,46 @@ func runDevServer() {
 
 ```bash
 # Project creation
-irgo new myapp           # Create new project
-irgo new .               # Initialize in current directory
+irgo project new myapp           # Create new project
+irgo project new .               # Initialize in current directory
 
 # Development
-irgo dev                 # Web dev server with hot reload
-irgo run desktop         # Run as desktop app
-irgo run desktop --dev   # Desktop with devtools
-irgo run ios --dev       # iOS Simulator with hot reload
-irgo run android --dev   # Android Emulator with hot reload
+irgo server dev                 # Web dev server with hot reload
+irgo app run desktop         # Run as desktop app
+irgo app run desktop --dev   # Desktop with devtools
+irgo app run ios --dev       # iOS Simulator with hot reload
+irgo app run android --dev   # Android Emulator with hot reload
 
 # Production builds
-irgo build desktop       # Build desktop for current OS
-irgo build desktop macos # Build macOS .app
-irgo build desktop windows # Build Windows .exe
-irgo build desktop linux # Build Linux binary
-irgo build ios           # Build iOS framework
-irgo build android       # Build Android AAR
+irgo app build desktop       # Build desktop for current OS
+irgo app build desktop macos # Build macOS .app
+irgo app build desktop windows # Build Windows .exe
+irgo app build desktop linux # Build Linux binary
+irgo app build ios           # Build iOS framework
+irgo app build android       # Build Android AAR
 
 # Production run
-irgo run ios             # Build + run iOS
-irgo run android         # Build + run Android
+irgo app run ios             # Build + run iOS
+irgo app run android         # Build + run Android
 
 # Utilities
-irgo templ               # Generate templ files
-irgo install-tools       # Install dev dependencies
+irgo project assets               # Generate templ files
+irgo tools install       # Install dev dependencies
 ```
 
 ## macOS App Bundling
 
-`irgo package macos` does all of it — bundle, icon, Info.plist, entitlements,
+`irgo app package macos` does all of it — bundle, icon, Info.plist, entitlements,
 signing, notarization and DMG:
 
 ```bash
-irgo package macos                     # unsigned .app, for local testing
-irgo package macos --dmg               # and a DMG
-irgo package macos --identity "Developer ID Application: You (TEAMID)" \
+irgo app package macos                     # unsigned .app, for local testing
+irgo app package macos --dmg               # and a DMG
+irgo app package macos --identity "Developer ID Application: You (TEAMID)" \
   --notarize --apple-id you@example.com --team TEAMID --password app-specific
 ```
 
-`irgo package setup --check` reports which values are set, where each came
+`irgo app package setup --check` reports which values are set, where each came
 from, and the environment variable to use in CI.
 
 This replaced a set of shell scripts under `build/macos/`. They are gone: they
@@ -791,7 +791,7 @@ The framework uses Go build tags to separate platform-specific code:
 When building:
 - `go build .` → uses `main.go` (mobile/web)
 - `go build -tags desktop .` → uses `main_desktop.go` (desktop)
-- `irgo run desktop` → automatically adds `-tags desktop`
+- `irgo app run desktop` → automatically adds `-tags desktop`
 
 ## Dependencies
 
