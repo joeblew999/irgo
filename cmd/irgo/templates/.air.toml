@@ -9,7 +9,8 @@ tmp_dir = "tmp"
   # died on a command it did not have.
   cmd = "go tool irgo assets && go build -o ./tmp/main ."
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "ios", "android", "build"]
+  # dist/ holds packaged output: rebuilding on a package would loop.
+  exclude_dir = ["assets", "tmp", "vendor", "ios", "android", "build", "dist"]
   exclude_file = []
   exclude_regex = ["_test.go", "_templ.go"]
   exclude_unchanged = false

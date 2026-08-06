@@ -63,6 +63,16 @@ func runClean(all bool) error {
 		removed++
 	}
 
+	// Removing ios/Example leaves an empty ios/ behind, which looks like a
+	// half-deleted project rather than a clean one. os.Remove only succeeds on
+	// an empty directory, so a project that keeps its own files there is safe.
+	for _, d := range []string{"ios", "android"} {
+		if err := os.Remove(d); err == nil {
+			fmt.Printf("  removed %-24s empty after removing the generated shell\n", d)
+			removed++
+		}
+	}
+
 	// Generated Go from templ, which lives beside its .templ source rather
 	// than in a build directory.
 	n, err := removeTemplGenerated()
