@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -189,6 +190,7 @@ func doctorHost(strict bool) error {
 
 	printTeamDetail()
 	printXcodeDetail()
+	printAndroidDetail()
 
 	fmt.Println()
 	fmt.Println("Store config:     irgo package setup --check")
@@ -386,4 +388,66 @@ func printTeamDetail() {
 	if len(teams) > 1 {
 		fmt.Println("  select: irgo ios team <TEAM_ID>")
 	}
+}
+
+// printAndroidDetail mirrors the Xcode section for the Android toolchain.
+//
+// Unlike Xcode, none of this is a prerequisite: builds provision it on first
+// use. So a missing SDK is reported as "provisioned on first build" rather
+// than as a fault — the section exists to answer "what is already here and
+// what will be fetched", not to list errors.
+func printAndroidDetail() {
+	sdk := androidHome()
+	fmt.Println()
+	fmt.Println("Android:")
+
+	if fi, err := os.Stat(sdk); err == nil && fi.IsDir() {
+		fmt.Printf("  SDK           %s\n", sdk)
+	} else {
+		fmt.Printf("  SDK           not installed — fetched into %s on first build\n", sdk)
+		fmt.Println("                Android Studio is not involved")
+		return
+	}
+
+	if jdkHome, ok := detectJDK17(false); ok {
+		where := jdkHome
+		if where == "" {
+			where = "java on PATH"
+		} else if strings.Contains(where, managedJDKRel) {
+			where += " (managed by irgo)"
+		}
+		fmt.Printf("  JDK 17        %s\n", where)
+	} else {
+		// Gradle 8.2 / AGP 8.2 fail on JDK 21+, which is what a machine
+		// usually has, so this is worth naming rather than leaving to a
+		// confusing Gradle error later.
+		fmt.Println("  JDK 17        not found — fetched into ~/.irgo/jdks on first build")
+	}
+
+	ndk := filepath.Join(sdk, "ndk", pinNDK)
+	if fi, err := os.Stat(ndk); err == nil && fi.IsDir() {
+		fmt.Printf("  NDK           %s\n", pinNDK)
+	} else {
+		fmt.Printf("  NDK           %s not installed — fetched on first build\n", pinNDK)
+	}
+
+	emu := filepath.Join(sdk, "emulator", "emulator")
+	if runtime.GOOS == "windows" {
+		emu += ".exe"
+	}
+	switch {
+	case !pathExists(emu):
+		fmt.Println("  emulator      not installed — only needed for `irgo run android`")
+	default:
+		avd := "none"
+		if avdmgr := locateAvdmanager(sdk); avdmgr != "" {
+			if out, err := exec.Command(avdmgr, "list", "avd").CombinedOutput(); err == nil {
+				if strings.Contains(string(out), "Name:") {
+					avd = "present"
+				}
+			}
+		}
+		fmt.Printf("  emulator      installed, AVD %s\n", avd)
+	}
+	fmt.Println("  detail        irgo tools doctor android")
 }

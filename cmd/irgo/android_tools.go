@@ -980,7 +980,7 @@ func doctorAndroid() error {
 	if fi, err := os.Stat(sdk); err == nil && fi.IsDir() {
 		fmt.Println("    SDK dir: OK")
 	} else {
-		fmt.Println("    SDK dir: MISSING (run 'irgo install-tools android')")
+		fmt.Println("    SDK dir: MISSING (run 'irgo tools install android')")
 		fail = true
 	}
 
@@ -992,7 +992,7 @@ func doctorAndroid() error {
 			fmt.Println("  JDK 17: OK (java on PATH)")
 		}
 	} else {
-		fmt.Println("  JDK 17: MISSING (run 'irgo install-tools android' or set JAVA_HOME)")
+		fmt.Println("  JDK 17: MISSING (run 'irgo tools install android' or set JAVA_HOME)")
 		fail = true
 	}
 
