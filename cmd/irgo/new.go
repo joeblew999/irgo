@@ -436,11 +436,17 @@ func newProject(name string) error {
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Printf("  cd %s\n", projectDir)
-	fmt.Println("  bun install        # or: npm install")
-	fmt.Println("  irgo dev           # start development server")
-	fmt.Println("  irgo run ios       # iOS Simulator (scaffolds ios/Example)")
-	fmt.Println("  irgo run android   # Android Emulator (scaffolds android/Example)")
-	fmt.Println("  irgo run desktop   # native desktop window")
+	fmt.Println()
+	// `go tool`, not a bare binary: go.mod pins the CLI, so this is the only
+	// form that runs the version the project actually declares. Nothing to
+	// install — not even Node; Tailwind is a binary irgo fetches on demand.
+	fmt.Println("  go tool irgo doctor        # what can this machine build?")
+	fmt.Println("  go tool irgo dev           # dev server with hot reload")
+	fmt.Println("  go tool irgo run ios       # iOS Simulator")
+	fmt.Println("  go tool irgo run android   # Android Emulator")
+	fmt.Println("  go tool irgo run desktop   # native desktop window")
+	fmt.Println()
+	fmt.Println("Everything else is in README.md.")
 	fmt.Println()
 
 	return nil

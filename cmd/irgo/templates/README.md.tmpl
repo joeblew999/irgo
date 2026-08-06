@@ -16,6 +16,16 @@ go tool irgo doctor      # what this machine can build, and what needs setup
 go tool irgo dev         # hot-reload server on http://localhost:8080
 ```
 
+Starting a *new* project is the one case `go tool` cannot cover — it needs a
+go.mod to read, and there is not one yet:
+
+```bash
+go run github.com/stukennedy/irgo/cmd/irgo@latest new myapp
+cd myapp && go tool irgo doctor
+```
+
+After that the project pins its own CLI and `go tool irgo` is all you need.
+
 `go tool irgo` builds the CLI version this module requires, straight from
 go.mod — nothing to install, nothing to keep on PATH, nothing to keep in step.
 The `tool` directive in go.mod is the only pin.

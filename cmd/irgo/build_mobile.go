@@ -37,6 +37,11 @@ func runBuild(target string, sim, device bool, team string) error {
 		return fmt.Errorf("creating build directory: %w", err)
 	}
 
+	if sim && device {
+		return fmt.Errorf("--sim and --device build different things: " +
+			"--sim is an unsigned Simulator app, --device is a signed build for real hardware. Pick one")
+	}
+
 	switch target {
 	case "ios":
 		if err := requireMacOS("iOS"); err != nil {
