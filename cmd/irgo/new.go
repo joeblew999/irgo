@@ -282,6 +282,16 @@ func newProject(name string) error {
 			}
 		}
 
+		// README.md describes the project, not the framework — a generated one
+		// is only a starting point. Regenerating over it would throw away
+		// whatever the project actually says about itself.
+		if strings.HasSuffix(path, "/README.md.tmpl") || path == "templates/README.md.tmpl" {
+			if _, err := os.Stat(filepath.Join(projectDir, "README.md")); err == nil {
+				fmt.Println("  kept (yours): README.md")
+				return nil
+			}
+		}
+
 		// irgo.package.toml holds settings a person chose — the signing team,
 		// store IDs, the app version. The template version is only a seed, so
 		// regenerating in place (irgo new .) must not overwrite an existing
