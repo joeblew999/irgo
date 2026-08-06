@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // runTempl generates templ files
@@ -177,26 +178,75 @@ func installTools() error {
 //
 // Marker-guarded: a tool irgo did not install is reported and kept, so a
 // developer's own templ/air survives. Pass all to override that.
-func uninstallTools(all bool) error {
-	fmt.Println("Removing irgo-installed Go tools...")
+// removalTally counts outcomes so the summary reflects everything considered,
+// not just the Go tools.
+type removalTally struct{ removed, kept, missing int }
 
-	removed, kept, missing := 0, 0, 0
-	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
-		if !all && !toolInstalledByIrgo(tool) {
-			if _, err := exec.LookPath(tool); err == nil {
-				fmt.Printf("  %s: kept (not installed by irgo — use --all to remove anyway)\n", tool)
-				kept++
-			} else {
-				missing++
-			}
-			continue
+// report prints one aligned line and records the outcome. Aligned columns
+// because the previous output interleaved three kinds of thing in one flat
+// list, and you could not tell a Go tool from a Homebrew package.
+func (t *removalTally) report(name, state, detail string) {
+	switch state {
+	case "removed":
+		t.removed++
+	case "kept":
+		t.kept++
+	default:
+		t.missing++
+	}
+	if detail != "" {
+		fmt.Printf("  %-14s %-9s %s\n", name, state, detail)
+		return
+	}
+	fmt.Printf("  %-14s %s\n", name, state)
+}
+
+// uninstallTools is the exact inverse of `irgo tools install`: it removes what
+// irgo installed, and nothing else. Every install path in the CLI has a
+// matching removal — without one you cannot return a machine to a known state,
+// and a provisioning bug hides behind whatever was left lying around instead of
+// surfacing on the next run.
+//
+// Marker-guarded: a tool irgo did not install is reported and kept, so a
+// developer's own templ or gomobile survives. Pass all to override that.
+// uninstallTools removes what irgo installed — all of it, including Android.
+//
+// scope narrows it to one area ("android"), yes skips the prompt, all also
+// removes copies irgo did not install, and keepJDK preserves the managed JDK,
+// which is the slowest thing here to re-download.
+func uninstallTools(scope string, all, yes, keepJDK bool) error {
+	var p removalPlan
+	switch scope {
+	case "android":
+		planAndroid(&p, keepJDK)
+	default:
+		planGoTools(&p, all)
+		planDownloads(&p)
+		planHostPackages(&p, all)
+		planAndroid(&p, keepJDK)
+	}
+
+	if p.empty() {
+		fmt.Println("Nothing to remove — irgo has not installed anything here.")
+		if len(p.kept) > 0 {
+			fmt.Printf("Present but not installed by irgo: %s\n", strings.Join(p.kept, ", "))
+			fmt.Println("  --all removes them too.")
 		}
-		if removeTool(tool, true) {
-			removed++
-		} else {
-			missing++
-		}
-		clearToolMarker(tool)
+		return nil
+	}
+
+	ok, err := confirmRemoval(&p, yes)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	fmt.Println("Removing:")
+	var t removalTally
+	for _, act := range p.acts {
+		act(&t)
 	}
 
 	// Build residue from mobile builds: the temp x/mobile clone and the local
@@ -204,19 +254,9 @@ func uninstallTools(all bool) error {
 	_ = os.RemoveAll(filepath.Join(os.TempDir(), "golang-mobile"))
 	_ = os.Remove("go.work")
 	_ = os.Remove("go.work.sum")
-
-	if removeTailwind() {
-		removed++
-	}
-
-	if err := uninstallOSPackages(all); err != nil {
-		return err
-	}
-
 	pruneIrgoStateDir()
 
-	fmt.Printf("\n%d removed, %d kept, %d not present.\n", removed, kept, missing)
-	fmt.Println("Android SDK/NDK/JDK are separate: irgo uninstall-tools android --remove-jdk")
+	fmt.Printf("\n%d removed, %d kept, %d absent.\n", t.removed, t.kept, t.missing)
 	return nil
 }
 

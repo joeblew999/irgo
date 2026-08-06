@@ -189,26 +189,44 @@ func installOSPackages() error {
 	return nil
 }
 
-// uninstallOSPackages is the inverse of installOSPackages. Marker-guarded: a
-// package irgo did not install is kept, since it may predate irgo or be
-// something the developer relies on elsewhere.
-func uninstallOSPackages(all bool) error {
+// uninstallOSPackages is the inverse of installOSPackages, reporting into the
+// same tally so host packages are not a separate, differently-shaped list.
+//
+// Manager output is captured rather than streamed: brew prints hundreds of
+// lines for a single formula, which buried the actual report. It is shown only
+// when the removal fails, where it is the diagnostic.
+func uninstallOSPackages(all bool, t *removalTally) error {
 	mgr := pkgManager()
 	if mgr == "" {
 		return nil
 	}
+	var applicable []osPackage
 	for _, p := range osPackages() {
+		if p.pkgNameFor(mgr) != "" {
+			applicable = append(applicable, p)
+		}
+	}
+	if len(applicable) == 0 {
+		return nil
+	}
+
+	fmt.Println()
+	fmt.Printf("Host packages (%s):\n", mgr)
+	for _, p := range applicable {
 		name := p.pkgNameFor(mgr)
-		if name == "" || !p.probe() {
+		if !p.probe() {
+			t.report(p.key, "absent", "")
 			continue
 		}
 		if !all && !toolInstalledByIrgo(p.key) {
-			fmt.Printf("  %s: kept (not installed by irgo — use --all to remove anyway)\n", p.key)
+			t.report(p.key, "kept", "not installed by irgo — --all removes it anyway")
 			continue
 		}
-		fmt.Printf("  %s: removing via %s...\n", p.key, mgr)
-		if err := runCommand(pkgRemoveCmd(mgr, name)[0], pkgRemoveCmd(mgr, name)[1:]...); err != nil {
-			fmt.Printf("  Warning: removing %s failed: %v\n", p.key, err)
+		cmd := pkgRemoveCmd(mgr, name)
+		if out, err := runCommandQuiet(cmd[0], cmd[1:]...); err != nil {
+			t.report(p.key, "failed", firstLine(strings.TrimSpace(out)))
+		} else {
+			t.report(p.key, "removed", "via "+mgr)
 		}
 		clearToolMarker(p.key)
 	}

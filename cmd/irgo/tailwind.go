@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // pinTailwind is the version irgo downloads. Pinned rather than "latest" so a
@@ -86,6 +87,28 @@ func ensureTailwind() (string, error) {
 	}
 	markToolInstalled("tailwindcss")
 	return bin, nil
+}
+
+// removeTailwindPath removes the downloaded Tailwind binaries and returns the
+// last path removed, or "" when none were present.
+func removeTailwindPath() string {
+	dir := filepath.Join(homeDir(), ".irgo", "bin")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	last := ""
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "tailwindcss") {
+			p := filepath.Join(dir, e.Name())
+			if os.Remove(p) == nil {
+				last = p
+			}
+		}
+	}
+	_ = os.Remove(dir) // only succeeds when empty
+	clearToolMarker("tailwindcss")
+	return last
 }
 
 // removeTailwind is the inverse, for uninstall-tools.

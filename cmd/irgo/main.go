@@ -324,11 +324,18 @@ func main() {
 				err = installTools()
 			}
 		case "remove":
+			scope := ""
 			if android {
-				err = uninstallAndroidTools(hasFlag(rest, "--remove-jdk"))
-			} else {
-				err = uninstallTools(hasFlag(rest, "--all"))
+				scope = "android"
 			}
+			// --remove-jdk used to be how you opted IN to deleting the JDK,
+			// back when removal skipped it by default. Removal now means
+			// everything irgo installed, so it is accepted and ignored, and
+			// --keep-jdk is the opt-out.
+			err = uninstallTools(scope,
+				hasFlag(rest, "--all"),
+				hasFlag(rest, "--yes", "-y"),
+				hasFlag(rest, "--keep-jdk"))
 		case "doctor":
 			switch {
 			case android:
@@ -358,14 +365,14 @@ func main() {
 
 	case "uninstall-tools":
 		deprecated("uninstall-tools", "tools remove")
-		// Every install path has an inverse: bare form undoes install-tools
-		// (templ/air/gomobile/gobind + mingw-w64), `android` undoes the
-		// Android toolchain.
+		scope := ""
 		if len(os.Args) > 2 && os.Args[2] == "android" {
-			err = uninstallAndroidTools(hasFlag(os.Args[3:], "--remove-jdk"))
-		} else {
-			err = uninstallTools(hasFlag(os.Args[2:], "--all"))
+			scope = "android"
 		}
+		err = uninstallTools(scope,
+			hasFlag(os.Args[2:], "--all"),
+			hasFlag(os.Args[2:], "--yes", "-y"),
+			hasFlag(os.Args[2:], "--keep-jdk"))
 
 	case "doctor":
 		deprecated("doctor", "tools doctor")
@@ -469,7 +476,7 @@ Examples:
   irgo package macos --dmg           Signed .app and a DMG
   irgo app install desktop           Put the built app in /Applications
   irgo app remove android            Uninstall it from the emulator
-  irgo tools remove android --remove-jdk   Undo the Android toolchain
+  irgo tools remove --yes            Undo everything irgo installed
   irgo pin --local ../irgo           Build a checkout you are editing
 
 Nothing needs installing first: toolchains provision themselves when a command
@@ -520,7 +527,7 @@ Server runs at http://localhost:8080`)
 Usage:
   irgo tools doctor [android] [--fix|--strict]   What this host can build
   irgo tools install [android] [--emulator]      Install what builds need
-  irgo tools remove  [android] [--all|--remove-jdk]   Undo it
+  irgo tools remove  [android] [--yes] [--all] [--keep-jdk]   Undo it
 
 You rarely need install: every build provisions what it needs, when it needs
 it. It exists to set a machine up in one go, and remove exists so that can be
@@ -552,13 +559,19 @@ Host packages, via brew/apt/pacman, only when a build actually needs them:
 Android Studio is not involved, and nothing here is required up front.
 
 REMOVING
-  irgo tools remove                  the Go tools and Tailwind irgo installed
-  irgo tools remove --all            those plus copies irgo did not install
-  irgo tools remove android          the SDK, NDK and emulator
-  irgo tools remove android --remove-jdk   and the managed JDK
+
+  irgo tools remove              everything irgo installed, Android included
+  irgo tools remove android      only the Android toolchain
+  irgo tools remove --all        also copies irgo did not install
+  irgo tools remove --keep-jdk   spare the managed JDK, the slowest to refetch
+  irgo tools remove --yes        skip the confirmation
+
+It shows what it will delete, with sizes, and asks first — the Android SDK
+alone is several gigabytes. Outside a terminal it refuses rather than assuming
+yes, so a script cannot quietly wipe an SDK; pass --yes there.
 
 Removal is marker-guarded: anything irgo did not install is reported and kept,
-so your own templ or JDK survives.
+so your own templ or JDK survives. --all overrides that.
 
 ANDROID_HOME defaults to ~/Library/Android/sdk on macOS, ~/Android/Sdk on
 Linux, %LOCALAPPDATA%\Android\Sdk on Windows.`)

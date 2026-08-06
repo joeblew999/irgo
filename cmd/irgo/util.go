@@ -162,3 +162,28 @@ func runCommandCapture(name string, args ...string) (string, error) {
 	err := cmd.Run()
 	return buf.String(), err
 }
+
+// removeToolPath deletes a go-installed binary and returns the path removed,
+// or "" when it was not there. Returning the path rather than printing keeps
+// formatting with the caller, which is what makes an aligned report possible.
+func removeToolPath(tool string) string {
+	for _, dir := range toolBinDirs() {
+		p := filepath.Join(dir, exeName(tool))
+		if _, err := os.Stat(p); err == nil {
+			if os.Remove(p) == nil {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+// runCommandQuiet runs a command and returns its combined output without
+// echoing it. For bulk operations like a package removal, the tool's own
+// output is hundreds of lines and buries the report it is part of — it is
+// worth showing only when something failed.
+func runCommandQuiet(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
