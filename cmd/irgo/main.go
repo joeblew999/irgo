@@ -515,24 +515,53 @@ Starts:
 Server runs at http://localhost:8080`)
 
 	case "install-tools", "tools":
-		fmt.Println(`irgo tools - Install required development tools
+		fmt.Println(`irgo tools - The toolchains on this machine
 
 Usage:
-  irgo install-tools             Install Go tools (gomobile, templ, air)
-  irgo install-tools android     Install Android SDK + NDK + cmdline-tools
-  irgo install-tools android --emulator
-                                 Also install the emulator + system image + AVD
-  irgo install-tools android --emulator --avd <name>
-                                 AVD name (default "irgo")
+  irgo tools doctor [android] [--fix|--strict]   What this host can build
+  irgo tools install [android] [--emulator]      Install what builds need
+  irgo tools remove  [android] [--all|--remove-jdk]   Undo it
 
-Android toolchain (pinned, known-good, fully cross-platform):
-  - JDK 17 — auto-downloaded (Temurin via Adoptium) into ~/.irgo/jdks, no
-    brew/apt/winget needed; respects an existing JAVA_HOME when it is JDK 17
-  - cmdline-tools, platform-tools, platforms android-34/35, build-tools
-  - NDK r26 (required: gomobile's bind defaults to API 16, NDK r27+ rejects it)
+You rarely need install: every build provisions what it needs, when it needs
+it. It exists to set a machine up in one go, and remove exists so that can be
+undone — a machine that cannot return to a known state hides provisioning bugs
+behind whatever was left lying around.
 
-Respects ANDROID_HOME (defaults: ~/Library/Android/sdk on macOS,
-~/Android/Sdk on Linux, %LOCALAPPDATA%\Android\Sdk on Windows).`)
+WHAT IRGO MANAGES
+
+Go tools, via go install into GOBIN:
+  templ      pinned to the templ version in your go.mod, so the generator and
+             the library cannot disagree
+  air        hot reload for irgo dev
+  gomobile   and gobind, for the iOS/Android bindings
+
+Downloaded and pinned, under ~/.irgo:
+  Tailwind   v4.3.3 standalone binary — no Node, npm or bun anywhere
+  JDK 17     Temurin via Adoptium, into ~/.irgo/jdks; an existing JAVA_HOME is
+             respected when it is actually 17 (Gradle 8.2 fails on 21+)
+
+Android SDK, into ANDROID_HOME:
+  cmdline-tools, platform-tools, build-tools 35, platforms 34 and 35
+  NDK r26    required: gomobile binds at API 16 by default and r27+ rejects it
+  emulator   with --emulator, plus a system image and an AVD (default "irgo")
+
+Host packages, via brew/apt/pacman, only when a build actually needs them:
+  mingw-w64  cross-compiling the Windows desktop app from macOS
+  webkit2gtk GTK3 + WebKit2GTK for the Linux desktop webview
+
+Android Studio is not involved, and nothing here is required up front.
+
+REMOVING
+  irgo tools remove                  the Go tools and Tailwind irgo installed
+  irgo tools remove --all            those plus copies irgo did not install
+  irgo tools remove android          the SDK, NDK and emulator
+  irgo tools remove android --remove-jdk   and the managed JDK
+
+Removal is marker-guarded: anything irgo did not install is reported and kept,
+so your own templ or JDK survives.
+
+ANDROID_HOME defaults to ~/Library/Android/sdk on macOS, ~/Android/Sdk on
+Linux, %LOCALAPPDATA%\Android\Sdk on Windows.`)
 
 	case "uninstall-tools":
 		fmt.Println(`irgo uninstall-tools android - Remove the Android toolchain
