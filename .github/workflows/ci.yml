@@ -30,32 +30,10 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
+      # This includes TestScaffoldedProjectBuilds, which generates a project
+      # from this checkout and compiles it. It is a test rather than steps in
+      # this file so it runs the same way on a laptop as it does here.
       - run: go test ./...
-
-  scaffold:
-    name: The CLI still produces a project that builds
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      # Generate a project from THIS checkout and build it. The unit tests
-      # cover the CLI's own logic; nothing else checks that its output is
-      # valid Go, which is the failure a user meets first.
-      - name: Scaffold and build
-        run: |
-          go build -o /tmp/irgo ./cmd/irgo
-          mkdir -p /tmp/scaffold && cd /tmp/scaffold
-          /tmp/irgo project new myapp
-          cd myapp
-          # Point the generated project at this checkout rather than a release,
-          # so the build exercises the code in the PR.
-          go mod edit -replace github.com/stukennedy/irgo=$GITHUB_WORKSPACE
-          go mod tidy
-          /tmp/irgo project assets
-          go build ./...
-          go test ./...
 
   website:
     name: Docs site builds
