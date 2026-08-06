@@ -25,19 +25,30 @@ func runPin(args []string) error {
 		return showPin()
 	}
 
+	// Bare words as well as flags: every other command in the CLI is spelled
+	// without dashes, so `pin local` is what people type first.
 	target := args[0]
 	switch {
-	case target == "--local" || target == "-l":
+	case target == "local" || target == "--local" || target == "-l":
 		dir := "."
 		if len(args) > 1 {
 			dir = args[1]
 		}
 		return pinLocal(dir)
-	case target == "--release" || target == "-r":
+	case target == "release" || target == "--release" || target == "-r":
 		return pinRelease()
 	default:
 		return pinVersion(target)
 	}
+}
+
+// looksLikeVersion reports whether target is a version rather than a word
+// someone meant as a keyword. Without this check a typo is silently turned
+// into a tag ("local" -> "vlocal") that no repository has, and the pin only
+// fails later in `go mod tidy` — after go.mod has already been rewritten.
+func looksLikeVersion(target string) bool {
+	v := strings.TrimPrefix(target, "v")
+	return v != "" && v[0] >= '0' && v[0] <= '9'
 }
 
 // showPin prints what the project builds against and where that came from.
@@ -75,9 +86,10 @@ func showPin() error {
 
 	fmt.Println()
 	fmt.Println("Change it:")
-	fmt.Println("  irgo pin --release              track the published module")
-	fmt.Println("  irgo pin <owner>/<repo>@<tag>   track a fork")
-	fmt.Println("  irgo pin --local [dir]          build a checkout you are editing")
+	fmt.Println("  irgo project pin release              track the published module")
+	fmt.Println("  irgo project pin <version>            a published version")
+	fmt.Println("  irgo project pin <owner>/<repo>@<tag> track a fork")
+	fmt.Println("  irgo project pin local [dir]          build a checkout you are editing")
 	return nil
 }
 
@@ -99,22 +111,38 @@ func pinLocal(dir string) error {
 		return fmt.Errorf("%s is a Go module but not irgo (its go.mod declares a different module)", abs)
 	}
 
+	restore, err := snapshotGoMod()
+	if err != nil {
+		return err
+	}
 	if err := goModEdit("-replace", upstreamModule+"="+abs); err != nil {
+		return err
+	}
+	if err := tidy(); err != nil {
+		restore()
 		return err
 	}
 	fmt.Printf("Pinned to your checkout: %s\n", abs)
 	fmt.Println("`go tool irgo` now builds that tree — edits take effect immediately.")
-	return tidy()
+	return nil
 }
 
 // pinRelease drops any replace, returning to the published module.
 func pinRelease() error {
+	restore, err := snapshotGoMod()
+	if err != nil {
+		return err
+	}
 	if err := goModEdit("-dropreplace", upstreamModule); err != nil {
 		return err
 	}
+	if err := tidy(); err != nil {
+		restore()
+		return err
+	}
 	fmt.Println("Pinned to the published module (replace removed).")
-	fmt.Println("Change the version with: irgo pin <version>")
-	return tidy()
+	fmt.Println("Change the version with: irgo project pin <version>")
+	return nil
 }
 
 // pinVersion accepts a bare version for the published module, or
@@ -129,7 +157,15 @@ func pinVersion(target string) error {
 		if !strings.HasPrefix(mod, "github.com/") {
 			mod = "github.com/" + mod
 		}
+		restore, err := snapshotGoMod()
+		if err != nil {
+			return err
+		}
 		if err := goModEdit("-replace", upstreamModule+"="+mod+"@"+version); err != nil {
+			return err
+		}
+		if err := tidy(); err != nil {
+			restore()
 			return err
 		}
 		fmt.Printf("Pinned to fork %s %s\n", mod, version)
@@ -138,20 +174,55 @@ func pinVersion(target string) error {
 		fmt.Println("A fork is fetched straight from GitHub. If this is the first one,")
 		fmt.Printf("tell Go not to use the proxy for it:\n  go env -w GOPRIVATE='%s/*'\n",
 			strings.TrimSuffix(mod, "/"+filepath.Base(mod)))
-		return tidy()
+		return nil
 	}
 
+	if !looksLikeVersion(target) {
+		return fmt.Errorf("%q is not a version. Did you mean one of:\n"+
+			"  irgo project pin local [dir]     a checkout on this machine\n"+
+			"  irgo project pin release         the latest published release\n"+
+			"  irgo project pin v0.4.0          a published version\n"+
+			"  irgo project pin owner/irgo@tag  a fork", target)
+	}
 	if !strings.HasPrefix(target, "v") {
 		target = "v" + target
+	}
+	// Pinning rewrites go.mod before Go gets a chance to reject the version, so
+	// a bad tag would otherwise leave the project unbuildable and the person
+	// holding a broken go.mod they never edited.
+	restore, err := snapshotGoMod()
+	if err != nil {
+		return err
 	}
 	if err := goModEdit("-dropreplace", upstreamModule); err != nil {
 		return err
 	}
 	if err := goModEdit("-require", upstreamModule+"@"+target); err != nil {
+		restore()
 		return err
 	}
+	if err := tidy(); err != nil {
+		restore()
+		return fmt.Errorf("%w\n\ngo.mod left unchanged — %s was not pinned", err, target)
+	}
 	fmt.Printf("Pinned to published %s\n", target)
-	return tidy()
+	return nil
+}
+
+// snapshotGoMod returns a function that puts go.mod (and go.sum) back as they
+// are right now.
+func snapshotGoMod() (func(), error) {
+	mod, err := os.ReadFile("go.mod")
+	if err != nil {
+		return nil, err
+	}
+	sum, sumErr := os.ReadFile("go.sum")
+	return func() {
+		os.WriteFile("go.mod", mod, 0644)
+		if sumErr == nil {
+			os.WriteFile("go.sum", sum, 0644)
+		}
+	}, nil
 }
 
 // goCommand runs the Go toolchain irgo itself was built with.
@@ -172,9 +243,12 @@ func tidy() error {
 	cmd := goCommand("mod", "tidy")
 	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("Warning: go mod tidy: %s\n", strings.TrimSpace(string(out)))
-		fmt.Println("If this is a fork, Go may need: go env -w GOPRIVATE='github.com/<owner>/*'")
-		return nil
+		// A failing tidy means the pin does not resolve, which used to be
+		// reported as a warning while go.mod kept the unbuildable edit.
+		// Callers restore the previous go.mod, so this has to be an error.
+		return fmt.Errorf("go mod tidy: %s\n"+
+			"If this is a fork, Go may need: go env -w GOPRIVATE='github.com/<owner>/*'",
+			strings.TrimSpace(string(out)))
 	}
 	fmt.Println("go.mod updated — `go tool irgo` now uses it.")
 	return nil
