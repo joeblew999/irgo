@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 // runTempl generates templ files
@@ -99,38 +98,20 @@ func ensureGoTool(name string) error {
 	return nil
 }
 
-// jsRunner returns the package runner to drive package.json scripts with,
-// preferring bun and falling back to npm. Empty when neither is installed.
-func jsRunner() string {
-	for _, r := range []string{"bun", "npm"} {
-		if _, err := exec.LookPath(r); err == nil {
-			return r
-		}
-	}
-	return ""
-}
-
 // runCSS rebuilds the Tailwind stylesheet. static/css/output.css is generated
 // and gitignored, but it is embedded into every build — so skipping it ships an
-// unstyled app. No-op for projects without a "css" script.
+// unstyled app. No-op for projects without a Tailwind entry point.
 func runCSS() error {
-	data, err := os.ReadFile("package.json")
-	if err != nil || !strings.Contains(string(data), `"css"`) {
+	const in, out = "static/css/input.css", "static/css/output.css"
+	if _, err := os.Stat(in); err != nil {
 		return nil // not a Tailwind project
 	}
-	runner := jsRunner()
-	if runner == "" {
-		fmt.Println("  (skipping CSS: neither bun nor npm found)")
-		return nil
-	}
-	if _, err := os.Stat("node_modules"); os.IsNotExist(err) {
-		fmt.Printf("Installing frontend dependencies (%s install)...\n", runner)
-		if err := runCommand(runner, "install"); err != nil {
-			return fmt.Errorf("%s install failed: %w", runner, err)
-		}
+	bin, err := ensureTailwind()
+	if err != nil {
+		return err
 	}
 	fmt.Println("Building CSS...")
-	return runCommand(runner, "run", "css")
+	return runCommand(bin, "-i", in, "-o", out, "--minify")
 }
 
 // ensureAssets regenerates everything that is gitignored yet embedded into a
@@ -223,6 +204,10 @@ func uninstallTools(all bool) error {
 	_ = os.RemoveAll(filepath.Join(os.TempDir(), "golang-mobile"))
 	_ = os.Remove("go.work")
 	_ = os.Remove("go.work.sum")
+
+	if removeTailwind() {
+		removed++
+	}
 
 	if err := uninstallOSPackages(all); err != nil {
 		return err

@@ -4,8 +4,13 @@ build/
 tmp/
 
 # Dependencies
-node_modules/
 vendor/
+
+# Not used: Tailwind is a standalone binary irgo downloads, so there is no
+# Node toolchain here. These only appear if something reintroduces one.
+node_modules/
+package-lock.json
+bun.lock
 
 # Generated files
 *_templ.go
