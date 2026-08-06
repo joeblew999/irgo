@@ -270,6 +270,18 @@ func newProject(name string) error {
 			return err
 		}
 
+		// irgo.package.toml holds settings a person chose — the signing team,
+		// store IDs, the app version. The template version is only a seed, so
+		// regenerating in place (irgo new .) must not overwrite an existing
+		// one: that silently discards configuration and the next build fails
+		// somewhere unrelated.
+		if strings.HasSuffix(path, "/"+packageConfigFile) || path == "templates/"+packageConfigFile {
+			if _, err := os.Stat(filepath.Join(projectDir, packageConfigFile)); err == nil {
+				fmt.Printf("  kept (yours): %s\n", packageConfigFile)
+				return nil
+			}
+		}
+
 		// The CI workflows live under templates/github but are not part of a
 		// new project — `irgo ci` scaffolds them to .github/ on request.
 		// Without this they land in every project as a stray github/ folder

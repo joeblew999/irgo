@@ -27,7 +27,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Install irgo
+        run: |
+          if [ -n "$IRGO_FORK_REPO" ]; then
+            tmp="$(mktemp -d)"
+            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
+              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
+            (cd "$tmp/irgo" && go install ./cmd/irgo)
+          else
+            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
+          fi
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
         if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
@@ -54,7 +64,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Install irgo
+        run: |
+          if [ -n "$IRGO_FORK_REPO" ]; then
+            tmp="$(mktemp -d)"
+            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
+              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
+            (cd "$tmp/irgo" && go install ./cmd/irgo)
+          else
+            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
+          fi
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # Signing needs a Distribution cert and provisioning profile in the
       # runner keychain — e.g. apple-actions/import-codesign-certs.
       - name: Package
@@ -75,7 +95,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Install irgo
+        run: |
+          if [ -n "$IRGO_FORK_REPO" ]; then
+            tmp="$(mktemp -d)"
+            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
+              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
+            (cd "$tmp/irgo" && go install ./cmd/irgo)
+          else
+            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
+          fi
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
         if: ${{ secrets.MACOS_IDENTITY != '' }}
         run: irgo package macos --identity "${{ secrets.MACOS_IDENTITY }}" --dmg
@@ -94,7 +124,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go install github.com/stukennedy/irgo/cmd/irgo@${{ env.IRGO_VERSION }}
+      - name: Install irgo
+        run: |
+          if [ -n "$IRGO_FORK_REPO" ]; then
+            tmp="$(mktemp -d)"
+            git clone --quiet --depth 1 --branch "$IRGO_VERSION" \
+              "https://github.com/$IRGO_FORK_REPO" "$tmp/irgo"
+            (cd "$tmp/irgo" && go install ./cmd/irgo)
+          else
+            go install github.com/stukennedy/irgo/cmd/irgo@"$IRGO_VERSION"
+          fi
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
       - name: Package
         if: ${{ secrets.WINDOWS_PUBLISHER != '' }}

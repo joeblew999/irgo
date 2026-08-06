@@ -62,6 +62,7 @@ func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error 
 		}
 		body := strings.ReplaceAll(string(data), "{{PROJECT_NAME}}", filepath.Base(modulePath))
 		body = strings.ReplaceAll(body, "{{IRGO_VERSION}}", ciPinnedVersion())
+		body = strings.ReplaceAll(body, "{{IRGO_FORK_REPO}}", ciForkRepo())
 
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
@@ -107,4 +108,27 @@ func ciPinnedVersion() string {
 		}
 	}
 	return "v" + version
+}
+
+// ciForkRepo returns "owner/repo" when the project pins a fork, else "".
+//
+// A fork keeps the upstream module path so the replace directive stays
+// transparent, which also means `go install` cannot fetch it by repository —
+// CI has to clone and build. Deriving this from IRGO_REPLACE keeps the
+// workflow generic: the same file works for a published module and a fork,
+// differing only in an env value.
+func ciForkRepo() string {
+	r := strings.TrimSpace(os.Getenv("IRGO_REPLACE"))
+	if r == "" {
+		return ""
+	}
+	mod := r
+	if i := strings.IndexAny(mod, " @"); i > 0 {
+		mod = mod[:i]
+	}
+	const upstream = "github.com/stukennedy/irgo"
+	if mod == upstream || !strings.HasPrefix(mod, "github.com/") {
+		return ""
+	}
+	return strings.TrimPrefix(mod, "github.com/")
 }
