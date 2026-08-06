@@ -113,7 +113,7 @@ func buildXcodeApp(iosProjectPath string, device bool, team string) (string, err
 			return "", fmt.Errorf("a device build must be signed: pass --team <TEAM_ID>, " +
 				"or set DEVELOPMENT_TEAM / IOS_TEAM_ID. For an unsigned build use --sim")
 		}
-		args = append(args, "-DEVELOPMENT_TEAM="+team)
+		args = append(args, "DEVELOPMENT_TEAM="+team, "CODE_SIGN_STYLE=Automatic")
 	}
 	args = append(args, "build")
 
@@ -386,6 +386,12 @@ type iosDevice struct {
 	// off by default on every iPhone and is the most common reason a device
 	// run fails, so it is read up front rather than inferred from a failure.
 	devModeOn bool
+	// connected reports a live transport. devicectl remembers every paired
+	// device and keeps serving its last known properties, so an unplugged
+	// phone still reports a developerModeStatus — a stale one. Acting on that
+	// produces exactly the wrong advice: "enable Developer Mode" when the real
+	// problem is that nothing is plugged in.
+	connected bool
 }
 
 // listIOSDevices returns the connected devices via devicectl (Xcode 15+).
@@ -417,7 +423,8 @@ func listIOSDevices() ([]iosDevice, error) {
 					ProductType string `json:"productType"`
 				} `json:"hardwareProperties"`
 				ConnectionProperties struct {
-					TunnelState string `json:"tunnelState"`
+					TunnelState   string `json:"tunnelState"`
+					TransportType string `json:"transportType"`
 				} `json:"connectionProperties"`
 			} `json:"devices"`
 		} `json:"result"`
@@ -432,6 +439,8 @@ func listIOSDevices() ([]iosDevice, error) {
 			identifier: d.Identifier,
 			model:      d.HardwareProperties.ProductType,
 			devModeOn:  d.DeviceProperties.DeveloperModeStatus == "enabled",
+			connected: d.ConnectionProperties.TransportType != "" &&
+				d.ConnectionProperties.TransportType != "None",
 		})
 	}
 	return out, nil
@@ -459,11 +468,25 @@ func runIOSDevice(team string) error {
 			"  Connect it by USB, unlock it, and tap Trust This Computer.\n" +
 			"  Check what the Mac sees with: xcrun devicectl list devices")
 	}
+	// Prefer a connected device; devicectl also lists ones merely remembered.
 	dev := devices[0]
+	for _, d := range devices {
+		if d.connected {
+			dev = d
+			break
+		}
+	}
 	fmt.Printf("Device: %s (%s)\n", dev.name, dev.model)
 
-	// Check before building: the framework build takes minutes and this is
-	// knowable in a millisecond.
+	// Check before building: the framework build takes minutes and both of
+	// these are knowable in a millisecond.
+	if !dev.connected {
+		return fmt.Errorf("%s is paired but not connected.\n"+
+			"  Plug it in by USB and unlock it, then run this again.\n"+
+			"  If it is already plugged in: try the other end of the cable, a\n"+
+			"  different port, and tap Trust This Computer if the phone asks.\n"+
+			"  Verify with: xcrun devicectl list devices", dev.name)
+	}
 	if !dev.devModeOn {
 		return fmt.Errorf("Developer Mode is off on %s.\n%s", dev.name, developerModeHelp())
 	}
@@ -530,7 +553,13 @@ func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
 		"-derivedDataPath", "build/ios/DerivedData-Device",
 		"-allowProvisioningUpdates"}
 	if team != "" {
-		args = append(args, "-DEVELOPMENT_TEAM="+team)
+		// Build settings are KEY=value with no leading dash. With a dash
+		// xcodebuild treats it as an unknown option and ignores it, so the
+		// build fails with "requires a development team" while appearing to
+		// have been given one.
+		args = append(args,
+			"DEVELOPMENT_TEAM="+team,
+			"CODE_SIGN_STYLE=Automatic")
 		fmt.Printf("Signing with team %s\n", team)
 	}
 	args = append(args, "build")
@@ -555,9 +584,32 @@ func iosDeviceBuildHelp(out, team string) string {
 	if strings.Contains(out, "Developer Mode disabled") {
 		return developerModeHelp()
 	}
+	if strings.Contains(out, "maximum number of registered") {
+		return "Your Apple ID has hit its device-registration limit.\n" +
+			"  Every device you have ever run a build on counts, and a free\n" +
+			"  team cannot remove them: the list only resets a year after the\n" +
+			"  first registration. Apple provides no way to clear it early.\n" +
+			"\n" +
+			"  Options, cheapest first:\n" +
+			"    1. Use a different Apple ID with a fresh free team:\n" +
+			"         Xcode → Settings → Apple Accounts → Add Apple Account\n" +
+			"         then: irgo run ios --device --team <NEW_TEAM_ID>\n" +
+			"    2. Renew the paid Developer Program, which unlocks device\n" +
+			"       management at developer.apple.com → Devices, where old\n" +
+			"       devices can be removed. Only worth it if you want it anyway.\n" +
+			"\n" +
+			"  Nothing about your project is wrong — the build and signing both\n" +
+			"  worked, and the simulator needs none of this:\n" +
+			"    irgo run ios"
+	}
+	if strings.Contains(out, "requires a development team") {
+		return "The build was not given a development team.\n" +
+			"  Pass one with --team <TEAM_ID>, or sign an Apple ID into Xcode\n" +
+			"  (Settings → Apple Accounts) and irgo will read the team itself."
+	}
 	if strings.Contains(out, "requires a provisioning profile") ||
 		strings.Contains(out, "No signing certificate") ||
-		strings.Contains(out, "no profiles for") ||
+		strings.Contains(out, "No profiles for") ||
 		strings.Contains(out, "Signing for") {
 		return iosSigningHelp(team)
 	}

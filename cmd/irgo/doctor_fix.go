@@ -241,7 +241,9 @@ func devicesNeedingDeveloperMode() []iosDevice {
 	}
 	var out []iosDevice
 	for _, d := range devs {
-		if !d.devModeOn {
+		// A disconnected device cannot be assessed — its reported Developer
+		// Mode is whatever it was when last seen.
+		if d.connected && !d.devModeOn {
 			out = append(out, d)
 		}
 	}

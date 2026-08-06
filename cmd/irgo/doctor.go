@@ -260,10 +260,22 @@ func iosDeviceCapability(xcodeState string) (state, note string) {
 	// needs none, so its absence is not itself a blocker.
 	if devs, derr := listIOSDevices(); derr == nil && len(devs) > 0 {
 		d := devs[0]
-		if d.devModeOn {
-			parts = append(parts, d.name+" attached, Developer Mode on")
-		} else {
-			parts = append(parts, d.name+" attached but Developer Mode OFF (Settings → Privacy & Security)")
+		for _, c := range devs {
+			if c.connected {
+				d = c
+				break
+			}
+		}
+		switch {
+		case !d.connected:
+			// Do not report Developer Mode here: devicectl serves the last
+			// known value for a paired-but-absent device, which is stale.
+			parts = append(parts, d.name+" paired but NOT CONNECTED (plug in by USB, unlock)")
+			needsAction = true
+		case d.devModeOn:
+			parts = append(parts, d.name+" connected, Developer Mode on")
+		default:
+			parts = append(parts, d.name+" connected but Developer Mode OFF (Settings → Privacy & Security)")
 			needsAction = true
 		}
 	} else {
