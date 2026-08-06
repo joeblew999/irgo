@@ -251,6 +251,8 @@ func main() {
 			err = doctorAndroid()
 		} else if len(os.Args) > 2 && !strings.HasPrefix(os.Args[2], "-") {
 			err = fmt.Errorf("unknown doctor target: %s (use `irgo doctor` or `irgo doctor android`)", os.Args[2])
+		} else if hasFlag(os.Args[2:], "--fix") {
+			err = runDoctorFix()
 		} else {
 			err = doctorHost(hasFlag(os.Args[2:], "--strict"))
 		}
@@ -306,6 +308,7 @@ Commands:
   uninstall-tools  Remove the Go tools irgo installed (--all: also yours)
   uninstall-tools android Remove everything install-tools android installed
   doctor [--strict] Report what this host can and cannot build
+  doctor --fix      Repair what can be repaired automatically
   doctor android   Check the Android toolchain is correctly installed
   version          Print version information
   help [command]   Show help for a command
@@ -406,6 +409,16 @@ JDK at ~/.irgo/jdks.`)
 Usage:
   irgo doctor          Capability report for this machine
   irgo doctor --strict Same, but exit non-zero on CLI pin drift (for CI)
+  irgo doctor --fix    Repair what irgo can, then list what needs you
+
+--fix repoints xcode-select when it is aimed at the Command Line Tools instead
+of Xcode, accepts the Xcode licence and installs its components, and downloads
+an iOS simulator runtime if none exists. Each needs sudo or a large download,
+which is why it is opt-in rather than part of every build.
+
+Two things cannot be automated: signing in an Apple ID needs credentials and
+2FA, and Developer Mode is a toggle Apple gates on the device itself. --fix
+gets you to the last step of each and opens Xcode for the first.
   irgo doctor android  Verify the Android toolchain in detail
 
 The plain form lists every target with one of three verdicts:
