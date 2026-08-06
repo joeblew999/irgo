@@ -16,7 +16,7 @@ import (
 // entitlements), optionally notarizes + staples (--notarize + Apple
 // credentials), and optionally wraps it in a .dmg (--dmg). macOS-only.
 func packageMacOS(identity string, notarize bool, appleID, team, password string, dmg bool, iconPath, out string) error {
-	if err := gateOS("macos"); err != nil {
+	if err := preparePackage("macos"); err != nil {
 		return err
 	}
 	if err := ensureStoreConfig("macos"); err != nil {

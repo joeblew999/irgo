@@ -19,7 +19,7 @@ import (
 // Android SDK are cross-platform). Defaults to the debug keystore; a real
 // keystore is required for Play Store submission.
 func packageAndroid(keystore, keystorePass, keyAlias, keyPass, version, iconPath, out string) error {
-	if err := gateOS("android"); err != nil {
+	if err := preparePackage("android"); err != nil {
 		return err
 	}
 	if err := ensureStoreConfig("android"); err != nil {

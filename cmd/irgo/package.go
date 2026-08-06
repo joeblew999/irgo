@@ -263,6 +263,20 @@ android_service_account = ""
 // OS gating — a packaging target only runs on an OS that supports its tools.
 // ---------------------------------------------------------------------------
 
+// preparePackage gates the target against the host and regenerates the
+// gitignored-but-embedded assets.
+//
+// Both matter before packaging. Without the regeneration a package built after
+// `irgo clean` embeds no stylesheet and ships an unstyled app — the failure
+// does not surface until someone opens the artifact, which for a store build
+// is far too late.
+func preparePackage(target string) error {
+	if err := gateOS(target); err != nil {
+		return err
+	}
+	return ensureAssets()
+}
+
 func gateOS(target string) error {
 	switch target {
 	case "ios":

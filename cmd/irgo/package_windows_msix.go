@@ -17,7 +17,7 @@ import (
 // MakeAppx, sign with signtool (self-signed test cert unless --cert given).
 // MSIX tooling only exists on Windows, so this is gated to Windows.
 func packageWindows(publisher, version, iconPath, cert, certPass, out string) error {
-	if err := gateOS("windows"); err != nil {
+	if err := preparePackage("windows"); err != nil {
 		return err
 	}
 	if err := ensureStoreConfig("windows"); err != nil {

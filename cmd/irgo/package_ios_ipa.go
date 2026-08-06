@@ -21,7 +21,7 @@ import (
 // artifacts (xcarchive, export dir) live in a temp dir so build/ios/ keeps only
 // the unpackaged framework + DerivedData.
 func packageIOS(team, exportMethod, out string) error {
-	if err := gateOS("ios"); err != nil {
+	if err := preparePackage("ios"); err != nil {
 		return err
 	}
 	if err := ensureStoreConfig("ios"); err != nil {
