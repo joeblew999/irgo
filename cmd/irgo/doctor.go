@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -24,6 +25,11 @@ type capability struct {
 const (
 	capReady   = "ready"
 	capFixable = "auto-installs"
+	// capAction is for a target that this OS supports but that needs a manual
+	// step irgo cannot take — signing credentials, or a toggle on a device.
+	// Distinct from capFixable, which irgo handles on the next build, and from
+	// capBlocked, which nothing can fix here.
+	capAction  = "NEEDS SETUP"
 	capBlocked = "NOT ON THIS OS"
 )
 
@@ -83,10 +89,11 @@ func hostCapabilities() []capability {
 		if !has("xcodebuild") {
 			state, note = capBlocked, "install Xcode from the App Store (irgo cannot install it)"
 		}
+		devState, devNote := iosDeviceCapability(state)
 		caps = append(caps,
 			capability{"ios (framework)", state, note},
 			capability{"ios (simulator app)", state, note},
-			capability{"ios (device/App Store)", state, iosDeviceNote(state)},
+			capability{"ios (device/App Store)", devState, devNote},
 		)
 	} else {
 		blocked := "requires macOS (Xcode) — cannot cross-compile from " + runtime.GOOS
@@ -155,11 +162,20 @@ func doctorHost(strict bool) error {
 		fmt.Printf("  %-*s  %-15s  %s\n", w, c.target, c.state, c.note)
 	}
 
-	var blocked []string
+	var blocked, action []string
 	for _, c := range caps {
-		if c.state == capBlocked {
+		switch c.state {
+		case capBlocked:
 			blocked = append(blocked, c.target)
+		case capAction:
+			action = append(action, c.target)
 		}
+	}
+	if len(action) > 0 {
+		fmt.Println()
+		fmt.Printf("Needs a manual step: %s\n", strings.Join(action, ", "))
+		fmt.Println("These work on this OS, but irgo cannot supply credentials or")
+		fmt.Println("toggle settings on a device for you — see the note on each line.")
 	}
 	fmt.Println()
 	if len(blocked) == 0 {
@@ -170,6 +186,8 @@ func doctorHost(strict bool) error {
 		fmt.Println("Linux, macOS and Windows. `irgo build all` skips what it cannot do.")
 	}
 	drift := checkPinDrift()
+
+	printXcodeDetail()
 
 	fmt.Println()
 	fmt.Println("Store config:     irgo package setup --check")
@@ -218,28 +236,116 @@ func checkPinDrift() bool {
 // a simulator run does not: a signing identity, and a device that is attached
 // with Developer Mode enabled. Both are manual, so surfacing them here saves a
 // full build that fails at the last step.
-func iosDeviceNote(state string) string {
-	if state == capBlocked {
-		return "install Xcode from the App Store (irgo cannot install it)"
+func iosDeviceCapability(xcodeState string) (state, note string) {
+	if xcodeState == capBlocked {
+		return capBlocked, "install Xcode from the App Store (irgo cannot install it)"
 	}
 	var parts []string
+	needsAction := false
 
 	out, err := exec.Command("security", "find-identity", "-v", "-p", "codesigning").Output()
 	if err != nil || strings.Contains(string(out), "0 valid identities") {
 		parts = append(parts, "no signing identity (Xcode → Settings → Accounts; a free Apple ID works)")
+		needsAction = true
 	} else {
 		parts = append(parts, "signing identity present")
 	}
 
-	if devs, err := listIOSDevices(); err == nil && len(devs) > 0 {
+	// A device only matters for `irgo run ios --device`; packaging an .ipa
+	// needs none, so its absence is not itself a blocker.
+	if devs, derr := listIOSDevices(); derr == nil && len(devs) > 0 {
 		d := devs[0]
 		if d.devModeOn {
 			parts = append(parts, d.name+" attached, Developer Mode on")
 		} else {
 			parts = append(parts, d.name+" attached but Developer Mode OFF (Settings → Privacy & Security)")
+			needsAction = true
 		}
 	} else {
-		parts = append(parts, "no device attached")
+		parts = append(parts, "no device attached (only needed for --device)")
 	}
-	return strings.Join(parts, "; ")
+
+	if needsAction {
+		return capAction, strings.Join(parts, "; ")
+	}
+	return capReady, strings.Join(parts, "; ")
+}
+
+// printXcodeDetail reports the Xcode install itself, which is separate from the
+// Apple account inside it. Each line here is a real failure people hit, and
+// none of them announce themselves clearly when a build breaks.
+func printXcodeDetail() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	if _, err := exec.LookPath("xcodebuild"); err != nil {
+		return // already reported as blocked above
+	}
+	fmt.Println()
+	fmt.Println("Xcode:")
+
+	// A Mac can have the Command Line Tools selected instead of Xcode, in which
+	// case xcodebuild exists but cannot build an app — a confusing failure.
+	sel := "unknown"
+	if out, err := exec.Command("xcode-select", "-p").Output(); err == nil {
+		sel = strings.TrimSpace(string(out))
+	}
+	if strings.Contains(sel, "CommandLineTools") {
+		fmt.Printf("  selected      %s\n", sel)
+		fmt.Println("                ^ this is the Command Line Tools, not Xcode.")
+		fmt.Println("                  Fix: sudo xcode-select -s /Applications/Xcode.app")
+	} else {
+		fmt.Printf("  selected      %s\n", sel)
+	}
+
+	ver := "unknown"
+	if out, err := exec.Command("xcodebuild", "-version").Output(); err == nil {
+		ver = firstLine(strings.TrimSpace(string(out)))
+	}
+	fmt.Printf("  version       %s\n", ver)
+	if major := xcodeMajor(ver); major > 0 && major < 15 {
+		fmt.Println("                ^ running on a physical device needs Xcode 15+")
+		fmt.Println("                  (devicectl); the simulator still works.")
+	}
+
+	// An unaccepted licence fails every build with a message about agreeing to
+	// terms, which is easy to miss inside a long log.
+	if err := exec.Command("xcodebuild", "-checkFirstLaunchStatus").Run(); err != nil {
+		fmt.Println("  first launch  INCOMPLETE — run: sudo xcodebuild -runFirstLaunch")
+		fmt.Println("                (accepts the licence and installs components)")
+	} else {
+		fmt.Println("  first launch  complete (licence accepted)")
+	}
+
+	n := 0
+	if out, err := exec.Command("xcrun", "simctl", "list", "runtimes").Output(); err == nil {
+		for _, l := range strings.Split(string(out), "\n") {
+			if strings.Contains(l, "iOS") {
+				n++
+			}
+		}
+	}
+	if n == 0 {
+		fmt.Println("  simulators    none installed — Xcode → Settings → Components")
+	} else {
+		fmt.Printf("  simulators    %d iOS runtime(s)\n", n)
+	}
+}
+
+// xcodeMajor extracts the major version from "Xcode 26.6". Returns 0 when the
+// string is not in that shape.
+func xcodeMajor(ver string) int {
+	f := strings.Fields(ver)
+	if len(f) < 2 {
+		return 0
+	}
+	num := f[1]
+	if i := strings.Index(num, "."); i > 0 {
+		num = num[:i]
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return 0
+	}
+	return n
 }
