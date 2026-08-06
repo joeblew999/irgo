@@ -22,6 +22,7 @@ PROJECT   the repository you are in
   project clean [--all]    Remove generated output
   project ci [--force]     Scaffold GitHub Actions workflows
   project upgrade          Take framework updates, leaving your code alone
+  project upgrade --check  Name what an upgrade would overwrite (CI-friendly)
   project pin [target]     Which irgo this project builds against
   project config [k] [v]   Show or set a setting (signing, stores, version)
 
@@ -371,6 +372,7 @@ than the proxy:  go env -w GOPRIVATE='github.com/<owner>/*'`)
 
 Usage:
   irgo upgrade          Refresh framework scaffolding
+  irgo upgrade --check  Report what an upgrade would overwrite, change nothing
   irgo upgrade --diff   Also show what the template holds for your files
   irgo upgrade --force  Overwrite your files too (destructive)
 

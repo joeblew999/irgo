@@ -60,7 +60,7 @@ func writeCIWorkflows(projectDir, modulePath string, force, verbose bool) error 
 		if err != nil {
 			return err
 		}
-		body := strings.ReplaceAll(string(data), "{{PROJECT_NAME}}", filepath.Base(modulePath))
+		body := renderCITemplate(string(data), filepath.Base(modulePath))
 
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err

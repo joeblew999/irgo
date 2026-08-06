@@ -25,16 +25,20 @@ jobs:
     name: Check (tests + web)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       # _templ.go and output.css are generated and gitignored, but embedded in
       # the binary. `irgo build` regenerates them; a plain `go build` needs this.
+      # Framework-owned files (the native shells, .air.toml, these workflows)
+      # are replaced by `irgo project upgrade`. Editing one here means the edit
+      # disappears at the next upgrade, so say so now rather than then.
+      - run: go tool irgo project upgrade --check
       - run: go tool irgo project assets
       - run: go test ./...
       - run: go build -o build/{{PROJECT_NAME}} .
-      - uses: actions/upload-artifact@v7
+      - uses: {{UPLOAD_ARTIFACT}}
         with:
           name: web
           path: build/{{PROJECT_NAME}}
@@ -46,53 +50,104 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # webview links webkit2gtk-4.0, which ubuntu-24.04 no longer ships.
-          - { name: Linux,   os: ubuntu-22.04,   target: linux,   artifact: desktop-linux }
-          - { name: macOS,   os: macos-latest,   target: darwin,  artifact: desktop-macos }
-          - { name: Windows, os: windows-latest, target: windows, artifact: desktop-windows }
-    runs-on: ${{ matrix.os }}
+          {{DESKTOP_MATRIX}}
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
       - run: go tool irgo tools install
       - run: go tool irgo app build desktop ${{ matrix.target }}
-      - uses: actions/upload-artifact@v7
+      - uses: {{UPLOAD_ARTIFACT}}
         with:
           name: ${{ matrix.artifact }}
-          path: build/desktop/${{ matrix.target == 'darwin' && 'macos' || matrix.target }}/
+          path: ${{ matrix.out }}/
           if-no-files-found: error
 
   ios:
     name: iOS (framework + simulator)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       - run: go tool irgo app build ios --sim
-      - uses: actions/upload-artifact@v7
+      - uses: {{UPLOAD_ARTIFACT}}
         with:
           name: ios-simulator
-          path: build/ios/DerivedData/Build/Products/Debug-iphonesimulator/
+          path: {{IOS_SIM_ARTIFACT_DIR}}/
           if-no-files-found: error
 
   android:
     name: Android (AAR)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
       - run: go tool irgo app build android
       - run: go tool irgo tools doctor android
-      - uses: actions/upload-artifact@v7
+      - uses: {{UPLOAD_ARTIFACT}}
         with:
           name: android-framework
-          path: build/android/
+          path: {{ANDROID_ARTIFACT_DIR}}/
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Opt-in jobs. Neither runs on a normal push: one is destructive and the other
+  # is only true of a repo that IS generated output. Turn either on with a repo
+  # variable (Settings > Secrets and variables > Actions > Variables), or run
+  # this workflow manually from the Actions tab.
+  # ---------------------------------------------------------------------------
+
+  toolchain:
+    name: Toolchain round-trip (install → doctor → build → uninstall)
+    # Manual, or on every push if the repo sets IRGO_TOOLCHAIN_ROUNDTRIP=true.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      vars.IRGO_TOOLCHAIN_ROUNDTRIP == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
+        with:
+          go-version-file: go.mod
+      # This job DELETES the Android toolchain to prove the uninstall works. On
+      # a GitHub-hosted runner that is a throwaway VM. On a self-hosted runner
+      # it would wipe the real one, so refuse there.
+      - name: Refuse to wipe a self-hosted runner
+        run: |
+          if [ "${{ runner.environment }}" != "github-hosted" ]; then
+            echo "::error::this job removes ~/.android, ~/.gradle and ANDROID_HOME — github-hosted runners only"
+            exit 1
+          fi
+      - run: go tool irgo tools install android
+      - run: go tool irgo tools doctor android
+      - run: go tool irgo app build android
+      # An install irgo cannot undo is a provisioning bug hiding behind
+      # whatever it left behind, so assert the machine comes back clean.
+      - name: Uninstall and verify removal
+        run: |
+          go tool irgo tools remove --all --yes
+          for p in "${ANDROID_HOME:-$HOME/Library/Android/sdk}" "$HOME/.irgo" "$HOME/.android" "$HOME/.gradle"; do
+            [ -e "$p" ] && { echo "::error::expected removed but exists: $p"; exit 1; }
+          done
+          echo "uninstall round-trip OK — machine clean"
+
+  generated:
+    name: Repo still matches `irgo project new`
+    # For example/demo repos whose premise is being unmodified CLI output. A
+    # real app is SUPPOSED to differ, so this stays off unless asked for.
+    if: vars.IRGO_GENERATED_REPO == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: {{CHECKOUT}}
+      - uses: {{SETUP_GO}}
+        with:
+          go-version-file: go.mod
+      - run: go tool irgo project new --check

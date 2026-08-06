@@ -32,6 +32,11 @@ func route(noun, verb string, args []string) (error, bool) {
 	case "project":
 		switch verb {
 		case "new":
+			// --check answers the question without writing anything, for a
+			// repo that is meant to BE generated output.
+			if hasFlag(args, "--check") {
+				return runNewCheck(), true
+			}
 			if len(args) < 1 {
 				return fmt.Errorf("usage: irgo project new <name>  (or \".\" for here)"), true
 			}
@@ -39,6 +44,9 @@ func route(noun, verb string, args []string) (error, bool) {
 		case "clean":
 			return runClean(hasFlag(args, "--all", "-a")), true
 		case "upgrade":
+			if hasFlag(args, "--check") {
+				return runUpgradeCheck(), true
+			}
 			return runUpgrade(hasFlag(args, "--force"), hasFlag(args, "--diff")), true
 		case "pin":
 			return runPin(args), true
