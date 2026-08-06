@@ -225,6 +225,9 @@ func main() {
 	case "ci":
 		err = runCI(hasFlag(os.Args[2:], "--force", "-f"))
 
+	case "upgrade":
+		err = runUpgrade(hasFlag(os.Args[2:], "--force"), hasFlag(os.Args[2:], "--diff"))
+
 	case "test":
 		err = runTest()
 
@@ -310,6 +313,7 @@ Commands:
   templ            Generate templ files
   assets           Regenerate embedded assets (templ + Tailwind CSS)
   ci [--force]     Scaffold GitHub Actions workflows for every target
+  upgrade          Refresh framework scaffolding, leaving your code alone
   test             Run tests
   install-tools    Install required dev tools (gomobile, templ, air)
   install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
@@ -537,6 +541,35 @@ removes the toolchain rather than the app.
 An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
 with old assets or an old bridge API and nothing explains why.`)
+
+	case "upgrade":
+		fmt.Println(`irgo upgrade - Move an existing project to this CLI version
+
+Usage:
+  irgo upgrade          Refresh framework scaffolding
+  irgo upgrade --diff   Also show what the template holds for your files
+  irgo upgrade --force  Overwrite your files too (destructive)
+
+Files are split by who owns them.
+
+  Framework — rewritten, because they must match the CLI in use:
+    ios/, android/      native shells (builds regenerate these anyway)
+    .air.toml           hot-reload config
+    .gitignore          tracks which generated paths exist
+    .github/workflows   CI
+    CLAUDE.md           framework documentation
+
+  Yours — seeded once, never rewritten:
+    main.go, app/, handlers/, templates/, static/, mobile/
+    irgo.package.toml   your signing team and store settings
+    go.mod              your dependencies
+
+When one of your files differs from the current template, upgrade names it
+rather than touching it. That is expected for anything you have edited; look
+only when an upgrade note says the framework changed how it works.
+
+--force overwrites your code too. That is what a repo which IS generated
+output wants, and what an application never does.`)
 
 	case "ci":
 		fmt.Println(`irgo ci - Scaffold GitHub Actions workflows

@@ -22,6 +22,14 @@ jobs:
   android:
     name: Android (.aab)
     runs-on: ubuntu-latest
+    # Secrets cannot be referenced in `if:` — GitHub only exposes them through
+    # env. Mapping them here lets each job skip cleanly when unconfigured
+    # instead of failing, so this workflow is usable before you have any.
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+      KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -39,18 +47,14 @@ jobs:
           fi
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-        env:
-          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        if: env.KEYSTORE_B64 != ''
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          echo "$KEYSTORE_B64" | base64 -d > release.keystore
           irgo package android --keystore release.keystore \
             --keystore-pass "$KEYSTORE_PASS" --key-alias "$KEY_ALIAS" --key-pass "$KEY_PASS"
           rm -f release.keystore
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.KEYSTORE_B64 != ''
         with:
           name: android-aab
           path: dist/
@@ -59,6 +63,8 @@ jobs:
   ios:
     name: iOS (.ipa)
     runs-on: macos-latest
+    env:
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -78,10 +84,10 @@ jobs:
       # Signing needs a Distribution cert and provisioning profile in the
       # runner keychain — e.g. apple-actions/import-codesign-certs.
       - name: Package
-        if: ${{ secrets.IOS_TEAM_ID != '' }}
-        run: irgo package ios --team ${{ secrets.IOS_TEAM_ID }}
+        if: env.IOS_TEAM_ID != ''
+        run: irgo package ios --team "$IOS_TEAM_ID"
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.IOS_TEAM_ID != '' }}
+        if: env.IOS_TEAM_ID != ''
         with:
           name: ios-ipa
           path: dist/
@@ -90,6 +96,8 @@ jobs:
   macos:
     name: macOS (.app/.dmg)
     runs-on: macos-latest
+    env:
+      MACOS_IDENTITY: ${{ secrets.MACOS_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -107,10 +115,10 @@ jobs:
           fi
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Package
-        if: ${{ secrets.MACOS_IDENTITY != '' }}
-        run: irgo package macos --identity "${{ secrets.MACOS_IDENTITY }}" --dmg
+        if: env.MACOS_IDENTITY != ''
+        run: irgo package macos --identity "$MACOS_IDENTITY" --dmg
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.MACOS_IDENTITY != '' }}
+        if: env.MACOS_IDENTITY != ''
         with:
           name: macos-dmg
           path: dist/
@@ -119,6 +127,8 @@ jobs:
   windows:
     name: Windows (.msix)
     runs-on: windows-latest
+    env:
+      WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -137,10 +147,10 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
       - name: Package
-        if: ${{ secrets.WINDOWS_PUBLISHER != '' }}
-        run: irgo package windows --publisher "${{ secrets.WINDOWS_PUBLISHER }}"
+        if: env.WINDOWS_PUBLISHER != ''
+        run: irgo package windows --publisher "$env:WINDOWS_PUBLISHER"
       - uses: actions/upload-artifact@v4
-        if: ${{ secrets.WINDOWS_PUBLISHER != '' }}
+        if: env.WINDOWS_PUBLISHER != ''
         with:
           name: windows-msix
           path: dist/
