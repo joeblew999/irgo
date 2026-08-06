@@ -249,10 +249,27 @@ func main() {
 	case "clean":
 		err = runClean(hasFlag(os.Args[2:], "--all", "-a"))
 
+	case "app":
+		// Objects group their verbs, so "what does this act on" is answerable
+		// from the command itself. `uninstall` and `uninstall-tools` used to
+		// sit one hyphen apart while removing entirely different things.
+		if len(os.Args) < 3 {
+			err = fmt.Errorf("usage: irgo app remove [ios|android|desktop|all]")
+			break
+		}
+		switch os.Args[2] {
+		case "remove", "uninstall":
+			target := "all"
+			if len(os.Args) > 3 {
+				target = os.Args[3]
+			}
+			err = runAppUninstall(target)
+		default:
+			err = fmt.Errorf("unknown app command: %s (use: irgo app remove)", os.Args[2])
+		}
+
 	case "uninstall":
-		// The inverse of `irgo run`: remove the app from the simulator,
-		// emulator or this machine. Distinct from uninstall-tools, which
-		// removes the toolchain rather than the app.
+		deprecated("uninstall", "app remove")
 		target := "all"
 		if len(os.Args) > 2 {
 			target = os.Args[2]
@@ -260,7 +277,11 @@ func main() {
 		err = runAppUninstall(target)
 
 	case "templ":
-		err = runTempl()
+		// Named after the tool rather than the job, and a strict subset of
+		// assets — which also builds the stylesheet, so using templ alone
+		// produced a half-generated project.
+		deprecated("templ", "assets")
+		err = ensureAssets()
 
 	case "assets":
 		err = ensureAssets()
@@ -277,7 +298,50 @@ func main() {
 	case "test":
 		err = runTest()
 
+	case "tools":
+		if len(os.Args) < 3 {
+			err = fmt.Errorf("usage: irgo tools <install|remove|doctor> [android] [flags]")
+			break
+		}
+		rest := os.Args[3:]
+		android := len(rest) > 0 && rest[0] == "android"
+		if android {
+			rest = rest[1:]
+		}
+		switch os.Args[2] {
+		case "install":
+			if android {
+				avd := "irgo"
+				for i := 0; i < len(rest)-1; i++ {
+					if rest[i] == "--avd" {
+						avd = rest[i+1]
+					}
+				}
+				err = installAndroidTools(hasFlag(rest, "--emulator", "-e"), avd)
+			} else {
+				err = installTools()
+			}
+		case "remove":
+			if android {
+				err = uninstallAndroidTools(hasFlag(rest, "--remove-jdk"))
+			} else {
+				err = uninstallTools(hasFlag(rest, "--all"))
+			}
+		case "doctor":
+			switch {
+			case android:
+				err = doctorAndroid()
+			case hasFlag(rest, "--fix"):
+				err = runDoctorFix()
+			default:
+				err = doctorHost(hasFlag(rest, "--strict"))
+			}
+		default:
+			err = fmt.Errorf("unknown tools command: %s (use: install, remove, doctor)", os.Args[2])
+		}
+
 	case "install-tools":
+		deprecated("install-tools", "tools install")
 		if len(os.Args) > 2 && os.Args[2] == "android" {
 			avd := "irgo"
 			for i := 3; i < len(os.Args); i++ {
@@ -291,6 +355,7 @@ func main() {
 		}
 
 	case "uninstall-tools":
+		deprecated("uninstall-tools", "tools remove")
 		// Every install path has an inverse: bare form undoes install-tools
 		// (templ/air/gomobile/gobind + mingw-w64), `android` undoes the
 		// Android toolchain.
@@ -301,6 +366,7 @@ func main() {
 		}
 
 	case "doctor":
+		deprecated("doctor", "tools doctor")
 		// Bare `irgo doctor` answers the first question a dev has on a new
 		// machine: what can I actually build here?
 		if len(os.Args) > 2 && os.Args[2] == "android" {
@@ -345,58 +411,65 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`irgo - Hypermedia framework for mobile and desktop apps
+	fmt.Println(`irgo - one Go codebase for web, desktop, iOS and Android
 
 Usage:
   irgo <command> [arguments]
 
-Commands:
-  new <name>       Create a new irgo project
-  dev              Run development server with hot reload
-  serve            Run server without file watching
-  build <target>   Build for mobile/desktop (ios, android, desktop, or all)
-  run <platform>   Build and run on simulator or desktop
-  package <target> Package for stores (ios .ipa, android .aab, macos .app/.dmg, windows .msix)
-  package setup    Guide: how to get every store config value
-  reviews <ios|android>   Monitor app store reviews (reply on android)
-  ios team [ID]    List development teams, or select one for device builds
-  clean [--all]    Remove generated output (--all: also node_modules/caches)
-  uninstall <p>    Remove the installed app (ios, android, desktop, or all)
-  templ            Generate templ files
-  assets           Regenerate embedded assets (templ + Tailwind CSS)
-  ci [--force]     Scaffold GitHub Actions workflows for every target
-  pin [target]     Show or change which irgo this project builds against
-  upgrade          Refresh framework scaffolding, leaving your code alone
-  test             Run tests
-  install-tools    Install required dev tools (gomobile, templ, air)
-  install-tools android   Install Android SDK + NDK (+ emulator with --emulator)
-  uninstall-tools  Remove the Go tools irgo installed (--all: also yours)
-  uninstall-tools android Remove everything install-tools android installed
-  doctor [--strict] Report what this host can and cannot build
-  doctor --fix      Repair what can be repaired automatically
-  doctor android   Check the Android toolchain is correctly installed
-  version          Print version information
-  help [command]   Show help for a command
+Commands are grouped by what they act on, so the object is always first.
+
+PROJECT
+  new <name>              Create a project (or "." for the current directory)
+  upgrade [--diff|--force]  Take framework updates, leaving your code alone
+  pin [target]            Which irgo this project builds against
+  ci [--force]            Scaffold GitHub Actions workflows
+  clean [--all]           Remove generated output (--all: also caches)
+
+DEVELOP
+  dev                     Dev server with hot reload
+  serve                   Server without file watching
+  assets                  Regenerate templ + Tailwind CSS
+  test                    Run tests
+
+BUILD & RUN
+  build <target>          ios, android, desktop, or all
+  run <platform>          ios, android, or desktop
+
+SHIP
+  package <target>        ios .ipa, android .aab, macos .app/.dmg, windows .msix
+  package setup [--check] What each store needs, and where to get it
+  reviews <ios|mac|android>  Monitor store reviews (reply on android)
+
+APP  (installed on a device, simulator or this machine)
+  app remove <platform>   Remove it (ios, android, desktop, or all)
+
+TOOLS  (installed on this machine)
+  tools install [android] Install what builds need
+  tools remove [android]  Remove what irgo installed
+  tools doctor [android]  What this host can build; --fix repairs it
+
+IOS
+  ios team [ID]           List signing teams, or select one
+
+  version                 Print version information
+  help [command]          Detail for one command
 
 Examples:
-  irgo new myapp         Create a new project
-  irgo dev               Start dev server with hot reload
-  irgo run ios           Build and run on iOS Simulator
-  irgo run ios --dev     Hot-reload mode (connects to dev server)
-  irgo run ios --device  Build, install and launch on a USB-connected iPhone
-  irgo run android       Build and run on Android Emulator
-  irgo run android --dev Hot-reload mode (connects to dev server)
-  irgo run desktop       Run as desktop app
-  irgo run desktop --dev Desktop app with devtools enabled
-  irgo run desktop --built
-                         Launch the app from irgo build desktop
-  irgo build ios         Build iOS framework only
-  irgo build ios --sim   Build the runnable iOS Simulator app
-  irgo build ios --device --team ID
-                         Build the Release app for a device / App Store
-  irgo build desktop     Build desktop app for current platform
-  irgo build desktop all Build every desktop app this host supports
-                         (macOS -> macOS + Windows; installs mingw-w64 if needed)`)
+  irgo new myapp                     Create a project
+  irgo dev                           Hot-reload server on :8080
+  irgo tools doctor                  What can this machine build?
+  irgo run ios                       iOS Simulator
+  irgo run ios --device              A USB-connected iPhone
+  irgo run desktop --built           The app you just built
+  irgo build desktop all             Every desktop target this host supports
+  irgo build ios --sim               Runnable Simulator app
+  irgo package macos --dmg           Signed .app and a DMG
+  irgo app remove android            Uninstall it from the emulator
+  irgo tools remove android --remove-jdk   Undo the Android toolchain
+  irgo pin --local ../irgo           Build a checkout you are editing
+
+Nothing needs installing first: toolchains provision themselves when a command
+needs them, and go.mod pins the CLI so ` + "`go tool irgo`" + ` always matches the project.`)
 }
 
 func printCommandHelp(cmd string) {
@@ -437,8 +510,8 @@ Starts:
 
 Server runs at http://localhost:8080`)
 
-	case "install-tools":
-		fmt.Println(`irgo install-tools - Install required development tools
+	case "install-tools", "tools":
+		fmt.Println(`irgo tools - Install required development tools
 
 Usage:
   irgo install-tools             Install Go tools (gomobile, templ, air)
@@ -579,17 +652,17 @@ Usage: irgo serve
 Serves the app over plain HTTP with no rebuild-on-change. Use 'irgo dev' for
 hot reload, which air provides natively — neither needs anything installed.`)
 
-	case "uninstall":
-		fmt.Println(`irgo uninstall - Remove the installed app
+	case "app", "uninstall":
+		fmt.Println(`irgo app - The app installed on a device, simulator or this machine
 
 Usage:
-  irgo uninstall ios       From the booted simulator
-  irgo uninstall android   From the attached device or emulator
-  irgo uninstall desktop   From /Applications (macOS)
-  irgo uninstall           All of the above
+  irgo app remove ios       From the booted simulator
+  irgo app remove android   From the attached device or emulator
+  irgo app remove desktop   From /Applications (macOS)
+  irgo app remove           All of the above
 
-The inverse of irgo run. Not to be confused with irgo uninstall-tools, which
-removes the toolchain rather than the app.
+The inverse of irgo run. 'irgo tools remove' is the separate thing that removes
+the toolchain — these used to be one hyphen apart, which was a trap.
 
 An app that is not installed is not an error — the goal is that it is gone.
 Reach for this when a stale install is the suspect: the app keeps launching
@@ -690,7 +763,7 @@ toolchains, so 'go tool irgo build android' works on a bare runner.`)
 
 Usage:
   irgo clean         Build output, native shells, generated code
-  irgo clean --all   Also node_modules and Gradle caches
+  irgo clean --all   Also Gradle caches and other slow-to-refetch state
 
 Removes only what irgo produces — compiled output, store packages, the
 scaffolded ios/Example and android/Example shells, _templ.go, the generated
@@ -701,8 +774,8 @@ Reach for this when a stale artifact is the suspect: a framework built by an
 older irgo exposes an older bridge API, and the native shells then fail to
 compile against it.
 
---all additionally drops dependency trees and caches, which are slow to
-refetch — so the plain form stays quick.`)
+--all additionally drops caches that are slow to refetch, so the plain form
+stays quick.`)
 
 	case "assets":
 		fmt.Println(`irgo assets - Regenerate the embedded assets
@@ -776,4 +849,11 @@ what is missing.`)
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
 	}
+}
+
+// deprecated warns that a command has moved, then runs it anyway. Renaming
+// without an alias turns a naming cleanup into a broken script for everyone
+// who already had one.
+func deprecated(old, replacement string) {
+	fmt.Fprintf(os.Stderr, "note: `irgo %s` is now `irgo %s` — the old name still works\n", old, replacement)
 }

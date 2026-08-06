@@ -1,7 +1,7 @@
 # Builds every target irgo supports, on the OS each one requires.
 #
 # Scaffolded by `irgo ci` — regenerate with `irgo ci --force`. The jobs mirror
-# what `irgo doctor` reports locally: iOS needs macOS, the Linux desktop needs
+# what `irgo tools doctor` reports locally: iOS needs macOS, the Linux desktop needs
 # Linux, and Windows desktop builds natively here rather than cross-compiling.
 #
 # The CLI provisions its own toolchains, so there are no SDK/NDK/JDK setup
@@ -57,7 +57,7 @@ jobs:
         with:
           go-version-file: go.mod
       # Installs GTK/WebKit on Linux; a no-op where nothing is missing.
-      - run: go tool irgo install-tools
+      - run: go tool irgo tools install
       - run: go tool irgo build desktop ${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
@@ -90,7 +90,7 @@ jobs:
           go-version-file: go.mod
       # No SDK/NDK/JDK setup: the CLI provisions the whole toolchain itself.
       - run: go tool irgo build android
-      - run: go tool irgo doctor android
+      - run: go tool irgo tools doctor android
       - uses: actions/upload-artifact@v7
         with:
           name: android-framework
