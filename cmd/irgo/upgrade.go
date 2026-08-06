@@ -54,7 +54,7 @@ func runUpgrade(force, showDiff bool) error {
 	}
 
 	var updated, unchanged int
-	var drifted []string
+	var drifted, failed []string
 
 	err = fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, werr error) error {
 		if werr != nil || d.IsDir() {
@@ -89,13 +89,30 @@ func runUpgrade(force, showDiff bool) error {
 			return nil
 		}
 
-		if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil && filepath.Dir(rel) != "." {
-			return err
+		if dir := filepath.Dir(rel); dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				failed = append(failed, fmt.Sprintf("%s: %v", rel, err))
+				return nil
+			}
 		}
+
+		// Overwriting a file that already exists and differs discards whatever
+		// was there. Usually that is just the older template, but it may be a
+		// deliberate local change — and the two are indistinguishable from
+		// here, so keep a copy rather than guess.
+		note := ""
+		if herr == nil {
+			bak := rel + ".irgo-bak"
+			if werr := os.WriteFile(bak, have, 0o644); werr == nil {
+				note = fmt.Sprintf("  (previous saved as %s)", bak)
+			}
+		}
+
 		if err := os.WriteFile(rel, []byte(body), 0o644); err != nil {
-			return err
+			failed = append(failed, fmt.Sprintf("%s: %v", rel, err))
+			return nil
 		}
-		fmt.Printf("  updated: %s\n", rel)
+		fmt.Printf("  updated: %s%s\n", rel, note)
 		updated++
 		return nil
 	})
@@ -105,10 +122,24 @@ func runUpgrade(force, showDiff bool) error {
 
 	// CI is framework-owned too, and irgo ci already knows how to write it.
 	if err := writeCIWorkflows(".", modulePath, true, false); err != nil {
-		fmt.Printf("  ! CI workflows: %v\n", err)
+		failed = append(failed, fmt.Sprintf(".github/workflows: %v", err))
 	}
 
 	fmt.Printf("\n%d file(s) updated, %d already current.\n", updated, unchanged)
+
+	if len(failed) > 0 {
+		fmt.Println()
+		fmt.Println("Could not write:")
+		for _, f := range failed {
+			fmt.Printf("  %s\n", f)
+		}
+		fmt.Println()
+		fmt.Println("Common causes: a read-only file, a directory where a file is")
+		fmt.Println("expected (or the reverse), or no write permission here.")
+		// Exit non-zero: a partially-applied upgrade must not look successful,
+		// or the next build fails against a half-updated scaffold.
+		return fmt.Errorf("%d file(s) could not be written", len(failed))
+	}
 
 	if len(drifted) > 0 {
 		fmt.Println()

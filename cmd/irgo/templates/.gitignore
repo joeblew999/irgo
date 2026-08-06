@@ -40,6 +40,10 @@ android/Example/local.properties
 dist/
 irgo.package.local.toml
 
+# Backups written by `irgo upgrade` when it replaces a file that had changed.
+# Safe to delete once you have checked you did not lose a local edit.
+*.irgo-bak
+
 # IDE
 .idea/
 .vscode/
