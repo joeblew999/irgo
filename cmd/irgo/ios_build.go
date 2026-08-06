@@ -382,6 +382,10 @@ type iosDevice struct {
 	name       string
 	identifier string
 	model      string
+	// devModeOn reports Developer Mode, which a device build requires. It is
+	// off by default on every iPhone and is the most common reason a device
+	// run fails, so it is read up front rather than inferred from a failure.
+	devModeOn bool
 }
 
 // listIOSDevices returns the connected devices via devicectl (Xcode 15+).
@@ -406,7 +410,8 @@ func listIOSDevices() ([]iosDevice, error) {
 			Devices []struct {
 				Identifier       string `json:"identifier"`
 				DeviceProperties struct {
-					Name string `json:"name"`
+					Name                string `json:"name"`
+					DeveloperModeStatus string `json:"developerModeStatus"`
 				} `json:"deviceProperties"`
 				HardwareProperties struct {
 					ProductType string `json:"productType"`
@@ -426,6 +431,7 @@ func listIOSDevices() ([]iosDevice, error) {
 			name:       d.DeviceProperties.Name,
 			identifier: d.Identifier,
 			model:      d.HardwareProperties.ProductType,
+			devModeOn:  d.DeviceProperties.DeveloperModeStatus == "enabled",
 		})
 	}
 	return out, nil
@@ -455,6 +461,12 @@ func runIOSDevice(team string) error {
 	}
 	dev := devices[0]
 	fmt.Printf("Device: %s (%s)\n", dev.name, dev.model)
+
+	// Check before building: the framework build takes minutes and this is
+	// knowable in a millisecond.
+	if !dev.devModeOn {
+		return fmt.Errorf("Developer Mode is off on %s.\n%s", dev.name, developerModeHelp())
+	}
 
 	modulePath, err := getModulePath()
 	if err != nil {
@@ -533,12 +545,7 @@ func buildIOSDeviceApp(dev iosDevice, team string) (string, error) {
 // that no CLI can perform, so naming the exact one matters more than usual.
 func iosDeviceBuildHelp(out, team string) string {
 	if strings.Contains(out, "Developer Mode disabled") {
-		return "Developer Mode is off on the iPhone — enable it first:\n" +
-			"    1. On the iPhone: Settings → Privacy & Security → Developer Mode → On\n" +
-			"    2. The phone restarts; unlock it and confirm Turn On\n" +
-			"    3. irgo run ios --device\n" +
-			"  The option only appears after a Mac has tried to use the device for\n" +
-			"  development, which this build just did — so it is there now."
+		return developerModeHelp()
 	}
 	if strings.Contains(out, "requires a provisioning profile") ||
 		strings.Contains(out, "No signing certificate") ||
@@ -568,4 +575,15 @@ func iosSigningHelp(team string) string {
 	b.WriteString("    Settings → General → VPN & Device Management → trust the profile\n")
 	b.WriteString("  For the simulator instead, which needs no signing: irgo run ios")
 	return b.String()
+}
+
+// developerModeHelp is the fix for the most common device-run blocker.
+func developerModeHelp() string {
+	return "  Enable it on the phone:\n" +
+		"    1. Settings → Privacy & Security → Developer Mode → On\n" +
+		"    2. The phone restarts; unlock it and confirm Turn On\n" +
+		"    3. irgo run ios --device\n" +
+		"  If the menu entry is not there, plug the phone in and run\n" +
+		"  `irgo run ios --device` once — the entry appears after a Mac has\n" +
+		"  tried to use the device for development."
 }

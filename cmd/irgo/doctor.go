@@ -232,7 +232,12 @@ func iosDeviceNote(state string) string {
 	}
 
 	if devs, err := listIOSDevices(); err == nil && len(devs) > 0 {
-		parts = append(parts, fmt.Sprintf("%s attached", devs[0].name))
+		d := devs[0]
+		if d.devModeOn {
+			parts = append(parts, d.name+" attached, Developer Mode on")
+		} else {
+			parts = append(parts, d.name+" attached but Developer Mode OFF (Settings → Privacy & Security)")
+		}
 	} else {
 		parts = append(parts, "no device attached")
 	}
