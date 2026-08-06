@@ -73,6 +73,7 @@ detail; `doctor` reports what your machine can actually do.
 | `package <ios\|android\|macos\|windows>` | Store artifacts |
 | `package setup --check` | What each store needs and how to supply it |
 | `ios team [ID]` | List signing teams, or select one |
+| `pin [target]` | Which irgo this builds against — release, fork, or a checkout |
 | `upgrade [--diff\|--force]` | Take framework updates without touching your code |
 | `ci [--force]` | Scaffold the GitHub Actions workflows |
 | `clean [--all]` | Remove generated output |
@@ -83,6 +84,30 @@ command needs them: `build android` fetches JDK 17, the SDK and the NDK into
 `~/.irgo` — Android Studio is not involved. Undo it all with
 `uninstall-tools android --remove-jdk`. The one exception is Xcode, which only
 Apple can install; `doctor` says so plainly.
+
+## Working on irgo itself
+
+There is no separate setup for contributors, and no second toolchain. Using
+irgo and working on irgo are the same activity pointed at different versions:
+
+```bash
+go tool irgo pin                      # what am I building against?
+go tool irgo pin --local ../irgo      # build a checkout you are editing
+# edit the CLI — the next `go tool irgo` already runs your change
+go tool irgo pin --release            # back to the published build
+```
+
+`--local` writes a `replace` into go.mod, so nothing is installed, nothing is
+tagged, and nothing has to be reinstalled between edits. The same command
+tracks a fork:
+
+```bash
+go tool irgo pin joeblew999/irgo@v0.4.0-androidapi21.65
+go env -w GOPRIVATE='github.com/joeblew999/*'   # forks bypass the proxy, once
+```
+
+A fork keeps the upstream module path — that is what makes its `replace`
+transparent, and also why Go fetches it from GitHub rather than the proxy.
 
 ## Updating the framework
 
