@@ -3,14 +3,23 @@
 // Files are named after what a developer types, so a command in the help and
 // the code behind it are findable from each other:
 //
+// The CLI has two grammars, and the filenames follow whichever applies:
+//
+//	noun → verb     app install, tools remove, tools doctor, ios team
+//	verb → target   build ios, run android, package macos
+//
 //	main.go                 dispatch only
 //	help.go                 the help text for every command
-//	cmd_<command>.go        one per command: new, build, dev, app, tools, ...
+//	cmd_<noun>.go           a noun and its verbs: app, tools, ios
+//	cmd_<noun>_<verb>.go    one verb, when it is big enough to stand alone
+//	cmd_<verb>.go           a verb with no noun: new, build, dev, clean, ...
 //	<platform>_build.go     how a platform is built and run
 //	<platform>_package.go   how it is packaged for its store
 //	<thing>_toolchain.go    provisioning: android, tailwind
 //	host_packages.go        brew/apt/pacman dependencies
 //	util.go, icons.go       shared helpers
+//
+// So cmd_* is what a developer types, and everything else is how it works.
 //
 // A filename must never end in a GOOS name — build_ios.go and build_android.go
 // compile only for GOOS=ios and GOOS=android under Go's implicit build
