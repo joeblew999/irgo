@@ -270,6 +270,18 @@ func newProject(name string) error {
 			return err
 		}
 
+		// go.mod carries the dependency graph and, when a fork is tracked, the
+		// replace that selects the CLI — `go tool irgo` reads its version from
+		// exactly here. Rewriting it from a template discards both, which then
+		// silently changes which CLI the project uses. Seed it only when there
+		// is none.
+		if strings.HasSuffix(path, "/go.mod.tmpl") || path == "templates/go.mod.tmpl" {
+			if _, err := os.Stat(filepath.Join(projectDir, "go.mod")); err == nil {
+				fmt.Println("  kept (yours): go.mod")
+				return nil
+			}
+		}
+
 		// irgo.package.toml holds settings a person chose — the signing team,
 		// store IDs, the app version. The template version is only a seed, so
 		// regenerating in place (irgo new .) must not overwrite an existing
