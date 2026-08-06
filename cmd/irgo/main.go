@@ -4,10 +4,53 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 )
 
-var version = "0.4.0"
+// version is what the CLI reports and what artifact stamps are compared
+// against. It is resolved from the build rather than hardcoded: `go tool irgo`
+// builds whatever go.mod pins, so a constant here would describe a release
+// nobody is necessarily running — as it did, claiming 0.4.0 for every fork
+// build. See cliVersion.
+var version = cliVersion()
+
+// fallbackVersion is used only when a binary carries no build information,
+// which happens if it was assembled outside the module system.
+const fallbackVersion = "0.4.0"
+
+// cliVersion reports the module version this binary was built from, falling
+// back to the VCS revision for a local checkout — which is exactly the case
+// `irgo pin --local` creates, and worth naming so a surprising result is
+// traceable to a working tree rather than a release.
+func cliVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fallbackVersion
+	}
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	var rev string
+	dirty := ""
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "-modified"
+			}
+		}
+	}
+	if rev != "" {
+		if len(rev) > 12 {
+			rev = rev[:12]
+		}
+		return "devel-" + rev + dirty
+	}
+	return fallbackVersion + "-devel"
+}
 
 func main() {
 	if len(os.Args) < 2 {
