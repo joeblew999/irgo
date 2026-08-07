@@ -73,7 +73,17 @@ func markToolInstalled(name string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return
 	}
-	_ = os.WriteFile(filepath.Join(dir, name), []byte("irgo "+version+"\n"), 0o644)
+	// Record which version was installed, not just that one was. Asking the
+	// tool afterwards does not work: air and gobind have no version flag at
+	// all, and parsing their usage text finds the Go version instead, which is
+	// how doctor first reported air as drifted when it was not.
+	body := "irgo " + version + "\n"
+	if pkg := goToolPkg(name); pkg != "" {
+		if _, v, ok := strings.Cut(pkg, "@"); ok {
+			body += "pin " + v + "\n"
+		}
+	}
+	_ = os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
 }
 
 // clearToolMarker forgets that irgo installed something. Markers left behind

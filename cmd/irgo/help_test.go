@@ -268,3 +268,21 @@ func TestEveryInstalledToolIsPinned(t *testing.T) {
 		}
 	}
 }
+
+// TestInstallRecordsThePinnedVersion — doctor reads what installation wrote,
+// so the two have to agree. The first version of this asked the tool instead
+// and reported air as drifted because its usage text contains a Go version.
+func TestInstallRecordsThePinnedVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
+		markToolInstalled(tool)
+		got := installedVersion(tool)
+		if got == "" {
+			t.Errorf("%s: installation recorded no version, so doctor cannot report one", tool)
+			continue
+		}
+		if want := wantedVersion(tool); got != strings.TrimPrefix(want, "v") && got != want {
+			t.Errorf("%s: recorded %q, irgo installs %q", tool, got, want)
+		}
+	}
+}

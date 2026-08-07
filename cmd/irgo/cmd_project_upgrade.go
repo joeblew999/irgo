@@ -143,6 +143,8 @@ func runUpgrade(force, showDiff bool) error {
 
 	fmt.Printf("\n%d file(s) updated, %d already current.\n", updated, unchanged)
 
+	reportGoDirective()
+
 	if len(failed) > 0 {
 		fmt.Println()
 		fmt.Println("Could not write:")
@@ -221,4 +223,47 @@ func printTemplateDiff(rel, modulePath string) {
 		fmt.Println()
 		return
 	}
+}
+
+// reportGoDirective points out a go.mod requiring more than irgo does.
+//
+// `irgo project new` used to write the scaffolding machine's Go version, so
+// projects created on a newer toolchain demand it from every teammate and
+// every CI runner — the docs site failed that way, requiring 1.26.5 from a
+// runner with 1.24. New projects get irgo's floor now, but go.mod is yours and
+// never rewritten, so an existing project keeps whatever it was given. This
+// says so rather than leaving it to be discovered on someone else's machine.
+func reportGoDirective() {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return
+	}
+	have := ""
+	for _, line := range strings.Split(string(data), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			have = strings.TrimSpace(v)
+			break
+		}
+	}
+	if have == "" || !higherThan(have, minGoVersion) {
+		return
+	}
+	fmt.Println()
+	fmt.Printf("go.mod requires Go %s, and irgo needs only %s.\n", have, minGoVersion)
+	fmt.Println("That was this project's scaffolding machine, not a requirement — it")
+	fmt.Println("makes every teammate and CI runner install that exact toolchain.")
+	fmt.Printf("  Lower it:  go mod edit -go=%s && go mod tidy\n", minGoVersion)
+	fmt.Println("Keep it if something here genuinely needs the newer Go.")
+}
+
+// higherThan compares two Go versions field by field.
+func higherThan(a, b string) bool {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) && i < len(bs); i++ {
+		x, y := atoiSafe(as[i]), atoiSafe(bs[i])
+		if x != y {
+			return x > y
+		}
+	}
+	return len(as) > len(bs)
 }

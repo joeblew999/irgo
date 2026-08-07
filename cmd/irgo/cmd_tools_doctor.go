@@ -188,6 +188,8 @@ func doctorHost(strict bool) error {
 	}
 	drift := checkPinDrift()
 
+	printToolVersions()
+
 	printTeamDetail()
 	printXcodeDetail()
 	printAndroidDetail()

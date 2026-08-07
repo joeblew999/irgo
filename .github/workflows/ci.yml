@@ -31,6 +31,10 @@ jobs:
           go-version-file: go.mod
       # Formatting is checked rather than assumed: three files had been
       # unformatted since the Datastar migration, which nothing surfaced.
+      # examples/todo is part of this module and its templates are generated,
+      # so a fresh clone cannot compile until they exist. They are not
+      # committed for the same reason no other generated file is.
+      - run: go run github.com/a-h/templ/cmd/templ@v0.3.977 generate ./examples/...
       - name: gofmt
         run: |
           unformatted=$(gofmt -l ./cmd ./pkg ./mobile ./desktop)
