@@ -30,3 +30,7 @@ docs-templ/templates/*_templ.go
 # paths from whichever machine ran it — never committed.
 go.work
 go.work.sum
+# Built by `irgo app build android`. The project template has always ignored
+# this; this repository was committing 14 MB of it per rebuild.
+android/Example/app/libs/*.aar
+build/ios/Irgo.xcframework/
