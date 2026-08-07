@@ -189,7 +189,12 @@ func ensureMobileBuildSetup() error {
 
 		// Create go.work file
 		workContent := fmt.Sprintf("go %s\n\nuse (\n\t.\n", goVersion)
-		if irgoPath != "" {
+		// Not when it is this directory: building irgo's own mobile package
+		// from the irgo checkout put the same module in the workspace twice,
+		// and Go rejects the whole file — "appears multiple times in
+		// workspace" — so every mobile build in the framework repository
+		// failed until the file was deleted by hand.
+		if irgoPath != "" && !sameDir(irgoPath, ".") {
 			workContent += fmt.Sprintf("\t%s\n", irgoPath)
 		}
 		workContent += fmt.Sprintf("\t%s\n)\n", mobileDir)
@@ -292,4 +297,23 @@ func anySourceNewerThan(t time.Time) bool {
 		}
 	}
 	return false
+}
+
+// sameDir reports whether two paths are the same directory.
+func sameDir(a, b string) bool {
+	aa, err := filepath.Abs(a)
+	if err != nil {
+		return false
+	}
+	bb, err := filepath.Abs(b)
+	if err != nil {
+		return false
+	}
+	if aa == bb {
+		return true
+	}
+	// Symlinks: /tmp and /private/tmp are the same place on macOS.
+	ra, err1 := filepath.EvalSymlinks(aa)
+	rb, err2 := filepath.EvalSymlinks(bb)
+	return err1 == nil && err2 == nil && ra == rb
 }
