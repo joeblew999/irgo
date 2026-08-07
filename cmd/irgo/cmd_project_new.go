@@ -368,10 +368,6 @@ func newProject(name string) error {
 		return fmt.Errorf("copying templates: %w", err)
 	}
 
-	// Download Datastar files
-	fmt.Println("Downloading Datastar...")
-
-
 	// Make scripts executable
 	scripts := []string{}
 	for _, script := range scripts {
