@@ -113,14 +113,23 @@ func TestEveryDeclaredBuildTargetIsDispatched(t *testing.T) {
 	}
 }
 
-// TestEveryVerbHasASummary — the index and the generated README both read
-// verbSummary, so a verb without one renders as a blank description in two
-// places and errors in neither.
-func TestEveryVerbHasASummary(t *testing.T) {
+// TestEveryVerbIsDeclared — the index, the detail page and the generated
+// README all read commands.go, so a verb missing from it renders as three
+// blanks and errors in none of them.
+func TestEveryVerbIsDeclared(t *testing.T) {
 	for noun, verbs := range nounVerbs {
 		for _, verb := range verbs {
-			if verbSummary[noun+" "+verb] == "" {
-				t.Errorf("%s %s has no entry in verbSummary — it renders as a blank row", noun, verb)
+			c, ok := commands[noun+" "+verb]
+			if !ok {
+				t.Errorf("%s %s is dispatched but has no entry in commands.go — "+
+					"no help, no index line, no README row", noun, verb)
+				continue
+			}
+			if c.summary == "" {
+				t.Errorf("%s %s has no summary — it renders as a blank row", noun, verb)
+			}
+			if len(c.usage) == 0 {
+				t.Errorf("%s %s has no usage lines", noun, verb)
 			}
 		}
 	}
@@ -173,6 +182,41 @@ func TestEveryFlagIsDocumented(t *testing.T) {
 			seen[f] = true
 			if !strings.Contains(help, f) {
 				t.Errorf("%s accepts %s and no help mentions it", name, f)
+			}
+		}
+	}
+}
+
+// TestDeclaredFlagsExist is the other direction: help.go can now promise a
+// flag the CLI never reads, which is worse than an undocumented one — someone
+// passes it, nothing happens, and nothing says so.
+func TestDeclaredFlagsExist(t *testing.T) {
+	var src string
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		n := e.Name()
+		if strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") && n != "commands.go" {
+			b, err := os.ReadFile(n)
+			if err != nil {
+				t.Fatal(err)
+			}
+			src += string(b)
+		}
+	}
+	name := regexp.MustCompile(`^(--[a-z][a-z-]*)`)
+	for key, c := range commands {
+		for _, f := range c.flags {
+			m := name.FindStringSubmatch(f[0])
+			if m == nil {
+				t.Errorf("%s: flag spec %q does not start with a --flag", key, f[0])
+				continue
+			}
+			if !strings.Contains(src, `"`+m[1]+`"`) {
+				t.Errorf("%s documents %s but no code reads it — it would be accepted and ignored",
+					key, m[1])
 			}
 		}
 	}

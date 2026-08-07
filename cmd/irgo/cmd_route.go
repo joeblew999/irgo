@@ -202,46 +202,13 @@ var renamed = map[string]string{
 	"ios": "app build ios, or project config ios.team",
 }
 
-// verbTargets is what each verb accepts, declared once.
-//
-// The help index used to spell these out in prose and fell behind the dispatch
-// when cloudflare was added: `app build cloudflare` worked, and the first
-// screen anyone reads still said <ios|android|desktop|all>. Rendering the index
-// from this means a target cannot exist undocumented, and a test checks the
-// other direction — that everything named here is actually dispatched.
-var verbTargets = map[string][]string{
-	"app build":   {"ios", "android", "desktop", "cloudflare", "all"},
-	"app run":     {"ios", "android", "desktop"},
-	"app deploy":  {"cloudflare"},
-	"app package": {"ios", "android", "macos", "windows"},
-	"app install": {"ios", "android", "desktop"},
-	"app remove":  {"ios", "android", "desktop"},
-	"app reviews": {"ios", "mac", "android"},
-}
-
-// verbArgs is what a verb takes when it is not a platform target — the hints
-// the index used to carry as prose, kept because "project clean [--all]" tells
-// someone the flag exists and "project clean" does not.
-var verbArgs = map[string]string{
-	"project new":     "<name>",
-	"project clean":   "[--all]",
-	"project upgrade": "[--check|--diff|--force]",
-	"project pin":     "[local|release|<version>]",
-	"project ci":      "[--force]",
-	"project config":  "[<key>] [<value>]",
-
-	"tools install": "[android] [--emulator]",
-	"tools remove":  "[android] [--all] [--yes]",
-	"tools doctor":  "[android] [--fix|--strict]",
-}
-
-// buildTargets is the list `app build` accepts.
-var buildTargets = verbTargets["app build"]
+// buildTargets is what `app build` accepts, read from its declaration so the
+// dispatch, the help and the README cannot disagree about it.
+var buildTargets = commands["app build"].targets
 
 // targetList renders a verb's targets for a usage line.
 func targetList(nounVerb string) string {
-	return strings.Join(verbTargets[nounVerb], "|")
+	return strings.Join(commands[nounVerb].targets, "|")
 }
 
-// buildTargetList renders them for a usage line.
 func buildTargetList() string { return targetList("app build") }
