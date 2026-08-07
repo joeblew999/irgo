@@ -54,9 +54,9 @@ export const MobilePage: FC = () => {
       <h3>Common Requirements</h3>
 
       <ul>
-        <li>Go 1.21+</li>
-        <li>gomobile: <code>go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init</code></li>
-        <li>entr (for hot reload): <code>brew install entr</code> (macOS)</li>
+        <li>Go</li>
+        <li>iOS: Xcode — the one thing irgo cannot install for you</li>
+        <li>Android: nothing. <code>irgo app build android</code> fetches the JDK, SDK and NDK itself</li>
       </ul>
 
       <h3>iOS Development</h3>
@@ -131,7 +131,7 @@ func runDevServer() {
 
       <CodeBlock language="bash">
 {`# Start iOS Simulator with hot reload
-irgo run ios --dev`}
+irgo app run ios --dev`}
       </CodeBlock>
 
       <p>
@@ -143,10 +143,10 @@ irgo run ios --dev`}
 
       <CodeBlock language="bash">
 {`# Build iOS framework
-irgo build ios
+irgo app build ios
 
 # Build and run on Simulator
-irgo run ios`}
+irgo app run ios`}
       </CodeBlock>
 
       <h3>Build Output</h3>
@@ -175,17 +175,17 @@ irgo run ios`}
 
       <CodeBlock language="bash">
 {`# Start Android Emulator with hot reload
-irgo run android --dev`}
+irgo app run android --dev`}
       </CodeBlock>
 
       <h3>Production Build</h3>
 
       <CodeBlock language="bash">
 {`# Build Android AAR
-irgo build android
+irgo app build android
 
 # Build and run on Emulator
-irgo run android`}
+irgo app run android`}
       </CodeBlock>
 
       <h3>Build Output</h3>

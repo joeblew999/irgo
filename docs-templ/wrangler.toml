@@ -1,0 +1,12 @@
+# Cloudflare Workers configuration.
+#
+# Written once by `irgo app build cloudflare` and yours thereafter — add
+# bindings (KV, D1, Durable Objects) here.
+#
+# Shared state belongs in one of those bindings, not in a Go variable: every
+# request gets a fresh Go runtime, so a package-level counter resets each time.
+# Per-connection state inside a single SSE stream is fine, because that stream
+# holds one instance open for its lifetime.
+name = "irgo-docs"
+main = "./build/worker/worker.mjs"
+compatibility_date = "2025-08-03"

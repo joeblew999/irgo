@@ -15,7 +15,7 @@ export const WebPage: FC = () => {
 
       <h2>Development Server</h2>
 
-      <CodeBlock language="bash">{`irgo dev`}</CodeBlock>
+      <CodeBlock language="bash">{`irgo server dev`}</CodeBlock>
 
       <p>
         This starts a web server at <code>http://localhost:8080</code> with hot

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/stukennedy/irgo/pkg/bridgejs"
+	"github.com/stukennedy/irgo/pkg/datastarjs"
 	"github.com/stukennedy/irgo/pkg/native"
 )
 
@@ -59,6 +60,7 @@ func (r *Router) ensureFrameworkRoutes() {
 	}
 	r.frameworkOnce.Do(func() {
 		r.mux.Get("/_irgo/bridge.js", bridgejs.Handler)
+		r.mux.Get("/_irgo/datastar.js", datastarjs.Handler)
 		r.mux.Post("/_irgo/native", native.HTTPHandler)
 	})
 }

@@ -366,12 +366,12 @@ templ generate
 templ generate --watch
 
 # Or use the irgo CLI
-irgo templ`}
+irgo project assets`}
       </CodeBlock>
 
       <Callout type="tip">
         <p>
-          When using <code>irgo dev</code>, template generation is handled automatically
+          When using <code>irgo server dev</code>, template generation is handled automatically
           via the air configuration.
         </p>
       </Callout>

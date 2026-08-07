@@ -132,7 +132,7 @@ export const IntroductionPage: FC = () => {
 
       <Callout type="info" title="Platform-specific requirements">
         <p>
-          <strong>Mobile:</strong> gomobile, and Xcode (iOS) or Android Studio
+          <strong>Mobile:</strong> Xcode for iOS; the Android toolchain installs itself
           (Android)
           <br />
           <strong>Desktop:</strong> CGO enabled with a C compiler (Xcode CLI on

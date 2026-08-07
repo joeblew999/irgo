@@ -10,13 +10,13 @@ import (
 // Request represents a message from the client via WebSocket.
 // Used for real-time bidirectional communication alongside Datastar's SSE.
 type Request struct {
-	Type      string            `json:"type"`                 // Always "request" for client messages
-	RequestID string            `json:"request_id"`           // Unique ID for request-response matching
-	Event     string            `json:"event"`                // DOM event that triggered the send (click, submit, etc.)
-	Headers   map[string]string `json:"headers"`              // Request headers
-	Values    map[string]any    `json:"values"`               // Form data and hx-vals
-	Path      string            `json:"path"`                 // Normalized WebSocket URL
-	ID        string            `json:"id,omitempty"`         // Element ID (if element has id attribute)
+	Type      string            `json:"type"`         // Always "request" for client messages
+	RequestID string            `json:"request_id"`   // Unique ID for request-response matching
+	Event     string            `json:"event"`        // DOM event that triggered the send (click, submit, etc.)
+	Headers   map[string]string `json:"headers"`      // Request headers
+	Values    map[string]any    `json:"values"`       // Form data and hx-vals
+	Path      string            `json:"path"`         // Normalized WebSocket URL
+	ID        string            `json:"id,omitempty"` // Element ID (if element has id attribute)
 }
 
 // GetValue returns a value from the Values map.

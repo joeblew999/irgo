@@ -42,8 +42,8 @@ func TestRequestHeaders(t *testing.T) {
 
 func TestRequestPath(t *testing.T) {
 	tests := []struct {
-		url      string
-		wantPath string
+		url       string
+		wantPath  string
 		wantQuery string
 	}{
 		{"/test", "/test", ""},

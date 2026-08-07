@@ -1,0 +1,210 @@
+// Package mobile provides gomobile bindings for iOS and Android.
+// This package re-exports the irgo mobile bridge functions and initializes
+// your app's routes when the mobile app starts.
+//
+// gomobile binds THIS package (not the irgo module directly), so every
+// function and interface the native shells need must be re-exported here.
+// Callback interfaces are defined locally and adapted, because gomobile
+// cannot bind two Go packages that share the name "mobile".
+//
+// Native surface (identical to binding the irgo module directly):
+//   - Swift: MobileInitialize, MobileHandleRequest -> MobileResponse,
+//     MobileHandleRequestStream(..., MobileStreamCallbackProtocol) -> MobileStreamHandle,
+//     MobileSetStateDir, MobileOnBackground/OnForeground, MobileSetNativeInvoker, ...
+//   - Kotlin: mobile.Mobile.* functions, mobile.Response,
+//     mobile.StreamCallback, mobile.StreamHandle, mobile.NativeInvoker,
+//     mobile.WebSocketCallback
+package mobile
+
+import (
+	"fmt"
+
+	"todo/app"
+	irgomobile "github.com/stukennedy/irgo/mobile"
+)
+
+// Initialize sets up the mobile bridge and app routes.
+// Called automatically by native code at app startup.
+func Initialize() {
+	// Set up app routes using shared router setup
+	r := app.NewRouter()
+
+	// Initialize the irgo bridge with our handler
+	irgomobile.SetHandler(r.Handler())
+	irgomobile.Initialize()
+
+	fmt.Println("todo mobile initialized")
+}
+
+// --- HTTP ---
+
+// Response is a gomobile-compatible response type, defined locally rather
+// than reusing irgo's core.Response: gobind silently drops functions whose
+// signature references a type from a dependency module (binding *core.Response
+// produced an AAR without handleRequest/handleRequestSimple and without the
+// core package at all). A local type keeps the AAR self-contained.
+type Response struct {
+	Status  int
+	Headers string
+	Body    []byte
+}
+
+// BodyString returns the body as a string.
+func (r *Response) BodyString() string {
+	return string(r.Body)
+}
+
+// HandleRequest processes a buffered HTTP request from the WebView.
+func HandleRequest(method, url, headers string, body []byte) *Response {
+	coreResp := irgomobile.HandleRequest(method, url, headers, body)
+	return &Response{Status: coreResp.Status, Headers: coreResp.Headers, Body: coreResp.Body}
+}
+
+// HandleRequestSimple processes a simple GET request.
+func HandleRequestSimple(method, url string) *Response {
+	coreResp := irgomobile.HandleRequestSimple(method, url)
+	return &Response{Status: coreResp.Status, Headers: coreResp.Headers, Body: coreResp.Body}
+}
+
+// StreamCallback receives a response progressively (one OnChunk per
+// server-side flush). Implemented by Swift/Kotlin.
+type StreamCallback interface {
+	OnResponse(status int, headersJSON string)
+	OnChunk(chunk []byte)
+	OnComplete(errorMessage string)
+}
+
+// StreamHandle lets native code cancel an in-flight streaming request.
+type StreamHandle struct {
+	h *irgomobile.StreamHandle
+}
+
+// Cancel aborts the request. Safe to call multiple times.
+func (s *StreamHandle) Cancel() {
+	if s.h != nil {
+		s.h.Cancel()
+	}
+}
+
+type streamCallbackAdapter struct{ cb StreamCallback }
+
+func (a streamCallbackAdapter) OnResponse(status int, headersJSON string) {
+	a.cb.OnResponse(status, headersJSON)
+}
+func (a streamCallbackAdapter) OnChunk(chunk []byte)          { a.cb.OnChunk(chunk) }
+func (a streamCallbackAdapter) OnComplete(errorMessage string) { a.cb.OnComplete(errorMessage) }
+
+// HandleRequestStream processes an HTTP request, streaming the response
+// through the callback (this is what makes SSE work on mobile).
+func HandleRequestStream(method, url, headers string, body []byte, callback StreamCallback) *StreamHandle {
+	h := irgomobile.HandleRequestStream(method, url, headers, body, streamCallbackAdapter{callback})
+	return &StreamHandle{h: h}
+}
+
+// --- State, lifecycle ---
+
+// SetStateDir enables persistence for bridge state (cookie jar), so
+// sessions survive app restarts. Native code calls this at startup with an
+// app-private writable directory.
+func SetStateDir(dir string) { irgomobile.SetStateDir(dir) }
+
+// ClearCookies removes all cookies (e.g. for logout).
+func ClearCookies() { irgomobile.ClearCookies() }
+
+// OnBackground is called by native code when the app enters the background.
+func OnBackground() { irgomobile.OnBackground() }
+
+// OnForeground is called by native code when the app returns to the foreground.
+func OnForeground() { irgomobile.OnForeground() }
+
+// RenderInitialPage returns the initial HTML for the WebView.
+func RenderInitialPage() string {
+	return irgomobile.RenderInitialPage()
+}
+
+// IsReady returns true if the bridge is initialized.
+func IsReady() bool {
+	return irgomobile.IsReady()
+}
+
+// Shutdown cleans up the bridge.
+func Shutdown() {
+	irgomobile.Shutdown()
+}
+
+// --- Native capabilities ---
+
+// NativeInvoker dispatches native-capability calls made from Go code to the
+// platform plugin registry. Implemented by Swift/Kotlin.
+type NativeInvoker interface {
+	Invoke(callID, method, paramsJSON string)
+}
+
+type nativeInvokerAdapter struct{ inv NativeInvoker }
+
+func (a nativeInvokerAdapter) Invoke(callID, method, paramsJSON string) {
+	a.inv.Invoke(callID, method, paramsJSON)
+}
+
+// SetNativeInvoker registers the platform dispatcher for native calls.
+func SetNativeInvoker(inv NativeInvoker) {
+	if inv == nil {
+		irgomobile.SetNativeInvoker(nil)
+		return
+	}
+	irgomobile.SetNativeInvoker(nativeInvokerAdapter{inv})
+}
+
+// NativeResult delivers the result of a native-capability call back to Go.
+// Use ok=false with payload "IRGO_NOT_SUPPORTED" when no plugin claims the
+// method.
+func NativeResult(callID string, ok bool, payloadJSON string) {
+	irgomobile.NativeResult(callID, ok, payloadJSON)
+}
+
+// --- WebSockets ---
+
+// WebSocketCallback receives server-pushed WebSocket events.
+// Implemented by Swift/Kotlin.
+type WebSocketCallback interface {
+	OnMessage(sessionID, data string)
+	OnClose(sessionID string, code int, reason string)
+	OnError(sessionID, errorMsg string)
+}
+
+type webSocketCallbackAdapter struct{ cb WebSocketCallback }
+
+func (a webSocketCallbackAdapter) OnMessage(sessionID, data string) {
+	a.cb.OnMessage(sessionID, data)
+}
+func (a webSocketCallbackAdapter) OnClose(sessionID string, code int, reason string) {
+	a.cb.OnClose(sessionID, code, reason)
+}
+func (a webSocketCallbackAdapter) OnError(sessionID, errorMsg string) {
+	a.cb.OnError(sessionID, errorMsg)
+}
+
+// SetWebSocketCallback registers the native WebSocket event receiver.
+func SetWebSocketCallback(cb WebSocketCallback) {
+	if cb == nil {
+		irgomobile.SetWebSocketCallback(nil)
+		return
+	}
+	irgomobile.SetWebSocketCallback(webSocketCallbackAdapter{cb})
+}
+
+// WebSocketConnect opens a virtual WebSocket session, returning its ID.
+func WebSocketConnect(url string) (string, error) {
+	return irgomobile.WebSocketConnect(url)
+}
+
+// WebSocketSend delivers a client message to the session's handler.
+// Returns an optional synchronous reply envelope as JSON.
+func WebSocketSend(sessionID, data string) (string, error) {
+	return irgomobile.WebSocketSend(sessionID, data)
+}
+
+// WebSocketClose closes a WebSocket session.
+func WebSocketClose(sessionID string) error {
+	return irgomobile.WebSocketClose(sessionID)
+}

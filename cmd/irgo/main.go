@@ -1,12 +1,75 @@
-// CLI tool for creating and managing irgo projects
+// irgo — one Go codebase for web, desktop, iOS and Android.
+//
+// The CLI has one grammar: <noun> <verb> [target]. The nouns are the things
+// irgo acts on — project, app, tools, server, ios — and filenames follow the
+// same nouns, so a command and the code behind it are findable from each
+// other:
+//
+//	main.go                 argument handling only
+//	cmd_route.go            the noun/verb table
+//	help.go                 the help text
+//	cmd_<noun>.go           a noun and its verbs
+//	cmd_<noun>_<verb>.go    one verb, when it is large enough to stand alone
+//	<noun>_<detail>.go      how that noun works: app_ios_build.go,
+//	                        tools_android_sdk.go, app_macos_package.go
+//	util.go                 shared helpers
+//
+// A filename must never end in a GOOS name. build_ios.go, cmd_ios.go and
+// tools_android.go each compiled only for that GOOS and vanished from the
+// package with no error — three times, which is why filenames_test.go now
+// fails on it rather than a comment asking nicely.
 package main
 
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 )
 
-var version = "0.4.0"
+// version is what the CLI reports and what artifact stamps are compared
+// against. It is resolved from the build rather than hardcoded: `go tool irgo`
+// builds whatever go.mod pins, so a constant here would describe a release
+// nobody is necessarily running — as it did, claiming 0.4.0 for every fork
+// build. See cliVersion.
+var version = cliVersion()
+
+// fallbackVersion is used only when a binary carries no build information,
+// which happens if it was assembled outside the module system.
+const fallbackVersion = "0.4.0"
+
+// cliVersion reports the module version this binary was built from, falling
+// back to the VCS revision for a local checkout — which is exactly the case
+// `irgo project pin --local` creates, and worth naming so a surprising result is
+// traceable to a working tree rather than a release.
+func cliVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fallbackVersion
+	}
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	var rev string
+	dirty := ""
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "-modified"
+			}
+		}
+	}
+	if rev != "" {
+		if len(rev) > 12 {
+			rev = rev[:12]
+		}
+		return "devel-" + rev + dirty
+	}
+	return fallbackVersion + "-devel"
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -15,220 +78,77 @@ func main() {
 	}
 
 	var err error
-	switch os.Args[1] {
-	case "new":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo new <project-name>")
+
+	// -C <dir> runs the command somewhere else, like make.
+	//
+	// Every irgo command acts on the project in the working directory, which
+	// means deploying a second project in the same repository — the
+	// documentation site is one — meant cd'ing first. A directory is not a new
+	// command, so it is a flag rather than a noun: `irgo -C docs app deploy
+	// cloudflare` is the same code path as running it from inside docs.
+	args := os.Args[1:]
+	if len(args) >= 2 && (args[0] == "-C" || args[0] == "--chdir") {
+		if err := os.Chdir(args[1]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: -C %s: %v\n", args[1], err)
 			os.Exit(1)
 		}
-		err = newProject(os.Args[2])
-
-	case "dev":
-		err = runDev()
-
-	case "serve":
-		err = runServe()
-
-	case "build":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo build <ios|android|desktop|all>")
-			os.Exit(1)
-		}
-		target := os.Args[2]
-		if target == "desktop" {
-			platform := ""
-			if len(os.Args) > 3 {
-				platform = os.Args[3]
-			}
-			err = buildDesktop(platform)
-		} else {
-			err = runBuild(target)
-		}
-
-	case "run":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: irgo run <ios|android|desktop> [--dev]")
-			os.Exit(1)
-		}
-		platform := os.Args[2]
-		devMode := hasFlag(os.Args[3:], "--dev", "-d")
-
-		if platform == "desktop" {
-			err = runDesktop(devMode)
-		} else {
-			err = runMobile(platform, devMode)
-		}
-
-	case "templ":
-		err = runTempl()
-
-	case "test":
-		err = runTest()
-
-	case "install-tools":
-		err = installTools()
-
-	case "version", "-v", "--version":
-		fmt.Printf("irgo %s\n", version)
-
-	case "help", "-h", "--help":
-		if len(os.Args) > 2 {
-			printCommandHelp(os.Args[2])
-		} else {
-			printUsage()
-		}
-
-	default:
-		fmt.Printf("Unknown command: %s\n", os.Args[1])
+		args = args[2:]
+	}
+	if len(args) == 0 {
 		printUsage()
 		os.Exit(1)
+	}
+
+	// One grammar, no exceptions: <noun> <verb> [target].
+	noun, verb, rest := args[0], "", args[1:]
+	if len(args) > 1 {
+		verb, rest = args[1], args[2:]
+	}
+
+	switch noun {
+	case "version", "-v", "--version":
+		fmt.Printf("irgo %s\n", version)
+		if r := projectReplacement(); r != "" {
+			fmt.Printf("  running: %s\n", r)
+		}
+	case "help", "-h", "--help":
+		// `irgo help`, `irgo help app`, `irgo help app run` — the same grammar
+		// as the commands themselves.
+		if hasFlag(args[1:], "--json") {
+			printCommandsJSON()
+			break
+		}
+		switch len(args) {
+		case 1:
+			printUsage()
+		case 2:
+			printCommandHelp(args[1], "")
+		default:
+			printCommandHelp(args[1], args[2])
+		}
+	default:
+		var handled bool
+		err, handled = route(noun, verb, rest)
+		if !handled {
+			if verbs, ok := nounVerbs[noun]; ok {
+				if verb == "" {
+					err = fmt.Errorf("usage: irgo %s <%s>", noun, strings.Join(verbs, "|"))
+				} else {
+					err = fmt.Errorf("unknown command: irgo %s %s\n  %s accepts: %s",
+						noun, verb, noun, strings.Join(verbs, ", "))
+				}
+			} else if now, moved := renamed[noun]; moved {
+				err = fmt.Errorf("`irgo %s` was removed — it is now `irgo %s`", noun, now)
+			} else {
+				fmt.Printf("Unknown command: %s\n", noun)
+				printUsage()
+				os.Exit(1)
+			}
+		}
 	}
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
-	}
-}
-
-func printUsage() {
-	fmt.Println(`irgo - Hypermedia framework for mobile and desktop apps
-
-Usage:
-  irgo <command> [arguments]
-
-Commands:
-  new <name>       Create a new irgo project
-  dev              Run development server with hot reload
-  serve            Run server without file watching
-  build <target>   Build for mobile/desktop (ios, android, desktop, or all)
-  run <platform>   Build and run on simulator or desktop
-  templ            Generate templ files
-  test             Run tests
-  install-tools    Install required dev tools (gomobile, templ, air)
-  version          Print version information
-  help [command]   Show help for a command
-
-Examples:
-  irgo new myapp         Create a new project
-  irgo dev               Start dev server with hot reload
-  irgo run ios           Build and run on iOS Simulator
-  irgo run ios --dev     Hot-reload mode (connects to dev server)
-  irgo run android       Build and run on Android Emulator
-  irgo run android --dev Hot-reload mode (connects to dev server)
-  irgo run desktop       Run as desktop app
-  irgo run desktop --dev Desktop app with devtools enabled
-  irgo build ios         Build iOS framework only
-  irgo build desktop     Build desktop app for current platform`)
-}
-
-func printCommandHelp(cmd string) {
-	switch cmd {
-	case "new":
-		fmt.Println(`irgo new - Create a new irgo project
-
-Usage:
-  irgo new <project-name>
-  irgo new .              Initialize in current directory
-
-Creates a new project with:
-  - main.go           App entry point
-  - handlers/         Route handlers
-  - templates/        Templ templates
-  - static/           CSS and JS assets
-  - dev.sh            Development script
-  - Makefile          Build targets`)
-
-	case "dev":
-		fmt.Println(`irgo dev - Run development server with hot reload
-
-Usage:
-  irgo dev
-
-Starts:
-  - Air for Go hot reloading
-  - Templ file watcher
-  - Tailwind CSS watcher (if configured)
-
-Server runs at http://localhost:8080`)
-
-	case "build":
-		fmt.Println(`irgo build - Build for mobile and desktop platforms
-
-Usage:
-  irgo build ios             Build iOS framework (.xcframework)
-  irgo build android         Build Android library (.aar)
-  irgo build desktop         Build desktop app for current platform
-  irgo build desktop macos   Build desktop app for macOS
-  irgo build desktop windows Build desktop app for Windows
-  irgo build desktop linux   Build desktop app for Linux
-  irgo build all             Build all mobile platforms
-
-Requirements:
-  - iOS: Xcode and gomobile
-  - Android: Android SDK and gomobile
-  - Desktop: CGO enabled (C compiler required)
-    - macOS: Xcode Command Line Tools
-    - Windows: MinGW-w64 or similar
-    - Linux: GCC and WebKit2GTK dev packages
-
-Output:
-  - iOS: build/ios/Irgo.xcframework
-  - Android: build/android/irgo.aar
-  - Desktop macOS: build/desktop/macos/<app>.app
-  - Desktop Windows: build/desktop/windows/<app>.exe
-  - Desktop Linux: build/desktop/linux/<app>`)
-
-	case "templ":
-		fmt.Println(`irgo templ - Generate templ files
-
-Usage:
-  irgo templ
-
-Runs 'templ generate' to compile .templ files to Go code.`)
-
-	case "run":
-		fmt.Println(`irgo run - Build and run on simulator or desktop
-
-Usage:
-  irgo run ios              Build and run on iOS Simulator
-  irgo run ios --dev        Run iOS with hot-reload (connects to dev server)
-  irgo run android          Build and run on Android Emulator
-  irgo run android --dev    Run Android with hot-reload (connects to dev server)
-  irgo run desktop          Run as desktop app
-  irgo run desktop --dev    Run desktop app with devtools enabled
-
-Flags:
-  --dev, -d    Development mode.
-               - Mobile: Connects to the dev server for hot-reload
-                 (iOS Simulator: localhost:8080, Android Emulator: 10.0.2.2:8080)
-               - Desktop: Enables browser devtools in webview
-
-Requirements:
-  - iOS: Xcode with iOS Simulator
-  - Android: Android Studio with emulator
-  - Desktop: CGO enabled (see 'irgo help build' for details)
-
-Mobile standard mode (without --dev):
-  1. Builds the Go framework with gomobile
-  2. Builds the native app project
-  3. Installs and launches on simulator/emulator
-
-Mobile dev mode (with --dev):
-  1. Starts the dev server with hot reload (air on localhost:8080)
-  2. Builds the gomobile framework/AAR only if it doesn't exist yet
-     (delete build/ios/Irgo.xcframework or android/Example/app/libs/irgo.aar
-     to force a rebuild - the native app still links against it)
-  3. Builds, installs and launches the native app on the simulator/emulator
-  4. The app loads its UI from the dev server, so Go code changes
-     are reflected instantly without rebuilding the native app
-
-Desktop mode:
-  1. Starts local HTTP server on auto-selected port
-  2. Opens native webview window pointing to localhost
-  3. Closes server when window is closed`)
-
-	default:
-		fmt.Printf("Unknown command: %s\n", cmd)
-		printUsage()
 	}
 }

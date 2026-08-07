@@ -730,76 +730,54 @@ func runDevServer() {
 
 ```bash
 # Project creation
-irgo new myapp           # Create new project
-irgo new .               # Initialize in current directory
+irgo project new myapp           # Create new project
+irgo project new .               # Initialize in current directory
 
 # Development
-irgo dev                 # Web dev server with hot reload
-irgo run desktop         # Run as desktop app
-irgo run desktop --dev   # Desktop with devtools
-irgo run ios --dev       # iOS Simulator with hot reload
-irgo run android --dev   # Android Emulator with hot reload
+irgo server dev                 # Web dev server with hot reload
+irgo app run desktop         # Run as desktop app
+irgo app run desktop --dev   # Desktop with devtools
+irgo app run ios --dev       # iOS Simulator with hot reload
+irgo app run android --dev   # Android Emulator with hot reload
 
 # Production builds
-irgo build desktop       # Build desktop for current OS
-irgo build desktop macos # Build macOS .app
-irgo build desktop windows # Build Windows .exe
-irgo build desktop linux # Build Linux binary
-irgo build ios           # Build iOS framework
-irgo build android       # Build Android AAR
+irgo app build desktop       # Build desktop for current OS
+irgo app build desktop macos # Build macOS .app
+irgo app build desktop windows # Build Windows .exe
+irgo app build desktop linux # Build Linux binary
+irgo app build ios           # Build iOS framework
+irgo app build android       # Build Android AAR
 
 # Production run
-irgo run ios             # Build + run iOS
-irgo run android         # Build + run Android
+irgo app run ios             # Build + run iOS
+irgo app run android         # Build + run Android
 
 # Utilities
-irgo templ               # Generate templ files
-irgo install-tools       # Install dev dependencies
+irgo project assets               # Generate templ files
+irgo tools install       # Install dev dependencies
 ```
 
 ## macOS App Bundling
 
-The framework includes scripts for creating macOS `.app` bundles and DMG installers in `build/macos/`:
-
-### Icon Generation
-
-```bash
-# Generate .icns from a 1024x1024 PNG
-./build/macos/generate-icns.sh static/icon.png build/macos/icon.icns
-```
-
-### App Bundle Creation
+`irgo app package macos` does all of it — bundle, icon, Info.plist, entitlements,
+signing, notarization and DMG:
 
 ```bash
-# Create a .app bundle
-./build/macos/create-app-bundle.sh \
-  --binary dist/myapp \
-  --name "My App" \
-  --bundle-id com.example.myapp \
-  --icon build/macos/icon.icns \
-  --static static \
-  --version 1.2.3
+irgo app package macos                     # unsigned .app, for local testing
+irgo app package macos --dmg               # and a DMG
+irgo app package macos --identity "Developer ID Application: You (TEAMID)" \
+  --notarize --apple-id you@example.com --team TEAMID --password app-specific
 ```
 
-### DMG Creation
+`irgo app package setup --check` reports which values are set, where each came
+from, and the environment variable to use in CI.
 
-```bash
-# Create a DMG installer (optionally signed and notarized)
-./build/macos/create-dmg.sh \
-  --app "dist/My App.app" \
-  --name "My App" \
-  --version 1.2.3
-
-# With code signing (set environment variables)
-export APPLE_DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
-export APPLE_NOTARY_PROFILE="my-notary-profile"
-./build/macos/create-dmg.sh --app "dist/My App.app" --name "My App"
-```
-
-### Build Configuration Files
-
-- `build/macos/Info.plist.tmpl` - App bundle metadata template
-- `build/macos/entitlements.plist` - Code signing entitlements for hardened runtime
+This replaced a set of shell scripts under `build/macos/`. They are gone: they
+were macOS-only, had to be invoked in the right order with the right flags, and
+had already drifted — the Go path had dropped the `network.client` and
+`network.server` entitlements the scripts carried, which an irgo app needs
+because it serves HTTP to its own WebView. A single implementation cannot
+disagree with itself.
 
 ## Build Tags
 
@@ -813,7 +791,7 @@ The framework uses Go build tags to separate platform-specific code:
 When building:
 - `go build .` → uses `main.go` (mobile/web)
 - `go build -tags desktop .` → uses `main_desktop.go` (desktop)
-- `irgo run desktop` → automatically adds `-tags desktop`
+- `irgo app run desktop` → automatically adds `-tags desktop`
 
 ## Dependencies
 

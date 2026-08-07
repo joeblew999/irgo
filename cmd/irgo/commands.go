@@ -1,795 +1,384 @@
+// What the CLI can do, declared once.
+//
+// This used to be three things that had to agree: a dispatch switch, a
+// hand-written index, and a page of prose per command. They did not agree.
+// `app build cloudflare` shipped working and undocumented; `--avd` was
+// documented after it was removed; nine flags existed that no help mentioned;
+// the README described commands the CLI no longer had.
+//
+// So the facts live here and everything else is derived. help.go renders them,
+// cmd_route.go dispatches against them, and the generated README table is the
+// same data again. A command that is not in this file has no help, no index
+// entry and no README row — and a test fails rather than shipping any of it.
+//
+// The prose survives as notes. It is the part that cannot be derived, and it
+// is the part worth reading: why --avd was removed, why shared state cannot
+// live in a Go variable on Workers, why wrangler needs Node.
 package main
 
-import (
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-)
-
-// runDev starts the development server with hot reload
-func runDev() error {
-	// Check for required tools
-	if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
-		return err
-	}
-	if err := checkTool("templ", "go install github.com/a-h/templ/cmd/templ@latest"); err != nil {
-		return err
-	}
-
-	// Check if dev.sh exists (user project) or we're in framework
-	if _, err := os.Stat("dev.sh"); err == nil {
-		// User project - run dev.sh
-		return runCommand("./dev.sh")
-	}
-
-	// Framework development - run air directly
-	fmt.Println("Starting development server...")
-
-	// Generate templ files first
-	if err := runTempl(); err != nil {
-		fmt.Printf("Warning: templ generate failed: %v\n", err)
-	}
-
-	return runCommand("air")
+// command is one noun-verb pair.
+type command struct {
+	summary string      // one line: the index, the README, the title
+	targets []string    // platform targets, shown as <a|b|c>
+	args    string      // index hint when it takes no targets
+	usage   [][2]string // {form, what it does}
+	flags   [][2]string // {spec, what it does}
+	notes   string      // the reasoning, rendered last
 }
 
-// runServe starts the server without file watching
-func runServe() error {
-	// Check if main.go exists
-	if _, err := os.Stat("main.go"); err == nil {
-		// User project
-		return runCommand("go", "run", ".", "serve")
-	}
-
-	// Framework - run example
-	if _, err := os.Stat("examples/todo/main.go"); err == nil {
-		return runCommand("go", "run", "./examples/todo", "serve")
-	}
-
-	return fmt.Errorf("no main.go found - are you in an irgo project?")
-}
-
-// runBuild builds for mobile platforms
-func runBuild(target string) error {
-	// Check for gomobile
-	if err := checkTool("gomobile", "go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init"); err != nil {
-		return err
-	}
-
-	// Determine module path
-	modulePath, err := getModulePath()
-	if err != nil {
-		return fmt.Errorf("could not determine module path: %w", err)
-	}
-
-	// Create build directory
-	if err := os.MkdirAll("build", 0755); err != nil {
-		return fmt.Errorf("creating build directory: %w", err)
-	}
-
-	switch target {
-	case "ios":
-		return buildIOS(modulePath)
-	case "android":
-		return buildAndroid(modulePath)
-	case "all":
-		if err := buildIOS(modulePath); err != nil {
-			return err
-		}
-		return buildAndroid(modulePath)
-	default:
-		return fmt.Errorf("unknown build target: %s (use ios, android, or all)", target)
-	}
-}
-
-func buildIOS(modulePath string) error {
-	fmt.Println("Building iOS framework...")
-
-	outPath := "build/ios/Irgo.xcframework"
-	if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
-		return err
-	}
-
-	// Remove existing framework
-	os.RemoveAll(outPath)
-
-	// Ensure go.work and gomobile setup
-	if err := ensureMobileBuildSetup(); err != nil {
-		return fmt.Errorf("mobile build setup failed: %w", err)
-	}
-
-	mobilePackage := modulePath + "/mobile"
-	if err := runGomobileCommand("bind", "-target", "ios", "-o", outPath, mobilePackage); err != nil {
-		return fmt.Errorf("gomobile bind failed: %w", err)
-	}
-	writeArtifactStamp("build/ios")
-
-	fmt.Printf("iOS framework built: %s\n", outPath)
-	return nil
-}
-
-// Artifact version stamps: dev mode reuses previously built frameworks/AARs,
-// but a framework built by an older irgo exposes an older bridge API and the
-// native shells fail to compile against it. The stamp forces a rebuild after
-// an irgo upgrade.
-
-func writeArtifactStamp(dir string) {
-	_ = os.WriteFile(filepath.Join(dir, ".irgo-version"), []byte(version), 0644)
-}
-
-func artifactUpToDate(artifact, stampDir string) bool {
-	if _, err := os.Stat(artifact); err != nil {
-		return false
-	}
-	data, err := os.ReadFile(filepath.Join(stampDir, ".irgo-version"))
-	return err == nil && strings.TrimSpace(string(data)) == version
-}
-
-func buildAndroid(modulePath string) error {
-	fmt.Println("Building Android AAR...")
-
-	outPath := "build/android/irgo.aar"
-	if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
-		return err
-	}
-
-	// Remove existing AAR
-	os.Remove(outPath)
-
-	// Ensure go.work and gomobile setup
-	if err := ensureMobileBuildSetup(); err != nil {
-		return fmt.Errorf("mobile build setup failed: %w", err)
-	}
-
-	mobilePackage := modulePath + "/mobile"
-	if err := runGomobileCommand("bind", "-target", "android", "-o", outPath, mobilePackage); err != nil {
-		return fmt.Errorf("gomobile bind failed: %w", err)
-	}
-	writeArtifactStamp("build/android")
-
-	fmt.Printf("Android AAR built: %s\n", outPath)
-
-	// Copy to Example project if it exists
-	exampleLibsPath := "android/Example/app/libs/irgo.aar"
-	if _, err := os.Stat("android/Example"); err == nil {
-		os.MkdirAll(filepath.Dir(exampleLibsPath), 0755)
-		if err := copyFile(outPath, exampleLibsPath); err != nil {
-			fmt.Printf("Warning: could not copy to example project: %v\n", err)
-		} else {
-			fmt.Printf("Copied to: %s\n", exampleLibsPath)
-		}
-	}
-
-	return nil
-}
-
-// runTempl generates templ files
-func runTempl() error {
-	if err := checkTool("templ", "go install github.com/a-h/templ/cmd/templ@latest"); err != nil {
-		return err
-	}
-
-	fmt.Println("Generating templ files...")
-	return runCommand("templ", "generate")
-}
-
-// runTest runs the test suite
-func runTest() error {
-	fmt.Println("Running tests...")
-	return runCommand("go", "test", "-v", "./...")
-}
-
-// installTools installs required development tools
-func installTools() error {
-	fmt.Println("Installing irgo development tools...")
-	fmt.Println()
-
-	tools := []struct {
-		name string
-		pkg  string
-	}{
-		{"templ", "github.com/a-h/templ/cmd/templ@latest"},
-		{"air", "github.com/air-verse/air@latest"},
-		{"gomobile", "golang.org/x/mobile/cmd/gomobile@latest"},
-	}
-
-	for _, tool := range tools {
-		if _, err := exec.LookPath(tool.name); err != nil {
-			fmt.Printf("Installing %s...\n", tool.name)
-			cmd := exec.Command("go", "install", tool.pkg)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("  Warning: failed to install %s: %v\n", tool.name, err)
-			} else {
-				fmt.Printf("  %s: installed\n", tool.name)
-			}
-		} else {
-			fmt.Printf("  %s: already installed\n", tool.name)
-		}
-	}
-
-	// Initialize gomobile
-	fmt.Println()
-	fmt.Println("Initializing gomobile...")
-	if err := runCommand("gomobile", "init"); err != nil {
-		fmt.Printf("Warning: gomobile init failed: %v\n", err)
-		fmt.Println("You may need to run 'gomobile init' manually after installing Android NDK")
-	}
-
-	fmt.Println()
-	fmt.Println("Tools installed! You may also want to install:")
-	fmt.Println("  - Xcode: from App Store (for iOS development)")
-	fmt.Println("  - Android Studio: https://developer.android.com/studio (for Android development)")
-
-	return nil
-}
-
-// runMobile builds and runs on mobile simulator
-func runMobile(platform string, devMode bool) error {
-	switch platform {
-	case "ios":
-		return runIOS(devMode)
-	case "android":
-		return runAndroid(devMode)
-	default:
-		return fmt.Errorf("unknown platform: %s (use ios or android)", platform)
-	}
-}
-
-func runIOS(devMode bool) error {
-	// Check for Xcode
-	if err := checkTool("xcodebuild", "Install Xcode from the App Store"); err != nil {
-		return err
-	}
-	if err := checkTool("xcrun", "Install Xcode Command Line Tools: xcode-select --install"); err != nil {
-		return err
-	}
-
-	// Check if ios/Example project exists
-	iosProjectPath := "ios/Example"
-	if _, err := os.Stat(iosProjectPath); os.IsNotExist(err) {
-		return fmt.Errorf("iOS project not found at %s\n\nTo set up iOS development:\n"+
-			"  1. Create an Xcode project at ios/Example/\n"+
-			"  2. Add build/ios/Irgo.xcframework to the project\n"+
-			"  3. Copy ios/Irgo/*.swift files to your project\n"+
-			"  4. Set IrgoWebViewController as the root view controller", iosProjectPath)
-	}
-
-	// Dev server URL for simulator to connect to
-	devServerURL := "http://localhost:8080"
-	var devServerCmd *exec.Cmd
-
-	if devMode {
-		fmt.Println("Running in DEV MODE with hot reload...")
-		fmt.Println()
-
-		// Check for required dev tools
-		if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
-			return err
-		}
-
-		// Dev mode serves the app from localhost:8080, so a fresh gomobile
-		// build isn't needed. The Xcode project still links against
-		// build/ios/Irgo.xcframework, so build it only when missing or built
-		// by a different irgo version (stale bridge API).
-		if !artifactUpToDate("build/ios/Irgo.xcframework", "build/ios") {
-			modulePath, err := getModulePath()
-			if err != nil {
-				return fmt.Errorf("could not determine module path: %w", err)
-			}
-
-			fmt.Println("Building iOS framework (missing or built by another irgo version)...")
-			if err := buildIOS(modulePath); err != nil {
-				return err
-			}
-		} else {
-			fmt.Println("Using existing build/ios/Irgo.xcframework (delete it to force a rebuild)")
-		}
-
-		// Update Info.plist to enable dev mode
-		infoPlistPath := filepath.Join(iosProjectPath, "Example/Info.plist")
-		if err := setDevServerInPlist(infoPlistPath, devServerURL); err != nil {
-			fmt.Printf("Warning: could not set dev server in Info.plist: %v\n", err)
-		}
-
-		// Start dev server in background
-		fmt.Printf("Starting dev server at %s...\n", devServerURL)
-		devServerCmd = exec.Command("air")
-		devServerCmd.Stdout = os.Stdout
-		devServerCmd.Stderr = os.Stderr
-		if err := devServerCmd.Start(); err != nil {
-			return fmt.Errorf("failed to start dev server: %w", err)
-		}
-
-		// Give server time to start
-		fmt.Println("Waiting for dev server to start...")
-		exec.Command("sleep", "3").Run()
-
-	} else {
-		// Production mode: build the framework
-		modulePath, err := getModulePath()
-		if err != nil {
-			return fmt.Errorf("could not determine module path: %w", err)
-		}
-
-		fmt.Println("Building iOS framework...")
-		if err := buildIOS(modulePath); err != nil {
-			return err
-		}
-
-		// Clear dev server from Info.plist for production builds
-		infoPlistPath := filepath.Join(iosProjectPath, "Example/Info.plist")
-		clearDevServerInPlist(infoPlistPath)
-	}
-
-	// Find the workspace or project
-	var buildCmd []string
-	// Use generic simulator destination to work with any available iPhone
-	destination := "generic/platform=iOS Simulator"
-	if _, err := os.Stat(filepath.Join(iosProjectPath, "Example.xcworkspace")); err == nil {
-		buildCmd = []string{"xcodebuild", "-workspace", filepath.Join(iosProjectPath, "Example.xcworkspace"),
-			"-scheme", "Example", "-destination", destination,
-			"-derivedDataPath", "build/ios/DerivedData"}
-	} else if _, err := os.Stat(filepath.Join(iosProjectPath, "Example.xcodeproj")); err == nil {
-		buildCmd = []string{"xcodebuild", "-project", filepath.Join(iosProjectPath, "Example.xcodeproj"),
-			"-scheme", "Example", "-destination", destination,
-			"-derivedDataPath", "build/ios/DerivedData"}
-	} else {
-		return fmt.Errorf("no Xcode project found in %s", iosProjectPath)
-	}
-
-	fmt.Println("Building iOS app...")
-	if err := runCommand(buildCmd[0], buildCmd[1:]...); err != nil {
-		if devServerCmd != nil {
-			devServerCmd.Process.Kill()
-		}
-		return fmt.Errorf("xcodebuild failed: %w", err)
-	}
-
-	// Find the built app
-	appPath := "build/ios/DerivedData/Build/Products/Debug-iphonesimulator/Example.app"
-	if _, err := os.Stat(appPath); os.IsNotExist(err) {
-		if devServerCmd != nil {
-			devServerCmd.Process.Kill()
-		}
-		return fmt.Errorf("built app not found at %s", appPath)
-	}
-
-	// Find an available iPhone simulator
-	simulatorName := findAvailableIPhoneSimulator()
-	if simulatorName == "" {
-		simulatorName = "iPhone 15" // Fallback
-	}
-
-	// Boot simulator if needed
-	fmt.Printf("Launching iOS Simulator (%s)...\n", simulatorName)
-	runCommand("xcrun", "simctl", "boot", simulatorName) // Ignore error if already booted
-
-	// Open Simulator app
-	runCommand("open", "-a", "Simulator")
-
-	// Install app
-	fmt.Println("Installing app...")
-	if err := runCommand("xcrun", "simctl", "install", "booted", appPath); err != nil {
-		if devServerCmd != nil {
-			devServerCmd.Process.Kill()
-		}
-		return fmt.Errorf("failed to install app: %w", err)
-	}
-
-	// Launch app
-	fmt.Println("Launching app...")
-	bundleID := "com.irgo.Example" // Default bundle ID
-	if err := runCommand("xcrun", "simctl", "launch", "booted", bundleID); err != nil {
-		if devServerCmd != nil {
-			devServerCmd.Process.Kill()
-		}
-		return fmt.Errorf("failed to launch app: %w", err)
-	}
-
-	if devMode {
-		fmt.Println()
-		fmt.Println("===========================================")
-		fmt.Println("iOS app running in DEV MODE with hot reload!")
-		fmt.Printf("Dev server: %s\n", devServerURL)
-		fmt.Println("Edit your Go code and see changes instantly.")
-		fmt.Println("Press Ctrl+C to stop.")
-		fmt.Println("===========================================")
-		fmt.Println()
-
-		// Wait for dev server to exit (user presses Ctrl+C)
-		devServerCmd.Wait()
-	} else {
-		fmt.Println("\nApp running on iOS Simulator!")
-	}
-
-	return nil
-}
-
-// findAvailableIPhoneSimulator finds an available iPhone simulator
-func findAvailableIPhoneSimulator() string {
-	// Get list of available simulators
-	out, err := exec.Command("xcrun", "simctl", "list", "devices", "available", "-j").Output()
-	if err != nil {
-		return ""
-	}
-
-	// Parse JSON to find an iPhone
-	// Look for common iPhone names in priority order
-	preferences := []string{"iPhone 15 Pro", "iPhone 15", "iPhone 17 Pro", "iPhone 17", "iPhone SE"}
-	outStr := string(out)
-	for _, name := range preferences {
-		if strings.Contains(outStr, name) {
-			return name
-		}
-	}
-
-	return ""
-}
-
-func runAndroid(devMode bool) error {
-	// Check for Android tools
-	if err := checkTool("adb", "Install Android SDK and add platform-tools to PATH"); err != nil {
-		return err
-	}
-
-	// Check if android/Example project exists
-	androidProjectPath := "android/Example"
-	if _, err := os.Stat(androidProjectPath); os.IsNotExist(err) {
-		return fmt.Errorf("Android project not found at %s\n\nTo set up Android development:\n"+
-			"  1. Create an Android Studio project at android/Example/\n"+
-			"  2. Copy build/android/irgo.aar to app/libs/\n"+
-			"  3. Add implementation files('libs/irgo.aar') to build.gradle\n"+
-			"  4. Copy android/app/src/main/kotlin/com/irgo/*.kt to your project", androidProjectPath)
-	}
-
-	// Dev server URL as seen from the emulator (10.0.2.2 is the host loopback)
-	devServerURL := "http://10.0.2.2:8080"
-	var devServerCmd *exec.Cmd
-
-	if devMode {
-		fmt.Println("Running in DEV MODE with hot reload...")
-		fmt.Println()
-
-		// Check for required dev tools
-		if err := checkTool("air", "go install github.com/air-verse/air@latest"); err != nil {
-			return err
-		}
-
-		// Dev mode serves the app from the dev server, so a fresh gomobile
-		// build isn't needed. The Gradle project still links against
-		// app/libs/irgo.aar, so build it only when missing or built by a
-		// different irgo version (stale bridge API).
-		aarPath := filepath.Join(androidProjectPath, "app/libs/irgo.aar")
-		if !artifactUpToDate(aarPath, "build/android") {
-			modulePath, err := getModulePath()
-			if err != nil {
-				return fmt.Errorf("could not determine module path: %w", err)
-			}
-
-			fmt.Println("Building Android AAR (missing or built by another irgo version)...")
-			if err := buildAndroid(modulePath); err != nil {
-				return err
-			}
-		} else {
-			fmt.Printf("Using existing %s (delete it to force a rebuild)\n", aarPath)
-		}
-
-		// Start dev server in background
-		fmt.Println("Starting dev server at http://localhost:8080...")
-		devServerCmd = exec.Command("air")
-		devServerCmd.Stdout = os.Stdout
-		devServerCmd.Stderr = os.Stderr
-		if err := devServerCmd.Start(); err != nil {
-			return fmt.Errorf("failed to start dev server: %w", err)
-		}
-
-		// Give server time to start
-		fmt.Println("Waiting for dev server to start...")
-		exec.Command("sleep", "3").Run()
-	} else {
-		// Production mode: build the AAR
-		modulePath, err := getModulePath()
-		if err != nil {
-			return fmt.Errorf("could not determine module path: %w", err)
-		}
-
-		fmt.Println("Building Android AAR...")
-		if err := buildAndroid(modulePath); err != nil {
-			return err
-		}
-	}
-
-	killDevServer := func() {
-		if devServerCmd != nil {
-			devServerCmd.Process.Kill()
-		}
-	}
-
-	// Build with Gradle
-	gradlew := filepath.Join(androidProjectPath, "gradlew")
-	if _, err := os.Stat(gradlew); os.IsNotExist(err) {
-		killDevServer()
-		return fmt.Errorf("gradlew not found in %s", androidProjectPath)
-	}
-
-	fmt.Println("Building Android app...")
-	cmd := exec.Command(gradlew, "assembleDebug")
-	cmd.Dir = androidProjectPath
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		killDevServer()
-		return fmt.Errorf("gradle build failed: %w", err)
-	}
-
-	// Find the built APK
-	apkPath := filepath.Join(androidProjectPath, "app/build/outputs/apk/debug/app-debug.apk")
-	if _, err := os.Stat(apkPath); os.IsNotExist(err) {
-		killDevServer()
-		return fmt.Errorf("built APK not found at %s", apkPath)
-	}
-
-	// Check for running emulator
-	fmt.Println("Installing on Android device/emulator...")
-	if err := runCommand("adb", "install", "-r", apkPath); err != nil {
-		killDevServer()
-		return fmt.Errorf("failed to install APK (is an emulator running?): %w", err)
-	}
-
-	// Launch app
-	fmt.Println("Launching app...")
-	packageName := "com.irgo.example"
-	activityName := ".MainActivity"
-	launchArgs := []string{"shell", "am", "start", "-n", packageName + "/" + packageName + activityName}
-	if devMode {
-		// IrgoActivity reads the irgoDevServer extra and loads that URL
-		// instead of the embedded bridge.
-		launchArgs = append(launchArgs, "-e", "irgoDevServer", devServerURL)
-	}
-	if err := runCommand("adb", launchArgs...); err != nil {
-		killDevServer()
-		return fmt.Errorf("failed to launch app: %w", err)
-	}
-
-	if devMode {
-		fmt.Println()
-		fmt.Println("===========================================")
-		fmt.Println("Android app running in DEV MODE with hot reload!")
-		fmt.Printf("Dev server: %s (localhost:8080 on this machine)\n", devServerURL)
-		fmt.Println("Edit your Go code and see changes instantly.")
-		fmt.Println("Press Ctrl+C to stop.")
-		fmt.Println("===========================================")
-		fmt.Println()
-
-		// Wait for dev server to exit (user presses Ctrl+C)
-		devServerCmd.Wait()
-	} else {
-		fmt.Println("\nApp running on Android!")
-	}
-
-	return nil
-}
-
-// Helper functions
-
-func checkTool(name, installCmd string) error {
-	_, err := exec.LookPath(name)
-	if err != nil {
-		return fmt.Errorf("%s not found. Install with: %s", name, installCmd)
-	}
-	return nil
-}
-
-func runCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
-}
-
-func getModulePath() (string, error) {
-	// Try to read from go.mod
-	data, err := os.ReadFile("go.mod")
-	if err != nil {
-		return "", err
-	}
-
-	// Parse module line
-	lines := string(data)
-	for _, line := range splitLines(lines) {
-		if len(line) > 7 && line[:7] == "module " {
-			return line[7:], nil
-		}
-	}
-
-	return "", fmt.Errorf("module directive not found in go.mod")
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			line := s[start:i]
-			if len(line) > 0 && line[len(line)-1] == '\r' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
-}
-
-func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, data, 0644)
-}
-
-// ensureMobileBuildSetup ensures the go.work file and x/mobile are set up correctly
-func ensureMobileBuildSetup() error {
-	goVersion := getGoVersion()
-
-	// Check if go.work exists with x/mobile
-	if _, err := os.Stat("go.work"); os.IsNotExist(err) {
-		// Get irgo path for replacement
-		irgoPath := getIrgoPath()
-
-		// Clone x/mobile if not already present
-		mobileDir := filepath.Join(os.TempDir(), "golang-mobile")
-		if _, err := os.Stat(mobileDir); os.IsNotExist(err) {
-			fmt.Println("Cloning golang.org/x/mobile...")
-			cmd := exec.Command("git", "clone", "--depth", "1", "https://github.com/golang/mobile", mobileDir)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to clone x/mobile: %w", err)
-			}
-		}
-
-		// Update go.mod in cloned repo to use current Go version
-		mobileModPath := filepath.Join(mobileDir, "go.mod")
-		if data, err := os.ReadFile(mobileModPath); err == nil {
-			content := string(data)
-			// Replace any go 1.x.x version with current version
-			lines := splitLines(content)
-			for i, line := range lines {
-				if len(line) > 3 && line[:3] == "go " {
-					lines[i] = "go " + goVersion
-					break
-				}
-			}
-			os.WriteFile(mobileModPath, []byte(strings.Join(lines, "\n")), 0644)
-		}
-
-		// Create go.work file
-		workContent := fmt.Sprintf("go %s\n\nuse (\n\t.\n", goVersion)
-		if irgoPath != "" {
-			workContent += fmt.Sprintf("\t%s\n", irgoPath)
-		}
-		workContent += fmt.Sprintf("\t%s\n)\n", mobileDir)
-
-		if err := os.WriteFile("go.work", []byte(workContent), 0644); err != nil {
-			return fmt.Errorf("failed to create go.work: %w", err)
-		}
-		fmt.Println("Created go.work for mobile build")
-
-		// Install gomobile and gobind from local source
-		fmt.Println("Installing gomobile from source...")
-		cmd := exec.Command("go", "install", "./cmd/gomobile")
-		cmd.Dir = mobileDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install gomobile: %w", err)
-		}
-
-		cmd = exec.Command("go", "install", "./cmd/gobind")
-		cmd.Dir = mobileDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install gobind: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// runGomobileCommand runs a gomobile command with the correct GOTOOLCHAIN
-func runGomobileCommand(args ...string) error {
-	goVersion := getGoVersion()
-
-	cmd := exec.Command("gomobile", args...)
-	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=go"+goVersion)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
-}
-
-// setDevServerInPlist adds IRGO_DEV_SERVER to Info.plist
-func setDevServerInPlist(plistPath, devServerURL string) error {
-	data, err := os.ReadFile(plistPath)
-	if err != nil {
-		return err
-	}
-
-	content := string(data)
-
-	// Check if IRGO_DEV_SERVER already exists
-	if strings.Contains(content, "IRGO_DEV_SERVER") {
-		// Update existing value
-		// Find and replace the string value after IRGO_DEV_SERVER key
-		start := strings.Index(content, "<key>IRGO_DEV_SERVER</key>")
-		if start != -1 {
-			stringStart := strings.Index(content[start:], "<string>")
-			stringEnd := strings.Index(content[start:], "</string>")
-			if stringStart != -1 && stringEnd != -1 {
-				newContent := content[:start+stringStart+8] + devServerURL + content[start+stringEnd:]
-				return os.WriteFile(plistPath, []byte(newContent), 0644)
-			}
-		}
-	}
-
-	// Add new key-value pair before </dict>
-	insertPoint := strings.LastIndex(content, "</dict>")
-	if insertPoint == -1 {
-		return fmt.Errorf("could not find </dict> in Info.plist")
-	}
-
-	newEntry := fmt.Sprintf("\t<key>IRGO_DEV_SERVER</key>\n\t<string>%s</string>\n", devServerURL)
-	newContent := content[:insertPoint] + newEntry + content[insertPoint:]
-
-	return os.WriteFile(plistPath, []byte(newContent), 0644)
-}
-
-// clearDevServerInPlist removes IRGO_DEV_SERVER from Info.plist
-func clearDevServerInPlist(plistPath string) {
-	data, err := os.ReadFile(plistPath)
-	if err != nil {
-		return
-	}
-
-	content := string(data)
-
-	// Find and remove IRGO_DEV_SERVER entry
-	keyStart := strings.Index(content, "<key>IRGO_DEV_SERVER</key>")
-	if keyStart == -1 {
-		return
-	}
-
-	// Find the end of the string value
-	valueEnd := strings.Index(content[keyStart:], "</string>")
-	if valueEnd == -1 {
-		return
-	}
-
-	// Remove the entire entry including newlines
-	entryEnd := keyStart + valueEnd + len("</string>")
-
-	// Look for trailing newline
-	if entryEnd < len(content) && content[entryEnd] == '\n' {
-		entryEnd++
-	}
-
-	// Look for leading whitespace/newline
-	entryStart := keyStart
-	for entryStart > 0 && (content[entryStart-1] == '\t' || content[entryStart-1] == ' ') {
-		entryStart--
-	}
-
-	newContent := content[:entryStart] + content[entryEnd:]
-	os.WriteFile(plistPath, []byte(newContent), 0644)
+// commands is keyed "noun verb".
+var commands = map[string]command{
+
+	// ---- project -----------------------------------------------------------
+
+	"project new": {
+		summary: "Create a project, or regenerate this one",
+		args:    "<name>",
+		usage: [][2]string{
+			{"<name>", "Create ./<name>"},
+			{".", "Generate into the current directory"},
+			{"--check", "Report what regenerating would change, write nothing"},
+		},
+		notes: `What it writes:
+  main.go, handlers/, templates/, static/   your app
+  ios/, android/                            native shells
+  .github/workflows/                        CI for every target
+  go.mod                                    pins the CLI via a tool directive
+
+Files that are yours are seeded once and never overwritten: go.mod, README.md,
+irgo.package.toml and appicon.png. Everything else is regenerated, so fix the
+template rather than the generated copy.
+
+--check exits non-zero if regenerating would change a file. That asserts the
+repo IS unmodified CLI output, which is true of example repos and not of a real
+app — for those, use irgo project upgrade --check.`,
+	},
+
+	"project upgrade": {
+		summary: "Take framework updates, leaving your code alone",
+		args:    "[--check|--diff|--force]",
+		usage: [][2]string{
+			{"", "Refresh framework-owned scaffolding"},
+			{"--check", "Name what an upgrade would overwrite, change nothing"},
+			{"--diff", "Also show what the template holds for your files"},
+			{"--force", "Overwrite your files too (destructive)"},
+		},
+		notes: `Framework-owned (replaced): ios/, android/, mobile/, .air.toml, .gitignore,
+CLAUDE.md, AGENTS.md, and the generated workflows.
+Yours (never rewritten):    main.go, handlers/, templates/, static/, README.md,
+                            go.mod, irgo.package.toml, appicon.png.
+
+Anything overwritten is copied to <file>.irgo-bak first.
+
+--check is the CI-friendly form: it exits non-zero when a framework-owned file
+has been hand-edited, i.e. when an upgrade is about to discard that edit.`,
+	},
+
+	"project pin": {
+		summary: "Choose which irgo this project builds against",
+		args:    "[local|release|<version>]",
+		usage: [][2]string{
+			{"", "Show the current pin and where it came from"},
+			{"local [dir]", "Build a checkout you are editing"},
+			{"release", "Track the published module"},
+			{"<version>", "A published version, e.g. v0.4.0"},
+			{"<owner>/<repo>@<tag>", "A fork"},
+		},
+		notes: "go.mod is the only pin: `go tool irgo` builds whatever it names, so there is\n" +
+			`nothing installed globally to fall out of step. A pin that does not resolve
+leaves go.mod untouched rather than half-written.
+
+A fork keeps the upstream module path, so the proxy cannot serve it:
+  go env -w GOPRIVATE='github.com/<owner>/*'`,
+	},
+
+	"project ci": {
+		summary: "Scaffold the GitHub Actions workflows",
+		args:    "[--force]",
+		usage: [][2]string{
+			{"", "Write .github/workflows, keeping any that exist"},
+			{"--force", "Regenerate them"},
+		},
+		notes: `Writes build.yml (every target, on the OS each one needs) and release.yml
+(signed store artifacts). Both are generated from the CLI — the desktop matrix,
+the artifact paths and the action versions come from irgo, so they stay correct
+as it changes. Edit the template, not the output.
+
+Two jobs in build.yml are opt-in, off unless the repository sets a variable:
+  IRGO_TOOLCHAIN_ROUNDTRIP=true   install → doctor → build → uninstall, and
+                                  assert the machine comes back clean
+  IRGO_GENERATED_REPO=true        assert the repo still matches project new
+
+The round-trip deletes the Android toolchain to prove the uninstall works, so
+it refuses to run anywhere but a github-hosted runner.`,
+	},
+
+	"project clean": {
+		summary: "Remove generated output",
+		args:    "[--all]",
+		usage: [][2]string{
+			{"", "Generated code and build output"},
+			{"--all", "Also the scaffolded native shells"},
+		},
+		notes: `Removes _templ.go, static/css/output.css, build/, tmp/ and dist/. With --all,
+ios/Example and android/Example go too; they are scaffolded again on the next
+build, which takes a gomobile rebuild.
+
+Nothing you wrote is touched.`,
+	},
+
+	"project config": {
+		summary: "Show or set a setting (signing, stores, version)",
+		args:    "[<key>] [<value>]",
+		usage: [][2]string{
+			{"", "Every setting, its value, and where it came from"},
+			{"<key>", "One setting"},
+			{"<key> <value>", "Set it"},
+		},
+		notes: `Settings live in irgo.package.toml. Precedence: environment variable, then
+irgo.package.local.toml (gitignored), then irgo.package.toml.
+
+Secrets belong in the local file or the environment — irgo.package.toml is
+committed. Values you have to discover rather than type, such as which signing
+teams exist, are reported by irgo tools doctor.`,
+	},
+
+	"project assets": {
+		summary: "Regenerate templ + Tailwind (builds do this already)",
+		usage:   [][2]string{{"", "Write _templ.go and static/css/output.css"}},
+		notes: "Both are gitignored and compiled into the binary, so a plain `go build` needs\n" +
+			`this first; every irgo build and run does it for you.
+
+templ and the Tailwind standalone binary are installed on demand. There is no
+Node, npm or package.json.`,
+	},
+
+	"project test": {
+		summary: "Run the tests",
+		usage:   [][2]string{{"", "Regenerate assets, then go test ./..."}},
+		notes: `Assets first, so tests that render templates see the current ones rather than
+whatever was last on disk.`,
+	},
+
+	// ---- app ---------------------------------------------------------------
+
+	"app build": {
+		summary: "Build it",
+		targets: []string{"ios", "android", "desktop", "cloudflare", "all"},
+		usage: [][2]string{
+			{"ios", "Device framework (Irgo.xcframework)"},
+			{"ios --sim", "Simulator build"},
+			{"ios --device", "Build and sign for a USB device"},
+			{"android", "AAR for the native shell"},
+			{"desktop", "This host"},
+			{"desktop <goos>", "linux, darwin or windows"},
+			{"cloudflare", "A Cloudflare Worker (WASM) in build/worker"},
+			{"all", "Everything this host can produce"},
+		},
+		flags: [][2]string{
+			{"--sim, -s", "Simulator rather than device (iOS)"},
+			{"--device, -D", "A real device (iOS)"},
+			{"--team <id>", "Apple Team ID to sign with"},
+		},
+		notes: `Cloudflare compiles the same router to WebAssembly and serves it from a
+Worker, SSE included. Shared state cannot live in a Go variable there — every
+request gets a fresh runtime — so keep it in a KV, D1 or Durable Object
+binding. Per-connection state within one SSE stream is fine.
+
+Toolchains install themselves: the Android SDK, NDK, JDK and gomobile are
+provisioned on first use. Cross-building is limited by the host — macOS can
+produce macOS and Windows desktop binaries, Linux only Linux. Ask irgo tools
+doctor what this machine can do.`,
+	},
+
+	"app run": {
+		summary: "Build and launch it",
+		targets: []string{"ios", "android", "desktop"},
+		usage: [][2]string{
+			{"ios", "iOS Simulator"},
+			{"ios --device", "A USB-connected iPhone"},
+			{"android", "Android emulator"},
+			{"desktop", "Native desktop window"},
+		},
+		flags: [][2]string{
+			{"--dev, -d", "Hot reload: serve from the dev server on :8080 and reload on save"},
+			{"--device, -D", "A real iPhone rather than the Simulator"},
+			{"--team <id>", "Apple Team ID to sign with"},
+			{"--built, -b", "Desktop: launch the existing build rather than rebuilding"},
+		},
+		notes: `Android uses whatever device or emulator is already connected, and only boots
+its own when nothing is. To run a particular AVD, start it first — there is no
+flag to disagree with what is actually attached.`,
+	},
+
+	"app deploy": {
+		summary: "Build the Worker and put it live",
+		targets: []string{"cloudflare"},
+		usage:   [][2]string{{"cloudflare", "Build the Worker and deploy it"}},
+		notes: `Builds first, so what goes live is what the current source produces.
+
+Cloudflare needs wrangler, which is a Node program — and Cloudflare does not
+support the bun runtime. irgo downloads its own Node into ~/.irgo rather than
+asking you to install one, and irgo tools remove takes it away again. A working
+node already on PATH is used instead.
+
+Credentials:
+  CLOUDFLARE_API_TOKEN   required in CI
+                         From a terminal, wrangler opens a browser instead.
+
+The Worker's name and any bindings come from wrangler.toml, which is yours
+after irgo seeds it.`,
+	},
+
+	"app package": {
+		summary: "Store artifacts",
+		targets: []string{"ios", "android", "macos", "windows"},
+		usage: [][2]string{
+			{"ios", "Signed .ipa"},
+			{"android", "Signed .aab"},
+			{"macos", "Signed .app, notarized; --dmg for a disk image"},
+			{"windows", ".msix"},
+			{"setup --check", "What each store needs, and what is missing"},
+		},
+		flags: [][2]string{
+			{"--team <id>", "iOS: Apple Team ID"},
+			{"--export-method <m>", "iOS: app-store, ad-hoc or development"},
+			{"--keystore <path>", "Android: signing keystore"},
+			{"--keystore-pass <s>", "Android: keystore password"},
+			{"--key-alias <s>", "Android: key alias"},
+			{"--key-pass <s>", "Android: key password"},
+			{"--identity <cert>", "macOS: Developer ID Application certificate"},
+			{"--notarize", "macOS: notarize the build"},
+			{"--apple-id <email>", "macOS: Apple ID for notarization"},
+			{"--password <s>", "macOS: app-specific password"},
+			{"--dmg", "macOS: also produce a disk image"},
+			{"--publisher <dn>", "Windows: publisher DN"},
+			{"--cert <pfx>", "Windows: code-signing certificate"},
+			{"--cert-pass <s>", "Windows: certificate password"},
+			{"--version <v>", "Override common.version"},
+			{"--icon <path>", "Override the source icon"},
+			{"--output, -o", "Where to write the artifact"},
+		},
+		notes: `Every signing setting can be given on the command line as well as in
+irgo.package.toml, which is how CI supplies secrets without writing them to
+disk. Missing credentials are reported before the build rather than at the end
+of it, and assets are regenerated first so a package cannot ship a stale
+stylesheet.`,
+	},
+
+	"app install": {
+		summary: "Install a build — no rebuild",
+		targets: []string{"ios", "android", "desktop"},
+		usage: [][2]string{
+			{"ios", "Onto the running Simulator"},
+			{"android", "Onto the connected device or emulator"},
+			{"desktop", "Into /Applications (macOS)"},
+		},
+		notes: `Installs the existing artifact and does not rebuild. Build first if there is
+nothing there yet.`,
+	},
+
+	"app remove": {
+		summary: "Uninstall it again",
+		targets: []string{"ios", "android", "desktop"},
+		usage: [][2]string{
+			{"ios", "From the Simulator"},
+			{"android", "From the device or emulator"},
+			{"desktop", "From /Applications"},
+		},
+		notes: `The exact inverse of irgo app install. Every install irgo performs can be
+undone by irgo, so nothing it puts on a machine has to be hunted down by hand.`,
+	},
+
+	"app reviews": {
+		summary: "Monitor store reviews",
+		targets: []string{"ios", "mac", "android"},
+		usage: [][2]string{
+			{"<store>", "Fetch reviews"},
+			{"ios --new", "Only ones you have not seen"},
+			{"ios --reply <id> --text \"...\"", "Reply to one"},
+		},
+		flags: [][2]string{
+			{"--limit <n>", "How many to fetch"},
+			{"--new", "Only ones you have not seen"},
+			{"--reply <id>", "Reply to one review"},
+			{"--text \"...\"", "The reply body"},
+		},
+		notes: `Needs the store credentials in irgo.package.toml under [reviews] — see
+irgo project config.`,
+	},
+
+	// ---- tools -------------------------------------------------------------
+
+	"tools doctor": {
+		summary: "What this host can build; --fix repairs it",
+		args:    "[android] [--fix|--strict]",
+		usage: [][2]string{
+			{"", "Every target, and what is missing for the rest"},
+			{"android", "The Android toolchain in detail"},
+			{"--fix", "Install what is missing"},
+			{"--strict", "Exit non-zero if anything is missing (CI)"},
+		},
+		notes: `Reports the Go toolchain, templ and Tailwind, Xcode and its signing teams, and
+the Android SDK/NDK/JDK with the emulator and AVDs.`,
+	},
+
+	"tools install": {
+		summary: "Provision what builds need",
+		args:    "[android] [--emulator]",
+		usage: [][2]string{
+			{"", "Everything this host can use"},
+			{"android", "SDK, NDK, JDK 17 and gomobile"},
+			{"android --emulator", "Also a system image and an AVD"},
+			{"android --avd <name>", "Name that AVD (default \"irgo\")"},
+		},
+		flags: [][2]string{
+			{"--emulator, -e", "Also install a system image and an AVD"},
+			{"--avd <name>", "Name the AVD"},
+		},
+		notes: `Everything lands under ~/.irgo or the Android SDK home — no system package
+manager, on any OS. Running it again installs only what is missing.
+
+You rarely need this: a build provisions what it needs. It exists so a large
+download can be done deliberately rather than in the middle of a build.`,
+	},
+
+	"tools remove": {
+		summary: "Undo it — shows what it will delete, and asks",
+		args:    "[android] [--all] [--yes]",
+		usage: [][2]string{
+			{"", "What irgo installed for this host"},
+			{"android", "The Android toolchain"},
+			{"--all", "Everything, including the SDK and AVDs"},
+		},
+		flags: [][2]string{
+			{"--all", "Everything irgo installed, including the SDK and AVDs"},
+			{"--keep-jdk", "Leave the managed JDK in place"},
+			{"--yes, -y", "Do not ask"},
+		},
+		notes: `Shows what it will delete, with sizes, and asks first. Outside a terminal it
+refuses rather than assuming yes.
+
+Only what irgo installed is removed: each install leaves a marker, and anything
+without one is left alone, so a toolchain you set up yourself survives.`,
+	},
+
+	// ---- server ------------------------------------------------------------
+
+	"server dev": {
+		summary: "Web server with hot reload",
+		usage:   [][2]string{{"", "Serve on :8080 and rebuild on save"}},
+		notes: `Rebuilds templ, Tailwind and the Go binary as you save. From an Android
+emulator the same server is http://10.0.2.2:8080, which is what
+irgo app run android --dev connects to.
+
+air is installed on demand.`,
+	},
+
+	"server serve": {
+		summary: "Web server without file watching",
+		usage:   [][2]string{{"", "Serve on :8080"}},
+		notes: `Regenerates assets once at startup and then leaves them alone — for checking a
+build, or running the web target.`,
+	},
 }

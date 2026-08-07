@@ -1,7 +1,5 @@
-//go:build !desktop
+//go:build !desktop && !js
 
-// Example: Todo app demonstrating irgo framework usage with templ
-// This file handles mobile and dev server modes.
 package main
 
 import (
@@ -10,33 +8,27 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/stukennedy/irgo/examples/todo/templates"
-	"github.com/stukennedy/irgo/mobile"
+	"todo/app"
+	"todo/templates"
 	"github.com/stukennedy/irgo/pkg/livereload"
 )
 
 func main() {
-	// Check if running as desktop dev server or mobile initialization
+	// Check if running as desktop dev server
 	if len(os.Args) > 1 && os.Args[1] == "serve" {
 		runDevServer()
 		return
 	}
 
-	// Mobile mode: initialize bridge
-	initMobile()
-}
-
-// initMobile sets up the framework for mobile use
-func initMobile() {
-	mobile.Initialize()
-
-	r := setupRouter()
-	mobile.SetHandler(r.Handler())
-
-	// Add sample data
-	addSampleData()
-
-	fmt.Println("Todo app initialized for mobile")
+	// Default: show usage
+	fmt.Println("todo - built with irgo")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  go run . serve       Start development server")
+	fmt.Println("  irgo server dev             Start dev server with hot reload")
+	fmt.Println("  irgo app run desktop     Run as desktop app")
+	fmt.Println("  irgo app run ios         Build and run on iOS Simulator")
+	fmt.Println("  irgo app run android     Build and run on Android Emulator")
 }
 
 // runDevServer starts an HTTP server for development with live reload
@@ -44,17 +36,15 @@ func runDevServer() {
 	// Enable dev mode for templates (enables live reload script)
 	templates.DevMode = true
 
-	r := setupRouter()
+	r := app.NewRouter()
 	lr := livereload.New()
 
-	// Add sample data
-	addSampleData()
-
 	// Set up mux with live reload endpoint
+	handler := r.Handler()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dev/livereload", lr.Handler())
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	mux.Handle("/", r.Handler())
+	mux.Handle("/", handler)
 
 	port := ":8080"
 	fmt.Printf("Starting dev server at http://localhost%s\n", port)

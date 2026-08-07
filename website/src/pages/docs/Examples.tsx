@@ -368,13 +368,12 @@ templ OverviewTab() {
       </p>
 
       <CodeBlock language="bash">
-{`irgo new myapp
+{`irgo project new myapp
 cd myapp
 
 go mod tidy
-bun install
 
-irgo dev`}
+irgo server dev`}
       </CodeBlock>
 
       <h2>Next Steps</h2>

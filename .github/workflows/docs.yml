@@ -1,0 +1,99 @@
+# Deploy the documentation site to Cloudflare Workers.
+#
+# It used to go out by hand from a laptop, which meant the published docs were
+# whoever's working copy ran wrangler last.
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "docs-templ/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docs
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    # Secrets cannot be referenced in `if:` — GitHub only exposes them through
+    # env — so map it here and skip cleanly when the repository has none,
+    # rather than failing every push until someone adds a token.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # vite runs on bun; wrangler does not — Cloudflare states plainly that
+      # the bun runtime is unsupported, and `wrangler dev` fails outright on
+      # it. GitHub runners ship Node, so the deploy step has one.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check for credentials
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — building only, not deploying"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: website
+
+      # Always build, so a broken site is caught whether or not this repository
+      # can deploy it.
+      - run: bun run build
+        working-directory: website
+
+      - name: Deploy
+        if: steps.creds.outputs.deploy == 'true'
+        # workerd's postinstall is skipped above; wrangler needs it to run.
+        run: |
+          bun install --frozen-lockfile
+          bunx wrangler deploy
+        working-directory: website
+
+  # The templ port, deployed as its own Worker so the TSX site above keeps
+  # serving irgo-dev untouched. Both are live; nothing switches over until the
+  # port earns it.
+  deploy-templ:
+    name: Deploy the templ docs site
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check for credentials
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set — building only"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+      # app deploy builds, and building regenerates the assets — there is
+      # nothing to sequence by hand.
+      - name: Deploy
+        if: steps.creds.outputs.deploy == 'true'
+        run: go run ./cmd/irgo -C docs-templ app deploy cloudflare
+      # Still build when there are no credentials, so a broken site is caught
+      # whether or not this repository can deploy it.
+      - name: Build only
+        if: steps.creds.outputs.deploy != 'true'
+        run: go run ./cmd/irgo -C docs-templ app build cloudflare

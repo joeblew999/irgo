@@ -19,7 +19,7 @@ export const DeploymentPage: FC = () => {
 
       <CodeBlock language="bash">
 {`# Build macOS app bundle
-irgo build desktop macos`}
+irgo app build desktop macos`}
       </CodeBlock>
 
       <p>
@@ -49,7 +49,7 @@ xcrun notarytool submit MyApp.dmg --apple-id you@email.com --team-id TEAMID --pa
 
       <CodeBlock language="bash">
 {`# Build Windows executable
-irgo build desktop windows`}
+irgo app build desktop windows`}
       </CodeBlock>
 
       <p>
@@ -67,7 +67,7 @@ irgo build desktop windows`}
 
       <CodeBlock language="bash">
 {`# Build Linux binary
-irgo build desktop linux`}
+irgo app build desktop linux`}
       </CodeBlock>
 
       <p>Distribution options:</p>
@@ -83,7 +83,7 @@ irgo build desktop linux`}
 
       <ol>
         <li>Build the iOS framework:
-          <CodeBlock language="bash">{`irgo build ios`}</CodeBlock>
+          <CodeBlock language="bash">{`irgo app build ios`}</CodeBlock>
         </li>
         <li>Open the Xcode project in <code>ios/</code></li>
         <li>Add the framework to your project</li>
@@ -102,9 +102,9 @@ irgo build desktop linux`}
 
       <ol>
         <li>Build the Android AAR:
-          <CodeBlock language="bash">{`irgo build android`}</CodeBlock>
+          <CodeBlock language="bash">{`irgo app build android`}</CodeBlock>
         </li>
-        <li>Open the Android project in Android Studio</li>
+        <li>Or open <code>android/Example</code> in Android Studio, if you prefer its UI</li>
         <li>Add the AAR to your project</li>
         <li>Configure signing with your keystore</li>
         <li>Generate signed APK or App Bundle</li>

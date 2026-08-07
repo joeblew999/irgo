@@ -1,0 +1,72 @@
+package templates
+
+import "docs-templ/clidoc"
+
+// CLIReference renders the whole command surface from what the binary
+// declares. Nothing on this page is written by hand, which is the point: the
+// previous site's CLI page described three commands that no longer existed and
+// omitted nine flags that did.
+templ CLIReference(nouns []string, byNoun map[string][]clidoc.Command) {
+	@DocsPage("CLI reference") {
+		<h1>CLI reference</h1>
+		<p class="lede">
+			Generated from the CLI's own declarations, so it cannot describe a
+			command irgo does not have. Every page below matches
+			<code>irgo help &lt;noun&gt; &lt;verb&gt;</code> exactly.
+		</p>
+
+		<nav class="cli-toc">
+			for _, noun := range nouns {
+				<a href={ templ.SafeURL("#" + noun) }>{ noun }</a>
+			}
+		</nav>
+
+		for _, noun := range nouns {
+			<section class="cli-noun" id={ noun }>
+				<h2>{ noun }</h2>
+				for _, c := range byNoun[noun] {
+					@CommandCard(c)
+				}
+			</section>
+		}
+	}
+}
+
+// CommandCard is one command: what it is, how to run it, and why it behaves
+// the way it does.
+templ CommandCard(c clidoc.Command) {
+	<article class="cmd" id={ c.Noun + "-" + c.Verb }>
+		<h3><code>irgo { c.Signature() }</code></h3>
+		<p class="cmd-summary">{ c.Summary }</p>
+
+		if len(c.Usage) > 0 {
+			<table class="cmd-usage">
+				<tbody>
+					for _, u := range c.Usage {
+						<tr>
+							<td><code>{ c.UsageLine(u) }</code></td>
+							<td>{ u.What }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		if len(c.Flags) > 0 {
+			<table class="cmd-flags">
+				<tbody>
+					for _, f := range c.Flags {
+						<tr>
+							<td><code>{ f.Spec }</code></td>
+							<td>{ f.What }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		if c.Notes != "" {
+			<pre class="cmd-notes">{ c.Notes }</pre>
+		}
+	</article>
+}

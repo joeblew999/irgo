@@ -3,6 +3,9 @@ package com.irgo
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +35,9 @@ open class IrgoActivity : AppCompatActivity() {
          * or a debug-only network security config.
          */
         const val EXTRA_DEV_SERVER = "irgoDevServer"
+
+        /** Logcat tag carrying everything the page logs. */
+        const val WEB_TAG = "IrgoWeb"
     }
 
     lateinit var webView: WebView
@@ -55,6 +61,14 @@ open class IrgoActivity : AppCompatActivity() {
         // co-installed app point this WebView at arbitrary content.
         val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         devServerUrl = if (debuggable) intent.getStringExtra(EXTRA_DEV_SERVER) else null
+
+        // Debug builds are inspectable from desktop Chrome at chrome://inspect,
+        // which is the only way to set a breakpoint in the page. Never enable
+        // this in release: it exposes the whole WebView to any process that can
+        // reach the device's debug socket.
+        if (debuggable) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
 
         if (!isDevMode) {
             // Initialize Go bridge
@@ -107,6 +121,26 @@ open class IrgoActivity : AppCompatActivity() {
         return WebView(this).apply {
             // Set custom WebViewClient (dev-server aware)
             webViewClient = IrgoWebViewClient(devServerUrl)
+
+            // Forward the page's console to logcat. Without this a JavaScript
+            // error inside the WebView is completely invisible: the app keeps
+            // running and rendering, so a broken bridge looks like a hung
+            // server rather than a crash. Everything the page logs appears
+            // under the IrgoWeb tag:
+            //
+            //   adb logcat -s IrgoWeb
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    val where = "${message.sourceId()}:${message.lineNumber()}"
+                    val text = "${message.message()} ($where)"
+                    when (message.messageLevel()) {
+                        ConsoleMessage.MessageLevel.ERROR -> Log.e(WEB_TAG, text)
+                        ConsoleMessage.MessageLevel.WARNING -> Log.w(WEB_TAG, text)
+                        else -> Log.i(WEB_TAG, text)
+                    }
+                    return true
+                }
+            }
 
             // Configure settings
             settings.apply {

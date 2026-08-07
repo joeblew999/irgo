@@ -1,15 +1,21 @@
 package handlers
 
 import (
-	"sync/atomic"
 	"time"
 
 	"{{MODULE_PATH}}/templates"
 	"github.com/stukennedy/irgo/pkg/router"
 )
 
-// Global state for the demo
-var pulseCount atomic.Int64
+// The pulse count travels with the client as a Datastar signal rather than
+// living in a package variable here.
+//
+// A server-side counter is wrong the moment a second replica exists: each one
+// counts its own requests and the number a visitor sees depends on which
+// machine answered. Hosts make that visible at different rates — behind a load
+// balancer it drifts, and on Cloudflare Workers, where every request gets a
+// fresh instance, it reads 1 forever. Signals belong to the connection, so the
+// count is right on one replica or a hundred.
 
 // Mount registers all handlers on the router
 func Mount(r *router.Router) {
@@ -29,14 +35,14 @@ func Mount(r *router.Router) {
 		var signals struct {
 			MouseX float64 `json:"mouseX"`
 			MouseY float64 `json:"mouseY"`
+			Pulses int     `json:"pulses"`
 		}
 		if err := ctx.ReadSignals(&signals); err != nil {
 			signals.MouseX = 0.5
 			signals.MouseY = 0.5
 		}
 
-		// Increment pulse counter
-		count := int(pulseCount.Add(1))
+		count := signals.Pulses + 1
 
 		// Calculate intensity based on distance from center
 		dx := signals.MouseX - 0.5
@@ -60,14 +66,21 @@ func Mount(r *router.Router) {
 		// Update connection lines
 		sse.PatchTempl(templates.ConnectionPaths(signals.MouseX, signals.MouseY))
 
-		// Update stats
+		// Update stats, and hand the new count back so the next request
+		// carries it.
 		sse.PatchTempl(templates.PulseStats(count, latency))
+		sse.PatchSignals(map[string]any{"pulses": count})
 
 		return nil
 	})
 
 	// Burst effect - triggered by button
 	r.DSGet("/api/burst", func(ctx *router.Context) error {
+		var signals struct {
+			Pulses int `json:"pulses"`
+		}
+		_ = ctx.ReadSignals(&signals)
+
 		sse := ctx.SSE()
 
 		// Create a burst animation by rapidly updating with high intensity
@@ -78,9 +91,10 @@ func Mount(r *router.Router) {
 		}
 
 		// Reset to normal
-		count := int(pulseCount.Add(1))
+		count := signals.Pulses + 1
 		sse.PatchTempl(templates.OrbSVG(0.5, 0.5, 0))
 		sse.PatchTempl(templates.PulseStats(count, 0))
+		sse.PatchSignals(map[string]any{"pulses": count})
 
 		return nil
 	})

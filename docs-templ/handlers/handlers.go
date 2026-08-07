@@ -1,0 +1,101 @@
+package handlers
+
+import (
+	"time"
+
+	"docs-templ/templates"
+	"github.com/stukennedy/irgo/pkg/router"
+)
+
+// The pulse count travels with the client as a Datastar signal rather than
+// living in a package variable here.
+//
+// A server-side counter is wrong the moment a second replica exists: each one
+// counts its own requests and the number a visitor sees depends on which
+// machine answered. Hosts make that visible at different rates — behind a load
+// balancer it drifts, and on Cloudflare Workers, where every request gets a
+// fresh instance, it reads 1 forever. Signals belong to the connection, so the
+// count is right on one replica or a hundred.
+
+// Mount registers all handlers on the router
+func Mount(r *router.Router) {
+	// Initialize connection
+	r.DSGet("/api/init", func(ctx *router.Context) error {
+		sse := ctx.SSE()
+		// Send connection status (server-controlled)
+		sse.PatchTempl(templates.ConnectionStatus(true))
+		return sse.PatchTempl(templates.PulseStats(0, 0))
+	})
+
+	// Handle mouse/touch movement - the core interactive endpoint
+	r.DSGet("/api/pulse", func(ctx *router.Context) error {
+		start := time.Now()
+
+		// Read mouse position from signals
+		var signals struct {
+			MouseX float64 `json:"mouseX"`
+			MouseY float64 `json:"mouseY"`
+			Pulses int     `json:"pulses"`
+		}
+		if err := ctx.ReadSignals(&signals); err != nil {
+			signals.MouseX = 0.5
+			signals.MouseY = 0.5
+		}
+
+		count := signals.Pulses + 1
+
+		// Calculate intensity based on distance from center
+		dx := signals.MouseX - 0.5
+		dy := signals.MouseY - 0.5
+		intensity := int((dx*dx + dy*dy) * 400)
+		if intensity > 100 {
+			intensity = 100
+		}
+
+		// Calculate latency
+		latency := int(time.Since(start).Milliseconds())
+
+		sse := ctx.SSE()
+
+		// Update the orb SVG (morphs based on position)
+		sse.PatchTempl(templates.OrbSVG(signals.MouseX, signals.MouseY, intensity))
+
+		// Update particles
+		sse.PatchTempl(templates.ParticlesSVG(signals.MouseX, signals.MouseY))
+
+		// Update connection lines
+		sse.PatchTempl(templates.ConnectionPaths(signals.MouseX, signals.MouseY))
+
+		// Update stats, and hand the new count back so the next request
+		// carries it.
+		sse.PatchTempl(templates.PulseStats(count, latency))
+		sse.PatchSignals(map[string]any{"pulses": count})
+
+		return nil
+	})
+
+	// Burst effect - triggered by button
+	r.DSGet("/api/burst", func(ctx *router.Context) error {
+		var signals struct {
+			Pulses int `json:"pulses"`
+		}
+		_ = ctx.ReadSignals(&signals)
+
+		sse := ctx.SSE()
+
+		// Create a burst animation by rapidly updating with high intensity
+		for i := 0; i < 5; i++ {
+			intensity := 100 - i*20
+			sse.PatchTempl(templates.OrbSVG(0.5, 0.5, intensity))
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		// Reset to normal
+		count := signals.Pulses + 1
+		sse.PatchTempl(templates.OrbSVG(0.5, 0.5, 0))
+		sse.PatchTempl(templates.PulseStats(count, 0))
+		sse.PatchSignals(map[string]any{"pulses": count})
+
+		return nil
+	})
+}

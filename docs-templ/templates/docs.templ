@@ -1,0 +1,61 @@
+package templates
+
+import "docs-templ/content"
+
+// DocsPage is the shell every documentation page sits in.
+//
+// Deliberately plain: this port exists to prove the docs can be an irgo app,
+// and design work belongs after that is settled. The old TSX site stays live
+// and unchanged until this one is worth switching to.
+templ DocsPage(title string) {
+	@Layout(title + " — irgo") {
+		<div class="docs-shell">
+			<aside class="docs-nav">
+				<a class="brand" href="/">irgo</a>
+				<nav>
+					<a href="/docs/cli">CLI reference</a>
+					for _, p := range content.Pages {
+						<a href={ templ.SafeURL("/docs/" + p.Slug) }>{ p.Title }</a>
+					}
+				</nav>
+				<p class="docs-note">
+					Served by Go, rendered with templ, running on Cloudflare
+					Workers.
+				</p>
+			</aside>
+			<main class="docs-main">
+				{ children... }
+			</main>
+		</div>
+	}
+}
+
+
+// DocsHome is the landing page.
+templ DocsHome() {
+	@DocsPage("Documentation") {
+		<h1>irgo</h1>
+		<p class="lede">
+			One Go codebase for web, desktop, iOS and Android — and now
+			Cloudflare Workers. Server-driven HTML over SSE, no JavaScript
+			framework, no Node.
+		</p>
+
+		<h2>Start here</h2>
+		<p>
+			<a href="/docs/getting-started">Getting started</a> — create a
+			project and run it on every target.<br/>
+			<a href="/docs/cli">CLI reference</a> — every command, generated
+			from the CLI itself.
+		</p>
+
+		<h2>This site is an irgo app</h2>
+		<p>
+			It is Go and templ, compiled to WebAssembly and served from a
+			Cloudflare Worker — the same <code>irgo app deploy cloudflare</code>
+			any project uses. The CLI reference is rendered from the binary's
+			own declarations, so it cannot document a command that does not
+			exist.
+		</p>
+	}
+}

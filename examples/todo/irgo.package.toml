@@ -1,0 +1,96 @@
+# irgo app package configuration — defaults for: irgo app package <ios|android|macos|windows>
+#
+# Precedence, highest first:
+#   1. CLI flag           irgo app package android --keystore ...
+#   2. Environment        IRGO_ANDROID_KEYSTORE=...   (what CI secrets set)
+#   3. irgo.package.local.toml   your machine, gitignored — put SECRETS here
+#   4. this file          shared with your team, committed
+#   5. auto-derived       e.g. your Team ID read from Xcode
+#
+# COMMIT THIS FILE. Keep passwords, certificates and private keys out of it —
+# put them in irgo.package.local.toml (gitignored) or set the environment
+# variable, which is how CI supplies them.
+#
+#   irgo app package setup            what every value is and where to get it
+#   irgo app package setup --check    what is set, where it came from, what is missing
+#   irgo app package setup <store>    fill in one store interactively
+
+[common]
+version = "0.1.0"
+
+[ios]
+# Apple Team ID — 10-character ID. Get it: developer.apple.com → Membership →
+# "Team ID". Requires a paid Apple Developer account (US$99/year). Required
+# for automatic signing.
+team = ""
+# app-store (default) | ad-hoc | development
+export_method = "app-store"
+
+[android]
+# Debug keystore works out of the box (validation only). For the Play Store
+# create a release keystore and KEEP IT SAFE — you can't change it after your
+# first upload:
+#   keytool -genkey -v -keystore ~/keys/release.keystore -alias myapp \
+#     -keyalg RSA -keysize 2048 -validity 10000
+# The debug keystore and its well-known password are public knowledge — safe
+# to commit, and enough to validate a build. A RELEASE keystore password is a
+# secret: put it in irgo.package.local.toml or IRGO_ANDROID_KEYSTORE_PASS.
+keystore = "~/.android/debug.keystore"
+keystore_pass = "android"
+# Empty = auto-detected from the keystore.
+key_alias = ""
+key_pass = "android"
+
+[windows]
+# Publisher DN — must match your Partner Center publisher identity. Get it:
+# Partner Center → your app → Product management → Product identity →
+# "Publisher display name"/Publisher ID (partner.microsoft.com). A Microsoft
+# Store developer account costs US$19 one-time. Empty = test-signed with
+# "CN=<app>".
+publisher = ""
+# Optional real code-signing cert (PFX); empty = self-signed test cert.
+# cert_pass is a SECRET — irgo.package.local.toml or IRGO_WINDOWS_CERT_PASS.
+cert = ""
+cert_pass = ""
+icon = ""
+
+[macos]
+# Developer ID Application certificate name, e.g.
+# "Developer ID Application: Your Name (TEAMID)". Get it:
+# developer.apple.com → Certificates → create a Developer ID Application cert →
+# download + double-click to import into Keychain. Requires a paid account.
+identity = ""
+# Notarization: Apple ID + Team ID + an app-specific password
+# (appleid.apple.com → Sign-In & Security → App-Specific Passwords).
+notarize = false
+apple_id = ""
+team = ""
+# SECRET — irgo.package.local.toml or IRGO_APPLE_PASSWORD.
+password = ""
+# Also produce a .dmg
+dmg = false
+
+[reviews]
+# App Store review monitoring: irgo app reviews <ios|mac|android>
+# Apple (iOS + Mac) uses the official App Store Connect API — a key with
+# Customer Reviews access. Android uses the Play Developer API (service
+# account) and can also reply from the terminal.
+# iOS/Mac: numeric App Store ids. Get them: the app's apps.apple.com URL
+# (apps.apple.com/app/id<THIS NUMBER>) — iOS and Mac ids differ.
+ios_app_id = ""
+mac_app_id = ""
+# Apple: App Store Connect API key. Get it: App Store Connect → Users and
+# Access → Integrations → API keys → generate a key with access to Customer
+# Reviews, then download the .p8 (it can only be downloaded once).
+ios_key_id = ""
+ios_issuer_id = ""
+# Path to the .p8 — the file itself is a SECRET; keep it out of the repo.
+ios_private_key = ""
+# Android: Play package name, e.g. "com.example.myapp".
+android_package = ""
+# Android: path to a Google Play Developer API service-account JSON. Get it:
+# Google Play Console → Setup → API access → create a service account →
+# grant "View app information" (read) or "Reply to reviews" (write) →
+# download the JSON key.
+android_service_account = ""
+

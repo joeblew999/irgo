@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+/* Documentation styling.
+ *
+ * This started as the scaffold's stylesheet, which is written for the demo: a
+ * fixed, full-screen page with `overflow: hidden` on html and body. On a
+ * documentation page that is fatal — everything below the fold is unreachable,
+ * so the page looks broken rather than merely unstyled. A docs site is a
+ * scrolling document and needs its own CSS.
+ */
+
+:root {
+  --bg: #0d0d12;
+  --surface: #16161f;
+  --border: #ffffff14;
+  --text: #e8e8ee;
+  --muted: #ffffff8c;
+  --cyan: #00d4ff;
+  --violet: #8b5cf6;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fbfbfd;
+    --surface: #ffffff;
+    --border: #0000001a;
+    --text: #16161f;
+    --muted: #00000099;
+    --violet: #6d3ff0;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  line-height: 1.6;
+  /* Deliberately NOT overflow:hidden — see the note above. */
+}
+
+code, pre { font-family: var(--font-mono); }
+
+.docs-shell {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 3rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
+
+.docs-nav {
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+}
+
+.docs-nav .brand {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: linear-gradient(135deg, var(--cyan), var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 1.5rem;
+}
+
+.docs-nav nav { display: flex; flex-direction: column; gap: .5rem; }
+
+.docs-nav nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: .35rem .6rem;
+  border-radius: .4rem;
+  font-size: .95rem;
+}
+
+.docs-nav nav a:hover { color: var(--text); background: var(--border); }
+
+.docs-note {
+  margin-top: 2rem;
+  font-size: .8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.docs-main { min-width: 0; }
+
+.docs-main h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 .75rem; }
+.docs-main h2 { font-size: 1.4rem; font-weight: 600; margin: 3rem 0 1rem; }
+.docs-main h3 { font-size: 1.05rem; font-weight: 600; margin: 0 0 .35rem; }
+.docs-main p  { margin: 0 0 1rem; }
+
+.lede { color: var(--muted); font-size: 1.05rem; max-width: 46rem; }
+
+.docs-main pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: .6rem;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  font-size: .875rem;
+  line-height: 1.6;
+}
+
+.docs-main :not(pre) > code {
+  background: var(--border);
+  border-radius: .3rem;
+  padding: .1rem .35rem;
+  font-size: .875em;
+}
+
+.cli-toc { display: flex; gap: .75rem; margin: 1.5rem 0 2.5rem; flex-wrap: wrap; }
+
+.cli-toc a {
+  color: var(--violet);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 2rem;
+  padding: .3rem .9rem;
+  font-size: .85rem;
+}
+
+.cli-toc a:hover { background: var(--border); }
+
+.cli-noun h2 { text-transform: uppercase; letter-spacing: .08em; font-size: 1rem; color: var(--muted); }
+
+.cmd {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: .7rem;
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.cmd h3 code { background: none; padding: 0; color: var(--cyan); font-size: 1rem; }
+.cmd-summary { color: var(--muted); margin: 0 0 1rem; }
+
+.cmd-usage, .cmd-flags { width: 100%; border-collapse: collapse; margin-bottom: 1rem; display: block; overflow-x: auto; }
+.cmd-usage td, .cmd-flags td { padding: .3rem .75rem .3rem 0; vertical-align: top; font-size: .875rem; }
+.cmd-usage td:first-child code, .cmd-flags td:first-child code { white-space: nowrap; }
+.cmd-flags td:last-child, .cmd-usage td:last-child { color: var(--muted); }
+
+/* The reasoning, kept verbatim from the CLI's own help. */
+.cmd-notes {
+  background: none;
+  border: 0;
+  border-left: 2px solid var(--border);
+  border-radius: 0;
+  padding: .25rem 0 .25rem 1rem;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: .9rem;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 800px) {
+  .docs-shell { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 1.5rem; }
+  .docs-nav { position: static; }
+  .docs-nav nav { flex-direction: row; flex-wrap: wrap; }
+}

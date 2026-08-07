@@ -7,32 +7,45 @@ import (
 	"fmt"
 	"net/http"
 
+	"todo/app"
+	"todo/templates"
 	"github.com/stukennedy/irgo/desktop"
+	"github.com/stukennedy/irgo/pkg/livereload"
 )
 
 func main() {
-	devMode := flag.Bool("dev", false, "Enable devtools")
+	devMode := flag.Bool("dev", false, "Enable devtools and live reload")
 	flag.Parse()
 
-	r := setupRouter()
-	addSampleData()
+	// Enable dev mode for templates (enables live reload script)
+	templates.DevMode = *devMode
+
+	r := app.NewRouter()
 
 	// Create HTTP mux with static file serving
 	mux := http.NewServeMux()
 	staticDir := desktop.FindStaticDir()
+
+	// Add live reload endpoint in dev mode
+	if *devMode {
+		lr := livereload.New()
+		mux.HandleFunc("/dev/livereload", lr.Handler())
+		fmt.Printf("Live reload enabled (build time: %d)\n", lr.BuildTime())
+	}
+
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 	mux.Handle("/", r.Handler())
 
 	// Configure desktop app
 	config := desktop.DefaultConfig()
-	config.Title = "Todo App"
+	config.Title = "todo"
 	config.Debug = *devMode
 
 	// Create and run desktop app
-	app := desktop.New(mux, config)
+	desktopApp := desktop.New(mux, config)
 
-	fmt.Println("Starting Todo desktop app...")
-	if err := app.Run(); err != nil {
+	fmt.Println("Starting todo desktop app...")
+	if err := desktopApp.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
 }

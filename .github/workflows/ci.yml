@@ -1,0 +1,103 @@
+# The framework's own tests, and proof that the CLI still produces a project
+# that builds.
+#
+# This repository had no CI at all while the demo it generates had eight jobs,
+# so every check ran against the output and none against the thing producing it.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Formatting is checked rather than assumed: three files had been
+      # unformatted since the Datastar migration, which nothing surfaced.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./pkg ./mobile ./desktop)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+      - run: go vet ./...
+      # The Cloudflare target compiles the framework for GOOS=js GOARCH=wasm,
+      # where a different set of files is selected. Building it here is what
+      # catches a file that silently left one platform's build — a stronger
+      # check than any naming rule, since it fails on the symptom.
+      - run: GOOS=js GOARCH=wasm go build ./...
+      # This includes TestScaffoldedProjectBuilds, which generates a project
+      # from this checkout and compiles it. It is a test rather than steps in
+      # this file so it runs the same way on a laptop as it does here.
+      - run: go test ./...
+
+  website:
+    name: Docs site builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # No Node: the scripts run vite and wrangler on bun's own runtime.
+      - run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: website
+      - run: bun run build
+        working-directory: website
+
+  docs-templ:
+    name: Docs site (templ) builds and matches the CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # `go run ./cmd/irgo` rather than `go tool irgo`: the tool directive
+      # lives in a consuming project's go.mod, not the framework's, so there is
+      # no `go tool irgo` at this root. Running the checkout's own CLI is also
+      # what should be tested here — the commit's behaviour, not a pinned
+      # release's.
+      #
+      # No separate asset step: project test and app build both regenerate what
+      # they need. A pipeline that has to remember the order is a pipeline that
+      # will one day forget.
+      # Its CLI reference is generated from this checkout's own declarations, so
+      # a command renamed here and not regenerated there fails as a test rather
+      # than shipping a page describing a command that no longer exists.
+      - run: go run ./cmd/irgo -C docs-templ project test
+      - run: go run ./cmd/irgo -C docs-templ app build cloudflare
+
+  example:
+    name: The todo example still runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # A worked example that cannot be run is worse than none: this one was
+      # loose files inside the framework's module, so `app build desktop`
+      # failed with "no go.mod" and `project assets` silently skipped Tailwind.
+      # It is a normal irgo project now, driven the way any project is.
+      - run: go run ./cmd/irgo -C examples/todo project test
+      # Cloudflare rather than desktop: this job exists to show the CLI can
+      # drive the example, and a wasm build needs no system libraries. Linux
+      # desktop needs webkit2gtk, which ubuntu-latest no longer ships — the
+      # demo's matrix pins ubuntu-22.04 for that and covers it properly.
+      - run: go run ./cmd/irgo -C examples/todo app build cloudflare

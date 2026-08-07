@@ -92,15 +92,21 @@ fallbacks with `native.Register` so the same code runs on web and desktop.
 
 ### Prerequisites
 
-- Go 1.21+
-- [templ](https://templ.guide): `go install github.com/a-h/templ/cmd/templ@latest`
-- [air](https://github.com/air-verse/air): `go install github.com/air-verse/air@latest`
+Go, and nothing else you have to install yourself.
 
-**For mobile development:**
-- [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile): `go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init`
-- [entr](https://github.com/eradman/entr): `brew install entr` (macOS)
-- For iOS: Xcode with iOS Simulator
-- For Android: Android Studio with SDK and emulator
+The CLI provisions what a build needs, when that build needs it: templ, the
+Tailwind standalone binary, air, gomobile, and the Android JDK/SDK/NDK — all
+into `~/.irgo` or the Android SDK home, on macOS, Linux and Windows alike. No
+system package manager is involved, and `irgo tools remove` undoes it.
+
+Ask what this machine can do, and what it is missing:
+
+```bash
+go tool irgo tools doctor
+```
+
+The one thing irgo cannot install is Xcode, because only Apple can; `doctor`
+says so plainly. Android Studio is *not* required.
 
 **For desktop development:**
 - CGO enabled (C compiler required)
@@ -125,44 +131,43 @@ go install .
 ### Create a New Project
 
 ```bash
-irgo new myapp
+irgo project new myapp
 cd myapp
 go mod tidy
-bun install  # or: npm install
 ```
 
 ### Run as Desktop App
 
 ```bash
-irgo run desktop         # Run as desktop app
-irgo run desktop --dev   # With devtools enabled
+irgo app run desktop         # Run as desktop app
+irgo app run desktop --dev   # With devtools enabled
 ```
 
 ### Development with Hot Reload (Web)
 
 ```bash
-irgo dev                 # Start dev server at http://localhost:8080
+irgo server dev                 # Start dev server at http://localhost:8080
 ```
 
 ### iOS Development
 
 ```bash
-irgo run ios --dev       # Hot-reload with iOS Simulator
-irgo run ios             # Production build
+irgo app run ios --dev       # Hot-reload with iOS Simulator
+irgo app run ios             # Production build
 ```
 
 ### Build for Production
 
 ```bash
 # Desktop
-irgo build desktop           # Build for current platform
-irgo build desktop macos     # Build macOS .app bundle
-irgo build desktop windows   # Build Windows .exe
-irgo build desktop linux     # Build Linux binary
+irgo app build desktop           # Build for current platform
+irgo app build desktop macos     # Build macOS .app bundle
+irgo app build desktop windows   # Build Windows .exe
+irgo app build desktop linux     # Build Linux binary
 
 # Mobile
-irgo build ios               # Build iOS framework
-irgo build android           # Build Android AAR
+irgo app build ios               # Build iOS framework
+irgo app build android           # Build Android AAR
 ```
 
 ## Project Structure
@@ -173,7 +178,6 @@ myapp/
 ├── main_desktop.go      # Desktop entry point (build tag: desktop)
 ├── go.mod               # Go module definition
 ├── .air.toml            # Air hot reload configuration
-├── package.json         # Node dependencies (Tailwind CSS)
 │
 ├── app/
 │   └── app.go           # Router setup and app configuration
@@ -279,22 +283,22 @@ config := desktop.Config{
 
 ```bash
 # Run directly (compiles and runs)
-irgo run desktop
+irgo app run desktop
 
 # With devtools (for debugging)
-irgo run desktop --dev
+irgo app run desktop --dev
 ```
 
 ### Building Desktop Apps
 
 ```bash
 # Build for current platform
-irgo build desktop
+irgo app build desktop
 
 # Build for specific platform
-irgo build desktop macos     # Creates build/desktop/macos/MyApp.app
-irgo build desktop windows   # Creates build/desktop/windows/MyApp.exe
-irgo build desktop linux     # Creates build/desktop/linux/MyApp
+irgo app build desktop macos     # Creates build/desktop/macos/MyApp.app
+irgo app build desktop windows   # Creates build/desktop/windows/MyApp.exe
+irgo app build desktop linux     # Creates build/desktop/linux/MyApp
 ```
 
 ### Desktop vs Mobile: Key Differences
@@ -393,29 +397,29 @@ templ TodoItem(todo Todo) {
 
 ```bash
 # Create new project
-irgo new myapp
-irgo new .              # Initialize in current directory
+irgo project new myapp
+irgo project new .              # Initialize in current directory
 
 # Development
-irgo dev                # Start dev server with hot reload (web)
-irgo run desktop        # Run as desktop app
-irgo run desktop --dev  # Desktop with devtools
-irgo run ios --dev      # Hot reload with iOS Simulator
-irgo run android --dev  # Hot reload with Android Emulator
+irgo server dev                # Start dev server with hot reload (web)
+irgo app run desktop        # Run as desktop app
+irgo app run desktop --dev  # Desktop with devtools
+irgo app run ios --dev      # Hot reload with iOS Simulator
+irgo app run android --dev  # Hot reload with Android Emulator
 
 # Production builds
-irgo build desktop      # Build desktop app for current platform
-irgo build desktop macos/windows/linux  # Cross-platform builds
-irgo build ios          # Build iOS framework
-irgo build android      # Build Android AAR
-irgo build all          # Build all mobile platforms
+irgo app build desktop      # Build desktop app for current platform
+irgo app build desktop macos/windows/linux  # Cross-platform builds
+irgo app build ios          # Build iOS framework
+irgo app build android      # Build Android AAR
+irgo app build all          # Build all mobile platforms
 
-irgo run ios            # Build and run on iOS Simulator
-irgo run android        # Build and run on Android Emulator
+irgo app run ios            # Build and run on iOS Simulator
+irgo app run android        # Build and run on Android Emulator
 
 # Utilities
-irgo templ              # Generate templ files
-irgo install-tools      # Install required dev tools
+irgo project assets              # Generate templ files
+irgo tools install      # Install required dev tools
 irgo version            # Print version
 irgo help [command]     # Show help
 ```

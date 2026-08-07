@@ -2,6 +2,7 @@ package com.irgo
 
 import android.webkit.WebView
 import mobile.Mobile as Irgo
+import mobile.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -106,7 +107,7 @@ data class IrgoResponse(
         get() = String(body, Charsets.UTF_8)
 
     companion object {
-        fun from(response: core.Response): IrgoResponse {
+        fun from(response: Response): IrgoResponse {
             // Header values may be strings or arrays (multi-value headers
             // such as Set-Cookie); arrays are joined with ", " for this flat
             // map view. Naive getString would corrupt or drop array values.
