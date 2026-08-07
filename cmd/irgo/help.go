@@ -19,33 +19,16 @@ Usage:
 One grammar throughout: every command is a noun and a verb.
 
 PROJECT   the repository you are in
-  project new <name>       Create one (or "." for the current directory)
-  project assets           Regenerate templ + Tailwind CSS
-  project test             Run the tests
-  project clean [--all]    Remove generated output
-  project ci [--force]     Scaffold GitHub Actions workflows
-  project upgrade          Take framework updates, leaving your code alone
-  project upgrade --check  Name what an upgrade would overwrite (CI-friendly)
-  project pin [target]     Which irgo this project builds against
-  project config [k] [v]   Show or set a setting (signing, stores, version)
+` + renderNounSection("project") + `
 
 APP       what gets built, run, shipped and installed
-  app build <` + buildTargetList() + `>  Build it
-  app run <ios|android|desktop>                   Build and launch it
-  app deploy cloudflare                           Build the Worker, put it live
-  app package <ios|android|macos|windows>         Store artifacts
-  app install <ios|android|desktop>               Install a build — no rebuild
-  app remove <ios|android|desktop>                Uninstall it
-  app reviews <ios|mac|android>                   Monitor store reviews
+` + renderNounSection("app") + `
 
 TOOLS     the toolchains on this machine
-  tools doctor [android]   What this host can build; --fix repairs it
-  tools install [android]  Install what builds need
-  tools remove [android]   Undo it — shows what it will delete, and asks
+` + renderNounSection("tools") + `
 
 SERVER    the development server
-  server dev               Hot reload
-  server serve             No file watching
+` + renderNounSection("server") + `
 
   version                  Print version information
   help [command]           Detail for one command
@@ -456,13 +439,13 @@ var verbSummary = map[string]string{
 	"project test":    "Run the tests",
 	"project config":  "Show or set a setting (signing, stores, version)",
 
-	"app build":   "Build for ios, android, desktop, cloudflare, or all",
-	"app run":     "Build and launch; --dev for hot reload",
-	"app package": "Store artifacts (.ipa, .aab, .app, .msix)",
-	"app deploy":  "Put the app live on Cloudflare",
-	"app install": "Install what you already built — no rebuild",
+	"app build":   "Build it",
+	"app run":     "Build and launch it; --dev for hot reload",
+	"app package": "Store artifacts",
+	"app deploy":  "Build the Worker and put it live",
+	"app install": "Install a build — no rebuild",
 	"app remove":  "Uninstall it again",
-	"app reviews": "Read store reviews",
+	"app reviews": "Monitor store reviews",
 
 	"tools install": "Provision what builds need",
 	"tools remove":  "Undo it — shows what it will delete, and asks",
@@ -485,6 +468,36 @@ func renderCommandTable() string {
 			key := noun + " " + verb
 			fmt.Fprintf(&b, "| `%s` | %s |\n", key, verbSummary[key])
 		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderNounSection writes a noun's verbs for the usage index, with the
+// targets each accepts and the columns lined up.
+//
+// Typed by hand this drifted twice: a target the CLI accepted was missing, and
+// then the alignment broke the moment the lists stopped being literals. Both
+// are rendering problems, so they are rendered.
+func renderNounSection(noun string) string {
+	type row struct{ left, right string }
+	var rows []row
+	width := 0
+	for _, verb := range nounVerbs[noun] {
+		key := noun + " " + verb
+		left := key
+		if targets := verbTargets[key]; len(targets) > 0 {
+			left += " <" + strings.Join(targets, "|") + ">"
+		} else if args := verbArgs[key]; args != "" {
+			left += " " + args
+		}
+		if len(left) > width {
+			width = len(left)
+		}
+		rows = append(rows, row{left, verbSummary[key]})
+	}
+	var b strings.Builder
+	for _, r := range rows {
+		fmt.Fprintf(&b, "  %-*s  %s\n", width, r.left, r.right)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
