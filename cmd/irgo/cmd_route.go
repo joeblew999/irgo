@@ -13,7 +13,6 @@
 //
 // There is deliberately no platform noun. ios, android and desktop are targets
 // — `app build ios` — so a noun of the same name would mean two things.
-//
 package main
 
 import (

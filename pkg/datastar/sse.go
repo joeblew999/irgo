@@ -157,9 +157,9 @@ var (
 	WithModeAfter   = datastar.WithModeAfter
 
 	// Selectors
-	WithSelector    = datastar.WithSelector
-	WithSelectorID  = datastar.WithSelectorID
-	WithSelectorf   = datastar.WithSelectorf
+	WithSelector   = datastar.WithSelector
+	WithSelectorID = datastar.WithSelectorID
+	WithSelectorf  = datastar.WithSelectorf
 
 	// View transitions
 	WithViewTransitions    = datastar.WithViewTransitions
