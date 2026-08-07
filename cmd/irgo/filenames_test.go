@@ -67,10 +67,9 @@ func TestGeneratedProjectsRequireTheFrameworksGo(t *testing.T) {
 	var want string
 	for _, line := range strings.Split(string(data), "\n") {
 		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
-			parts := strings.Split(strings.TrimSpace(v), ".")
-			if len(parts) >= 2 {
-				want = parts[0] + "." + parts[1]
-			}
+			// The full version: a project declaring less than what irgo
+			// requires cannot build against it.
+			want = strings.TrimSpace(v)
 			break
 		}
 	}

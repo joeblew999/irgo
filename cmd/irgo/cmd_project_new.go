@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -72,10 +73,37 @@ func downloadDatastar(projectDir string) error {
 // in a repository that never asked for it. That is what happened to the docs
 // site, and it failed in CI rather than for the person who created it.
 //
+// The full version, not just the major and minor: a module whose go directive
+// is lower than a dependency's fails outright, and irgo requires 1.24.12, so a
+// project declaring 1.24 cannot build against it.
+//
 // A test keeps this equal to the framework's own requirement.
-const minGoVersion = "1.24"
+const minGoVersion = "1.24.12"
 
-func getGoVersion() string { return minGoVersion }
+// scaffoldGoVersion is what a generated project should require.
+func scaffoldGoVersion() string { return minGoVersion }
+
+// runningGoVersion is the toolchain actually in use, which is a different
+// question from what a generated project should require.
+//
+// go.work has to be at least as high as every module it includes, so writing
+// the framework's floor there fails against a project whose go.mod is more
+// specific: a workspace saying "go 1.24" over a module saying "go 1.24.12"
+// gets "updates to go.mod needed", and the mobile build dies at gomobile with
+// no mention of a workspace. Conflating the two broke every iOS and Android
+// build in CI while every desktop and web one passed.
+func runningGoVersion() string {
+	out, err := exec.Command(goBin(), "version").Output()
+	if err != nil {
+		return minGoVersion
+	}
+	// "go version go1.24.12 darwin/arm64"
+	re := regexp.MustCompile(`go(\d+\.\d+(?:\.\d+)?)`)
+	if m := re.FindStringSubmatch(string(out)); len(m) > 1 {
+		return m[1]
+	}
+	return minGoVersion
+}
 
 // replaceDirective returns the go.mod `replace` line for the generated project,
 // or "" to build against the published upstream module.

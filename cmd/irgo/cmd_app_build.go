@@ -101,8 +101,43 @@ func runMobile(platform string, devMode bool) error {
 }
 
 // ensureMobileBuildSetup ensures the go.work file and x/mobile are set up correctly
+// pinXMobile is the golang/mobile commit gomobile is built from. Bump it
+// deliberately; leaving it to upstream's default branch means a build that
+// worked yesterday can fail today for reasons in neither repository.
+const pinXMobile = "62cee1672c8eb8502c4718ec93e6ae321d1e40e5"
+
+// ensureGobindTool puts golang.org/x/mobile in the project's dependency graph.
+//
+// gomobile bind refuses to run without it: "gomobile bind requires
+// golang.org/x/mobile in the current module, but it is not in the module
+// dependency graph". Nothing in a generated project imports x/mobile — the
+// bound package imports irgo, and irgo imports nothing from x/mobile — so
+// `go mod tidy` will never add it and every project would meet this error on
+// its first mobile build.
+func ensureGobindTool() error {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return nil // not a project root; the build will say so
+	}
+	if strings.Contains(string(data), "golang.org/x/mobile") {
+		return nil
+	}
+	fmt.Println("Adding golang.org/x/mobile (gomobile bind requires it)...")
+	cmd := exec.Command(goBin(), "get", "-tool", "golang.org/x/mobile/cmd/gobind")
+	cmd.Env = append(os.Environ(), "GOFLAGS=-mod=mod")
+	if out, gerr := cmd.CombinedOutput(); gerr != nil {
+		return fmt.Errorf("adding the gobind tool: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func ensureMobileBuildSetup() error {
-	goVersion := getGoVersion()
+	if err := ensureGobindTool(); err != nil {
+		return err
+	}
+	// The workspace and the vendored x/mobile follow this machine's toolchain,
+	// not the floor a generated project declares.
+	goVersion := runningGoVersion()
 
 	// Check if go.work exists with x/mobile
 	if _, err := os.Stat("go.work"); os.IsNotExist(err) {
@@ -113,11 +148,27 @@ func ensureMobileBuildSetup() error {
 		mobileDir := filepath.Join(os.TempDir(), "golang-mobile")
 		if _, err := os.Stat(mobileDir); os.IsNotExist(err) {
 			fmt.Println("Cloning golang.org/x/mobile...")
-			cmd := exec.Command("git", "clone", "--depth", "1", "https://github.com/golang/mobile", mobileDir)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to clone x/mobile: %w", err)
+			// Pinned to a commit. `git clone --depth 1` with no ref tracks
+			// whatever upstream main is that morning, so a mobile build could
+			// break with no commit in this repository or the project's — the
+			// same unpinned-input bug as installing a tool @latest. golang/mobile
+			// publishes no tags, so the pin is a SHA fetched directly.
+			if err := os.MkdirAll(mobileDir, 0o755); err != nil {
+				return err
+			}
+			for _, step := range [][]string{
+				{"init", "-q"},
+				{"remote", "add", "origin", "https://github.com/golang/mobile"},
+				{"fetch", "-q", "--depth", "1", "origin", pinXMobile},
+				{"checkout", "-q", "FETCH_HEAD"},
+			} {
+				cmd := exec.Command("git", step...)
+				cmd.Dir = mobileDir
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					os.RemoveAll(mobileDir)
+					return fmt.Errorf("fetching x/mobile %s: %w", pinXMobile[:12], err)
+				}
 			}
 		}
 
@@ -176,7 +227,12 @@ func ensureMobileBuildSetup() error {
 
 // runGomobileCommand runs a gomobile command with the correct GOTOOLCHAIN
 func runGomobileCommand(args ...string) error {
-	goVersion := getGoVersion()
+	// The toolchain this machine runs, not the floor a generated project
+	// declares. Pinning GOTOOLCHAIN below what go.work requires makes Go
+	// refuse the workspace, and gomobile reports that as "missing
+	// golang.org/x/mobile dependency" — which is true of neither the module
+	// nor the workspace, and sends you looking in the wrong place entirely.
+	goVersion := runningGoVersion()
 
 	// gomobile bind for Android shells out to javac, which needs a JDK on
 	// PATH — resolve the managed ~/.irgo/jdks JDK (or an existing one) so the

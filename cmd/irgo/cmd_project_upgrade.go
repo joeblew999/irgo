@@ -193,7 +193,7 @@ func renderTemplateBody(body, modulePath string) string {
 func renderTemplate(body, projectName, modulePath, replace string) string {
 	body = strings.ReplaceAll(body, "{{PROJECT_NAME}}", projectName)
 	body = strings.ReplaceAll(body, "{{MODULE_PATH}}", modulePath)
-	body = strings.ReplaceAll(body, "{{GO_VERSION}}", getGoVersion())
+	body = strings.ReplaceAll(body, "{{GO_VERSION}}", scaffoldGoVersion())
 	body = strings.ReplaceAll(body, "{{REPLACE_DIRECTIVE}}", replace)
 	body = strings.ReplaceAll(body, "{{COMMANDS}}", renderCommandTable())
 	return body

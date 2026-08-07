@@ -1,0 +1,7 @@
+go 1.26.5
+
+use (
+	.
+	/Users/apple/workspace/go/src/github.com/joeblew999/irgo
+	/var/folders/pj/n3sth0z55md7lydld97r8mmh0000gn/T/golang-mobile
+)
