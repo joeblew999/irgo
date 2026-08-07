@@ -29,6 +29,14 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # Formatting is checked rather than assumed: three files had been
+      # unformatted since the Datastar migration, which nothing surfaced.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./pkg ./mobile ./desktop)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
       - run: go vet ./...
       # The Cloudflare target compiles the framework for GOOS=js GOARCH=wasm,
       # where a different set of files is selected. Building it here is what

@@ -38,17 +38,17 @@ func DefaultFuncs() template.FuncMap {
 		"dsDelete": dsDelete,
 
 		// Datastar event handlers
-		"dsOnClick":   dsOnClick,
-		"dsOnSubmit":  dsOnSubmit,
-		"dsOnChange":  dsOnChange,
-		"dsOnInput":   dsOnInput,
-		"dsOnKeyup":   dsOnKeyup,
-		"dsOnLoad":    dsOnLoad,
+		"dsOnClick":     dsOnClick,
+		"dsOnSubmit":    dsOnSubmit,
+		"dsOnChange":    dsOnChange,
+		"dsOnInput":     dsOnInput,
+		"dsOnKeyup":     dsOnKeyup,
+		"dsOnLoad":      dsOnLoad,
 		"dsOnIntersect": dsOnIntersect,
 
 		// Datastar binding and signals
-		"dsBind":     dsBind,
-		"dsSignals":  dsSignals,
+		"dsBind":        dsBind,
+		"dsSignals":     dsSignals,
 		"dsSignalsJSON": dsSignalsJSON,
 
 		// Datastar display helpers
@@ -79,8 +79,8 @@ func DefaultFuncs() template.FuncMap {
 		"replace":   strings.ReplaceAll,
 
 		// Conditional helpers
-		"if_":     ifFunc,
-		"default": defaultFunc,
+		"if_":      ifFunc,
+		"default":  defaultFunc,
 		"coalesce": coalesce,
 	}
 }

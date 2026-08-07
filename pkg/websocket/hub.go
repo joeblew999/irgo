@@ -21,15 +21,15 @@ var (
 
 // Hub manages all WebSocket sessions and message routing.
 type Hub struct {
-	sessions    map[string]*Session
-	handlers    map[string]MessageHandler // URL pattern → handler
+	sessions       map[string]*Session
+	handlers       map[string]MessageHandler // URL pattern → handler
 	defaultHandler MessageHandler
-	sessionsMu  sync.RWMutex
-	handlersMu  sync.RWMutex
-	counter     uint64
+	sessionsMu     sync.RWMutex
+	handlersMu     sync.RWMutex
+	counter        uint64
 
 	// Callback for when sessions are created/destroyed
-	onSessionCreated  func(session *Session)
+	onSessionCreated   func(session *Session)
 	onSessionDestroyed func(session *Session)
 }
 
