@@ -84,7 +84,9 @@ func hostCapabilities() []capability {
 			"requires Linux (GTK3 + WebKit2GTK) — cannot cross-compile from " + runtime.GOOS})
 	}
 
-	// iOS is macOS-only, and Xcode is the one thing irgo cannot install.
+	// iOS: on macOS Xcode is the one thing irgo cannot install. Elsewhere,
+	// device builds work through the xtool Darwin SDK (https://xtool.sh);
+	// only the Simulator is truly macOS-bound.
 	if runtime.GOOS == "darwin" {
 		state, note := capReady, "Xcode present"
 		if !has("xcodebuild") {
@@ -97,11 +99,26 @@ func hostCapabilities() []capability {
 			capability{"ios (device/App Store)", devState, devNote},
 		)
 	} else {
-		blocked := "requires macOS (Xcode) — cannot cross-compile from " + runtime.GOOS
+		// Framework builds need only the Darwin SDK toolchain — buildIOSXtool
+		// never invokes the xtool binary itself. Deployment to a device
+		// additionally needs xtool, so the two capabilities are reported
+		// independently: a host without xtool can still build frameworks.
+		fwState, fwNote := capAction,
+			"install a Swift toolchain and the xtool Darwin SDK ('xtool setup', https://xtool.sh)"
+		devState, devNote := fwState, fwNote
+		if _, err := findAppleToolchain(); err == nil {
+			fwState, fwNote = capReady, "xtool Darwin SDK present"
+			if has("xtool") {
+				devState, devNote = capReady, "xtool Darwin SDK present"
+			} else {
+				devState, devNote = capAction, "Darwin SDK present — install xtool (https://xtool.sh) to deploy"
+			}
+		}
 		caps = append(caps,
-			capability{"ios (framework)", capBlocked, blocked},
-			capability{"ios (simulator app)", capBlocked, blocked},
-			capability{"ios (device/App Store)", capBlocked, blocked},
+			capability{"ios (framework)", fwState, fwNote},
+			capability{"ios (simulator app)", capBlocked,
+				"requires macOS (Xcode) — no iOS Simulator on " + runtime.GOOS},
+			capability{"ios (device via xtool)", devState, devNote},
 		)
 	}
 
