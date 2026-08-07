@@ -252,6 +252,17 @@ func runGomobileCommand(args ...string) error {
 	return cmd.Run()
 }
 
+// writeArtifactStamp records which irgo produced a build directory.
+//
+// Every build output carries one. Two of them are load-bearing: the gomobile
+// AAR and xcframework are expensive to rebuild and must match the bridge API
+// of the irgo that generated them, so a stamp from another version forces a
+// rebuild rather than failing to compile against the new one.
+//
+// The rest are for the question that arises with anything deployed or shipped:
+// which version built this? A worker uploaded to Cloudflare or an app handed
+// to someone is otherwise anonymous, and it used to be that only some builds
+// answered.
 func writeArtifactStamp(dir string) {
 	_ = os.WriteFile(filepath.Join(dir, ".irgo-version"), []byte(version), 0644)
 }

@@ -200,6 +200,7 @@ func buildDesktopMacOS(modulePath string) error {
 		}
 	}
 
+	writeArtifactStamp(outDir)
 	fmt.Printf("macOS app built: %s\n", appBundle)
 	runHint("open "+appBundle, "irgo app run desktop --built")
 	return nil
@@ -260,6 +261,7 @@ func buildDesktopWindows(modulePath string) error {
 		}
 	}
 
+	writeArtifactStamp(outDir)
 	fmt.Printf("Windows app built: %s\n", binaryPath)
 	runHint(binaryPath, "irgo app run desktop --built  (on Windows)")
 	return nil
@@ -293,6 +295,7 @@ func buildDesktopLinux(modulePath string) error {
 		}
 	}
 
+	writeArtifactStamp(outDir)
 	fmt.Printf("Linux app built: %s\n", binaryPath)
 	runHint("./"+binaryPath, "irgo app run desktop --built")
 	return nil

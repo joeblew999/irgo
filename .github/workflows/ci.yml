@@ -31,10 +31,6 @@ jobs:
           go-version-file: go.mod
       # Formatting is checked rather than assumed: three files had been
       # unformatted since the Datastar migration, which nothing surfaced.
-      # examples/todo is part of this module and its templates are generated,
-      # so a fresh clone cannot compile until they exist. They are not
-      # committed for the same reason no other generated file is.
-      - run: go run github.com/a-h/templ/cmd/templ@v0.3.977 generate ./examples/...
       - name: gofmt
         run: |
           unformatted=$(gofmt -l ./cmd ./pkg ./mobile ./desktop)
@@ -86,3 +82,18 @@ jobs:
       # than shipping a page describing a command that no longer exists.
       - run: go run ./cmd/irgo -C docs-templ project test
       - run: go run ./cmd/irgo -C docs-templ app build cloudflare
+
+  example:
+    name: The todo example still runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # A worked example that cannot be run is worse than none: this one was
+      # loose files inside the framework's module, so `app build desktop`
+      # failed with "no go.mod" and `project assets` silently skipped Tailwind.
+      # It is a normal irgo project now, driven the way any project is.
+      - run: go run ./cmd/irgo -C examples/todo project test
+      - run: go run ./cmd/irgo -C examples/todo app build desktop linux

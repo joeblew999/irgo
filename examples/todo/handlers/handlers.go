@@ -1,15 +1,21 @@
-// Shared application logic for the todo app
-package main
+// The todo app: an in-memory store and the handlers over it.
+//
+// This is a normal irgo project — its own module, scaffolded by
+// `irgo project new` — so every CLI command works here exactly as it does in
+// any project. It used to be loose files inside the framework's own module,
+// which meant it could not be run at all: `app build desktop` failed with
+// "no go.mod" and `project assets` silently skipped Tailwind because there was
+// no stylesheet to build.
+package handlers
 
 import (
 	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 
-	"github.com/stukennedy/irgo/examples/todo/templates"
 	"github.com/stukennedy/irgo/pkg/render"
 	"github.com/stukennedy/irgo/pkg/router"
+	"todo/templates"
 )
 
 // TodoStore is a simple in-memory store
@@ -76,11 +82,12 @@ var (
 	renderer = render.NewTemplRenderer()
 )
 
-func setupRouter() *router.Router {
-	r := router.New()
-
-	// Serve static files (CSS, JS)
-	r.Static("/static", http.Dir("static"))
+// Mount registers the todo routes. Static files and the home page are
+// registered by app.go, as in any generated project.
+func Mount(r *router.Router) {
+	// The old main.go seeded these; a generated project has no main of its own
+	// to do it in, so the handlers do it when they are mounted.
+	addSampleData()
 
 	// Home page - renders full page with all todos
 	r.GET("/", func(ctx *router.Context) (string, error) {
@@ -136,7 +143,6 @@ func setupRouter() *router.Router {
 		return ctx.SSE().Remove(fmt.Sprintf("#todo-%d", id))
 	})
 
-	return r
 }
 
 func addSampleData() {
