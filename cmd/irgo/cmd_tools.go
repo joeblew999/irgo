@@ -25,19 +25,36 @@ func runTempl() error {
 // goToolPkg maps a tool name to the module to `go install`. templ is pinned to
 // the project's go.mod version: the generator and the library must match, and
 // @latest drift breaks generated code.
+// pinTempl is the fallback templ version, used when a project's own cannot be
+// read from its go.mod.
+const pinTempl = "v0.3.977"
+
+// pinAir is the hot-reload watcher's version. Pinned for the same reason as
+// everything else irgo installs: a build that changes without a commit is a
+// build nobody can reproduce.
+const pinAir = "v1.63.0"
+
 func goToolPkg(name string) string {
 	switch name {
 	case "templ":
+		// The project's own templ version first: the generator and the runtime
+		// package have to agree, or generated code fails to compile against
+		// the library. Falling back to @latest made that disagreement possible
+		// whenever the version could not be read.
 		if v := templVersionFromGoMod(); v != "" {
 			return "github.com/a-h/templ/cmd/templ@v" + v
 		}
-		return "github.com/a-h/templ/cmd/templ@latest"
+		return "github.com/a-h/templ/cmd/templ@" + pinTempl
 	case "air":
-		return "github.com/air-verse/air@latest"
-	case "gomobile":
-		return "golang.org/x/mobile/cmd/gomobile@latest"
-	case "gobind":
-		return "golang.org/x/mobile/cmd/gobind@latest"
+		return "github.com/air-verse/air@" + pinAir
+	case "gomobile", "gobind":
+		// Same commit as the x/mobile checkout gomobile builds against.
+		// Installing @latest while pinning the source is how a tool ends up
+		// disagreeing with the code it drives: gomobile started requiring
+		// golang.org/x/mobile in the project's dependency graph, and every
+		// mobile build broke with no commit in this repository or the
+		// project's.
+		return "golang.org/x/mobile/cmd/" + name + "@" + pinXMobile
 	}
 	return ""
 }

@@ -34,3 +34,35 @@ go.work.sum
 # this; this repository was committing 14 MB of it per rebuild.
 android/Example/app/libs/*.aar
 build/ios/Irgo.xcframework/
+
+# The rules this repository's own template gives every project, minus the ones
+# that only make sense there: a generated project's ios/Example and
+# android/Example are scaffolded output, while this repository maintains them
+# as source.
+#
+# It had none of these, so two generated _templ.go files and a built
+# output.css were committed here — in the repository that tells projects not
+# to commit exactly those.
+bin/
+build/
+tmp/
+vendor/
+package-lock.json
+bun.lock
+*_templ.go
+static/css/output.css
+android/Example/app/libs/irgo.aar
+dist/
+irgo.package.local.toml
+*.irgo-bak
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.log
+build-errors.log
+.env
+.env.local

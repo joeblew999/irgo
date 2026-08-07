@@ -243,3 +243,28 @@ func TestDeployBuildsThroughTheBuildPath(t *testing.T) {
 		t.Error("deploy does not build through runBuild, so it does not do what `app build` does")
 	}
 }
+
+// TestEveryInstalledToolIsPinned catches the bug that keeps recurring here.
+//
+// gomobile installed @latest started requiring golang.org/x/mobile in the
+// project's dependency graph, and every mobile build broke with no commit in
+// this repository or any project's. The x/mobile checkout had the same problem
+// — cloned from the default branch with no ref. A build that changes without a
+// commit is a build nobody can reproduce.
+func TestEveryInstalledToolIsPinned(t *testing.T) {
+	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
+		pkg := goToolPkg(tool)
+		if pkg == "" {
+			t.Errorf("%s has no install source", tool)
+			continue
+		}
+		_, version, ok := strings.Cut(pkg, "@")
+		if !ok {
+			t.Errorf("%s installs from %q with no version at all", tool, pkg)
+			continue
+		}
+		if version == "latest" {
+			t.Errorf("%s installs @latest — pin it, or a build changes with no commit", tool)
+		}
+	}
+}
