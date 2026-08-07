@@ -9,7 +9,7 @@ templ HomePage() {
 	@FullscreenPage("Irgo + Datastar") {
 		<div
 			class="constellation-container"
-			data-signals="{mouseX: 0.5, mouseY: 0.5}"
+			data-signals="{mouseX: 0.5, mouseY: 0.5, pulses: 0}"
 			data-init="@get('/api/init')"
 			data-on:mousemove__throttle.100ms="$mouseX = evt.clientX / window.innerWidth; $mouseY = evt.clientY / window.innerHeight; @get('/api/pulse')"
 			data-on:touchmove__throttle.100ms__prevent="$mouseX = evt.touches[0].clientX / window.innerWidth; $mouseY = evt.touches[0].clientY / window.innerHeight; @get('/api/pulse')"
