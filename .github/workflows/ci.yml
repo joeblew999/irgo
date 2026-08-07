@@ -68,11 +68,17 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # `go run ./cmd/irgo` rather than `go tool irgo`: the tool directive
+      # lives in a consuming project's go.mod, not the framework's, so there is
+      # no `go tool irgo` at this root. Running the checkout's own CLI is also
+      # what should be tested here — the commit's behaviour, not a pinned
+      # release's.
+      #
       # _templ.go and output.css are generated and gitignored, so a fresh clone
       # has neither and the package would not compile.
-      - run: go tool irgo -C docs-templ project assets
+      - run: go run ./cmd/irgo -C docs-templ project assets
       # Its CLI reference is generated from this checkout's own declarations, so
       # a command renamed here and not regenerated there fails as a test rather
       # than shipping a page describing a command that no longer exists.
-      - run: go tool irgo -C docs-templ project test
-      - run: go tool irgo -C docs-templ app build cloudflare
+      - run: go run ./cmd/irgo -C docs-templ project test
+      - run: go run ./cmd/irgo -C docs-templ app build cloudflare

@@ -88,8 +88,8 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
       # Generated and gitignored, so a fresh clone has neither.
-      - run: go tool irgo -C docs-templ project assets
-      - run: go tool irgo -C docs-templ app build cloudflare
+      - run: go run ./cmd/irgo -C docs-templ project assets
+      - run: go run ./cmd/irgo -C docs-templ app build cloudflare
       - name: Deploy
         if: steps.creds.outputs.deploy == 'true'
-        run: go tool irgo -C docs-templ app deploy cloudflare
+        run: go run ./cmd/irgo -C docs-templ app deploy cloudflare
