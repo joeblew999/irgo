@@ -89,6 +89,15 @@ func route(noun, verb string, args []string) (error, bool) {
 			return runAppInstall(target), true
 		case "remove":
 			return runAppUninstall(target), true
+		case "deploy":
+			if target != "cloudflare" {
+				return fmt.Errorf("usage: irgo app deploy cloudflare"), true
+			}
+			modulePath, err := getModulePath()
+			if err != nil {
+				return fmt.Errorf("could not determine module path: %w", err), true
+			}
+			return deployCloudflare(modulePath), true
 		case "reviews":
 			return reviewsCommand(args), true
 		}
@@ -145,7 +154,7 @@ func route(noun, verb string, args []string) (error, bool) {
 // the alternatives rather than the whole CLI.
 var nounVerbs = map[string][]string{
 	"project": {"new", "clean", "upgrade", "pin", "ci", "assets", "test", "config"},
-	"app":     {"build", "run", "package", "install", "remove", "reviews"},
+	"app":     {"build", "run", "package", "deploy", "install", "remove", "reviews"},
 	"tools":   {"install", "remove", "doctor"},
 	"server":  {"dev", "serve"},
 }

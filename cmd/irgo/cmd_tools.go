@@ -222,6 +222,7 @@ func uninstallTools(scope string, all, yes, keepJDK bool) error {
 	default:
 		planGoTools(&p, all)
 		planDownloads(&p)
+		planNode(&p)
 		planHostPackages(&p, all)
 		planAndroid(&p, keepJDK)
 	}

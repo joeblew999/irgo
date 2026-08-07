@@ -33,6 +33,7 @@ APP       what gets built, shipped and installed
   app build <ios|android|desktop|all>      Build it
   app run <ios|android|desktop>            Build and launch it
   app package <ios|android|macos|windows>  Store artifacts
+  app deploy cloudflare    Build the Worker and put it live
   app install <platform>   Install what you already built — no rebuild
   app remove <platform>    Uninstall it
   app reviews <ios|mac|android>            Monitor store reviews
@@ -280,6 +281,26 @@ Assets are regenerated first, so a package cannot ship a stale stylesheet.
 Signing settings come from irgo.package.toml — see irgo project config. Missing
 credentials are reported before the build rather than at the end of it.`)
 
+	case "app deploy":
+		fmt.Println(`irgo app deploy - Put the app live
+
+Usage:
+  irgo app deploy cloudflare    Build the Worker and deploy it
+
+Builds first, so what goes live is what the current source produces.
+
+Cloudflare needs wrangler, which is a Node program — and Cloudflare does not
+support the bun runtime. irgo downloads its own Node into ~/.irgo rather than
+asking you to install one, and irgo tools remove takes it away again. A working
+node already on PATH is used instead.
+
+Credentials:
+  CLOUDFLARE_API_TOKEN   required in CI
+                         From a terminal, wrangler opens a browser instead.
+
+The Worker's name and any bindings come from wrangler.toml, which is yours
+after irgo seeds it.`)
+
 	case "app install":
 		fmt.Println(`irgo app install - Install what you already built
 
@@ -437,6 +458,7 @@ var verbSummary = map[string]string{
 	"app build":   "Build for ios, android, desktop, cloudflare, or all",
 	"app run":     "Build and launch; --dev for hot reload",
 	"app package": "Store artifacts (.ipa, .aab, .app, .msix)",
+	"app deploy":  "Put the app live on Cloudflare",
 	"app install": "Install what you already built — no rebuild",
 	"app remove":  "Uninstall it again",
 	"app reviews": "Read store reviews",

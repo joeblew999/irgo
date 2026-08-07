@@ -150,6 +150,25 @@ func planDownloads(p *removalPlan) {
 	}
 }
 
+// planNode adds the Node irgo downloads for wrangler. It is large and it is
+// only there for Cloudflare deploys, so leaving it behind after a removal
+// would be the kind of quiet leftover this command exists to prevent.
+func planNode(p *removalPlan) {
+	dir := managedNodeHome()
+	if !isDir(dir) {
+		return
+	}
+	p.add("Downloads", fmt.Sprintf("%-14s %s%s", "node", dir, dirSizeNote(dir)),
+		func(tally *removalTally) {
+			if err := os.RemoveAll(dir); err != nil {
+				tally.report("node", "failed", err.Error())
+				return
+			}
+			clearToolMarker("node")
+			tally.report("node", "removed", dir)
+		})
+}
+
 // planHostPackages adds packages installed through the host package manager.
 func planHostPackages(p *removalPlan, all bool) {
 	mgr := pkgManager()

@@ -76,13 +76,18 @@ func buildCloudflare(modulePath string) error {
 	writeArtifactStamp(workerBuildDir)
 	reportWorkerSize()
 
-	fmt.Println()
-	fmt.Println("Deploy it:")
-	fmt.Println("  wrangler deploy")
-	fmt.Println()
-	fmt.Println("wrangler runs on Node — Cloudflare does not support the bun runtime.")
+	if !deploying {
+		fmt.Println()
+		fmt.Println("Deploy it:")
+		fmt.Println("  irgo app deploy cloudflare")
+	}
 	return nil
 }
+
+// deploying suppresses the build's closing advice when a deploy is about to
+// happen anyway — being told to run the command that is already running reads
+// as though nothing happened.
+var deploying bool
 
 // ensureWorkerEntrypoint writes the js/wasm main if the project has none.
 func ensureWorkerEntrypoint(modulePath string) error {
