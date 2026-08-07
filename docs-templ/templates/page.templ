@@ -1,0 +1,26 @@
+package templates
+
+import "docs-templ/content"
+
+// Prose renders any documentation page from its blocks.
+//
+// One renderer rather than fifteen hand-written pages: markup written per page
+// drifts into fifteen slightly different pages, and the old site had exactly
+// that. Editing the words means editing content/pages.go, and nothing else.
+templ Prose(p content.Page) {
+	@DocsPage(p.Title) {
+		<h1>{ p.Title }</h1>
+		for _, b := range p.Blocks {
+			switch b.Kind {
+				case content.H2:
+					<h2>{ b.Text }</h2>
+				case content.H3:
+					<h3>{ b.Text }</h3>
+				case content.Code:
+					<pre><code>{ b.Text }</code></pre>
+				default:
+					<p>{ b.Text }</p>
+			}
+		}
+	}
+}

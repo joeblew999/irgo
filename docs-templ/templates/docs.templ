@@ -1,5 +1,7 @@
 package templates
 
+import "docs-templ/content"
+
 // DocsPage is the shell every documentation page sits in.
 //
 // Deliberately plain: this port exists to prove the docs can be an irgo app,
@@ -12,7 +14,9 @@ templ DocsPage(title string) {
 				<a class="brand" href="/">irgo</a>
 				<nav>
 					<a href="/docs/cli">CLI reference</a>
-					<a href="/docs/getting-started">Getting started</a>
+					for _, p := range content.Pages {
+						<a href={ templ.SafeURL("/docs/" + p.Slug) }>{ p.Title }</a>
+					}
 				</nav>
 				<p class="docs-note">
 					Served by Go, rendered with templ, running on Cloudflare
@@ -26,40 +30,6 @@ templ DocsPage(title string) {
 	}
 }
 
-// GettingStarted is one ported page, enough to show what porting looks like
-// next to a generated one.
-templ GettingStarted() {
-	@DocsPage("Getting started") {
-		<h1>Getting started</h1>
-		<p class="lede">Go, and nothing else you have to install yourself.</p>
-
-		<h2>Create a project</h2>
-		<pre><code>irgo project new myapp
-cd myapp
-go tool irgo server dev</code></pre>
-
-		<p>
-			The CLI provisions what a build needs when that build needs it:
-			templ, the Tailwind standalone binary, air, gomobile, and the
-			Android JDK, SDK and NDK — into <code>~/.irgo</code> or the Android
-			SDK home, on macOS, Linux and Windows alike. No system package
-			manager is involved, and <code>irgo tools remove</code> undoes it.
-		</p>
-
-		<p>
-			Ask what this machine can do:
-			<code>go tool irgo tools doctor</code>. The one thing irgo cannot
-			install is Xcode, because only Apple can — <code>doctor</code> says
-			so plainly. Android Studio is not required.
-		</p>
-
-		<h2>Run it everywhere</h2>
-		<pre><code>go tool irgo app run desktop
-go tool irgo app run ios
-go tool irgo app run android
-go tool irgo app deploy cloudflare</code></pre>
-	}
-}
 
 // DocsHome is the landing page.
 templ DocsHome() {

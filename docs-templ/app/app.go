@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"docs-templ/clidoc"
+	"docs-templ/content"
 	"docs-templ/handlers"
 	"docs-templ/static"
 	"docs-templ/templates"
@@ -39,9 +40,13 @@ func NewRouter() *router.Router {
 		}
 		return Renderer.Render(templates.CLIReference(clidoc.Nouns(), byNoun))
 	})
-	r.GET("/docs/getting-started", func(ctx *router.Context) (string, error) {
-		return Renderer.Render(templates.GettingStarted())
-	})
+	// Every prose page, from one declaration each.
+	for _, p := range content.Pages {
+		page := p
+		r.GET("/docs/"+page.Slug, func(ctx *router.Context) (string, error) {
+			return Renderer.Render(templates.Prose(page))
+		})
+	}
 
 	// Mount handlers
 	handlers.Mount(r)

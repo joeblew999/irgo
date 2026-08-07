@@ -70,12 +70,9 @@ jobs:
           go-version-file: go.mod
       # _templ.go and output.css are generated and gitignored, so a fresh clone
       # has neither and the package would not compile.
-      - run: go tool irgo project assets
-        working-directory: docs-templ
+      - run: go tool irgo -C docs-templ project assets
       # Its CLI reference is generated from this checkout's own declarations, so
       # a command renamed here and not regenerated there fails as a test rather
       # than shipping a page describing a command that no longer exists.
-      - run: go test ./...
-        working-directory: docs-templ
-      - run: go tool irgo app build cloudflare
-        working-directory: docs-templ
+      - run: go tool irgo -C docs-templ project test
+      - run: go tool irgo -C docs-templ app build cloudflare

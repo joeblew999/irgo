@@ -79,10 +79,30 @@ func main() {
 
 	var err error
 
+	// -C <dir> runs the command somewhere else, like make.
+	//
+	// Every irgo command acts on the project in the working directory, which
+	// means deploying a second project in the same repository — the
+	// documentation site is one — meant cd'ing first. A directory is not a new
+	// command, so it is a flag rather than a noun: `irgo -C docs app deploy
+	// cloudflare` is the same code path as running it from inside docs.
+	args := os.Args[1:]
+	if len(args) >= 2 && (args[0] == "-C" || args[0] == "--chdir") {
+		if err := os.Chdir(args[1]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: -C %s: %v\n", args[1], err)
+			os.Exit(1)
+		}
+		args = args[2:]
+	}
+	if len(args) == 0 {
+		printUsage()
+		os.Exit(1)
+	}
+
 	// One grammar, no exceptions: <noun> <verb> [target].
-	noun, verb, rest := os.Args[1], "", os.Args[2:]
-	if len(os.Args) > 2 {
-		verb, rest = os.Args[2], os.Args[3:]
+	noun, verb, rest := args[0], "", args[1:]
+	if len(args) > 1 {
+		verb, rest = args[1], args[2:]
 	}
 
 	switch noun {
@@ -94,17 +114,17 @@ func main() {
 	case "help", "-h", "--help":
 		// `irgo help`, `irgo help app`, `irgo help app run` — the same grammar
 		// as the commands themselves.
-		if hasFlag(os.Args[2:], "--json") {
+		if hasFlag(args[1:], "--json") {
 			printCommandsJSON()
 			break
 		}
-		switch len(os.Args) {
-		case 2:
+		switch len(args) {
+		case 1:
 			printUsage()
-		case 3:
-			printCommandHelp(os.Args[2], "")
+		case 2:
+			printCommandHelp(args[1], "")
 		default:
-			printCommandHelp(os.Args[2], os.Args[3])
+			printCommandHelp(args[1], args[2])
 		}
 	default:
 		var handled bool
