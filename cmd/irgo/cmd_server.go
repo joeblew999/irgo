@@ -52,6 +52,14 @@ func runServe() error {
 
 // runTest runs the test suite
 func runTest() error {
+	// Generate first. _templ.go and output.css are gitignored, so on a fresh
+	// clone the templates package has no Go files at all and `go test` fails
+	// with "package <mod>/templates is not in std" — which names neither templ
+	// nor the missing step. The help has always said this command regenerates;
+	// it did not, and CI trusted the documentation.
+	if err := ensureAssets(); err != nil {
+		return err
+	}
 	fmt.Println("Running tests...")
-	return runCommand(goBin(), "test", "-v", "./...")
+	return runCommand(goBin(), "test", "./...")
 }

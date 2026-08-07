@@ -286,3 +286,22 @@ func TestInstallRecordsThePinnedVersion(t *testing.T) {
 		}
 	}
 }
+
+// TestTestRegeneratesAssets — the help says `project test` regenerates before
+// running, CI was written to trust that, and the code did not. On a fresh
+// clone the templates package has no Go files and every test fails to build.
+func TestTestRegeneratesAssets(t *testing.T) {
+	src, err := os.ReadFile("cmd_server.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	i := strings.Index(body, "func runTest()")
+	if i < 0 {
+		t.Fatal("runTest not found")
+	}
+	if !strings.Contains(body[i:], "ensureAssets()") {
+		t.Error("project test does not regenerate assets, but its help says it does — " +
+			"a fresh clone cannot compile the templates package")
+	}
+}
