@@ -63,3 +63,32 @@ func TestHelpForANounListsItsVerbs(t *testing.T) {
 		}
 	}
 }
+
+// TestUsageIndexListsEveryCommand keeps the front page honest.
+//
+// The index is prose while the commands come from a table, so it drifts: `app
+// deploy cloudflare` shipped working and undocumented, and `app build` went on
+// listing targets that no longer matched what it accepted. The detail pages
+// were right both times — it was the first screen, which is the only one most
+// people read, that was wrong.
+func TestUsageIndexListsEveryCommand(t *testing.T) {
+	out := captureStdout(t, printUsage)
+	for noun, verbs := range nounVerbs {
+		for _, verb := range verbs {
+			if !strings.Contains(out, noun+" "+verb) {
+				t.Errorf("irgo help does not mention %q on its front page", noun+" "+verb)
+			}
+		}
+	}
+}
+
+// TestUsageIndexListsEveryBuildTarget catches the narrower version: a target
+// the dispatch accepts but the index does not name.
+func TestUsageIndexListsEveryBuildTarget(t *testing.T) {
+	out := captureStdout(t, printUsage)
+	for _, target := range buildTargets {
+		if !strings.Contains(out, target) {
+			t.Errorf("irgo help never mentions the build target %q", target)
+		}
+	}
+}

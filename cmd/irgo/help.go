@@ -29,14 +29,14 @@ PROJECT   the repository you are in
   project pin [target]     Which irgo this project builds against
   project config [k] [v]   Show or set a setting (signing, stores, version)
 
-APP       what gets built, shipped and installed
-  app build <ios|android|desktop|all>      Build it
-  app run <ios|android|desktop>            Build and launch it
-  app package <ios|android|macos|windows>  Store artifacts
-  app deploy cloudflare    Build the Worker and put it live
-  app install <platform>   Install what you already built — no rebuild
-  app remove <platform>    Uninstall it
-  app reviews <ios|mac|android>            Monitor store reviews
+APP       what gets built, run, shipped and installed
+  app build <` + buildTargetList() + `>  Build it
+  app run <ios|android|desktop>                   Build and launch it
+  app deploy cloudflare                           Build the Worker, put it live
+  app package <ios|android|macos|windows>         Store artifacts
+  app install <ios|android|desktop>               Install a build — no rebuild
+  app remove <ios|android|desktop>                Uninstall it
+  app reviews <ios|mac|android>                   Monitor store reviews
 
 TOOLS     the toolchains on this machine
   tools doctor [android]   What this host can build; --fix repairs it
@@ -59,6 +59,7 @@ Examples:
   irgo app build desktop all         Every desktop target this host supports
   irgo app package macos --dmg       Signed .app and a DMG
   irgo app install desktop           Put the built app in /Applications
+  irgo app deploy cloudflare         Live on Cloudflare Workers, SSE included
   irgo tools remove --yes            Undo everything irgo installed
   irgo project config ios.team       Which team signs, and what is available
   irgo project pin local ../irgo     Build a checkout you are editing

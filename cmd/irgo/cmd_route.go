@@ -71,7 +71,7 @@ func route(noun, verb string, args []string) (error, bool) {
 		switch verb {
 		case "build":
 			if target == "all" && len(args) == 0 {
-				return fmt.Errorf("usage: irgo app build <ios|android|desktop|cloudflare|all>"), true
+				return fmt.Errorf("usage: irgo app build <%s>", buildTargetList()), true
 			}
 			return runAppBuild(target, args), true
 		case "run":
@@ -201,3 +201,11 @@ var renamed = map[string]string{
 
 	"ios": "app build ios, or project config ios.team",
 }
+
+// buildTargets is what `app build` accepts, declared once. The help index used
+// to spell this out by hand and fell behind the dispatch when cloudflare was
+// added — the command worked and nothing documented it.
+var buildTargets = []string{"ios", "android", "desktop", "cloudflare", "all"}
+
+// buildTargetList renders them for a usage line.
+func buildTargetList() string { return strings.Join(buildTargets, "|") }
