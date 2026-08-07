@@ -17,3 +17,11 @@
 
 # Node dependencies
 node_modules/
+
+# The templ docs site is a nested module; its generated output follows the same
+# rules as any irgo project.
+docs-templ/build/
+docs-templ/tmp/
+docs-templ/dist/
+docs-templ/static/css/output.css
+docs-templ/templates/*_templ.go

@@ -94,6 +94,10 @@ func main() {
 	case "help", "-h", "--help":
 		// `irgo help`, `irgo help app`, `irgo help app run` — the same grammar
 		// as the commands themselves.
+		if hasFlag(os.Args[2:], "--json") {
+			printCommandsJSON()
+			break
+		}
 		switch len(os.Args) {
 		case 2:
 			printUsage()

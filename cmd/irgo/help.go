@@ -6,7 +6,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -179,4 +181,54 @@ func renderNounVerbs(noun, prefix string) string {
 		fmt.Fprintf(&b, "  %-*s  %s\n", width, r.left, r.right)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// printCommandsJSON writes the command declarations as JSON.
+//
+// The documentation site's CLI reference was written by hand and went stale
+// every time a command moved — it described `irgo doctor` and `irgo ios team`
+// long after both were gone. Reading the CLI's own declarations means the page
+// cannot say something the binary does not do.
+func printCommandsJSON() {
+	type flagDoc struct {
+		Spec string `json:"spec"`
+		What string `json:"what"`
+	}
+	type usageDoc struct {
+		Form string `json:"form"`
+		What string `json:"what"`
+	}
+	type commandDoc struct {
+		Noun    string     `json:"noun"`
+		Verb    string     `json:"verb"`
+		Summary string     `json:"summary"`
+		Targets []string   `json:"targets,omitempty"`
+		Args    string     `json:"args,omitempty"`
+		Usage   []usageDoc `json:"usage,omitempty"`
+		Flags   []flagDoc  `json:"flags,omitempty"`
+		Notes   string     `json:"notes,omitempty"`
+	}
+
+	var out []commandDoc
+	for _, noun := range []string{"project", "app", "tools", "server"} {
+		for _, verb := range nounVerbs[noun] {
+			c := commands[noun+" "+verb]
+			d := commandDoc{
+				Noun: noun, Verb: verb, Summary: c.summary,
+				Targets: c.targets, Args: c.args, Notes: c.notes,
+			}
+			for _, u := range c.usage {
+				d.Usage = append(d.Usage, usageDoc{Form: u[0], What: u[1]})
+			}
+			for _, f := range c.flags {
+				d.Flags = append(d.Flags, flagDoc{Spec: f[0], What: f[1]})
+			}
+			out = append(out, d)
+		}
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(out); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }

@@ -59,3 +59,19 @@ jobs:
         working-directory: website
       - run: bun run build
         working-directory: website
+
+  docs-templ:
+    name: Docs site (templ) builds and matches the CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Its CLI reference is generated from this checkout's own declarations, so
+      # a command renamed here and not regenerated there fails as a test rather
+      # than shipping a page describing a command that no longer exists.
+      - run: go test ./...
+        working-directory: docs-templ
+      - run: go tool irgo app build cloudflare
+        working-directory: docs-templ
