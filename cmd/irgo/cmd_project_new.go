@@ -3,9 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
-	"io"
 	"io/fs"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,48 +18,11 @@ import (
 //go:embed all:templates
 var templateFS embed.FS
 
-// Datastar files to download during project creation
-var datastarFiles = map[string]string{
-	"static/js/datastar.js": "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-RC.7/bundles/datastar.js",
-}
-
-// downloadDatastar downloads Datastar files to the project's static/js directory
-func downloadDatastar(projectDir string) error {
-	for destPath, url := range datastarFiles {
-		fullPath := filepath.Join(projectDir, destPath)
-
-		// Create directory if needed
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-			return fmt.Errorf("creating directory for %s: %w", destPath, err)
-		}
-
-		// Download the file
-		resp, err := http.Get(url)
-		if err != nil {
-			return fmt.Errorf("downloading %s: %w", url, err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("downloading %s: status %d", url, resp.StatusCode)
-		}
-
-		// Read the content
-		content, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("reading %s: %w", url, err)
-		}
-
-		// Write to file
-		if err := os.WriteFile(fullPath, content, 0644); err != nil {
-			return fmt.Errorf("writing %s: %w", destPath, err)
-		}
-
-		fmt.Printf("  downloaded: %s\n", destPath)
-	}
-
-	return nil
-}
+// Datastar is served by the framework at /_irgo/datastar.js, embedded in
+// pkg/datastarjs and versioned with irgo — see that package for why. Projects
+// used to download a copy from a CDN here, which made `project new` need the
+// network and left every project pinned to whatever client was current the day
+// it was created.
 
 // getGoVersion returns the current Go version (e.g., "1.24.12")
 // minGoVersion is the Go a generated project requires.
@@ -409,9 +370,7 @@ func newProject(name string) error {
 
 	// Download Datastar files
 	fmt.Println("Downloading Datastar...")
-	if err := downloadDatastar(projectDir); err != nil {
-		return fmt.Errorf("downloading Datastar: %w", err)
-	}
+
 
 	// Make scripts executable
 	scripts := []string{}

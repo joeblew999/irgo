@@ -143,9 +143,14 @@ const PackageJSON = `{
 }
 `
 
-// DatastarScript returns the script tag for Datastar.
-// For mobile apps, this would be bundled locally.
-const DatastarScript = `<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar/bundles/datastar.js"></script>`
+// DatastarScript is the tag that loads the Datastar client.
+//
+// It used to point at an unversioned CDN URL — whatever upstream published
+// that morning, in every app that used it, with no way to know which client a
+// given page had loaded. The client is embedded in the framework now and
+// served by the router, so this points at that: one version, matched to the
+// datastar-go the same irgo requires, and no network dependency at runtime.
+const DatastarScript = `<script type="module" src="/_irgo/datastar.js"></script>`
 
 // BaseHTML provides a minimal HTML template with Datastar and Tailwind.
 const BaseHTML = `<!DOCTYPE html>
@@ -158,7 +163,7 @@ const BaseHTML = `<!DOCTYPE html>
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>{{.Title}}</title>
     <link rel="stylesheet" href="/assets/css/output.css">
-    <script type="module" src="/assets/js/datastar.js"></script>
+    <script type="module" src="/_irgo/datastar.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 safe-area">
     <div id="app">

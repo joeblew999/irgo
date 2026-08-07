@@ -143,6 +143,7 @@ func runUpgrade(force, showDiff bool) error {
 
 	fmt.Printf("\n%d file(s) updated, %d already current.\n", updated, unchanged)
 
+	migrateDatastar()
 	reportGoDirective()
 
 	if len(failed) > 0 {
@@ -266,4 +267,46 @@ func higherThan(a, b string) bool {
 		}
 	}
 	return len(as) > len(bs)
+}
+
+// migrateDatastar moves a project off its vendored Datastar client.
+//
+// Projects created before the client moved into the framework downloaded one
+// at scaffold time and kept it forever, so each is pinned to whatever was
+// current that day — one of them a release candidate running against a stable
+// library. The framework serves the matching client now, and the stale copy is
+// dead weight that the layout still points at.
+//
+// layout.templ belongs to the project, so only the one script tag is rewritten
+// and the change is announced. A build constraint and a script source are the
+// two edits irgo makes to files it does not own; both are mechanical, and both
+// beat the failure they replace.
+func migrateDatastar() {
+	const vendored = "static/js/datastar.js"
+	const oldTag = `<script type="module" src="/static/js/datastar.js"></script>`
+	const newTag = `<script type="module" src="/_irgo/datastar.js"></script>`
+
+	layout := filepath.Join("templates", "layout.templ")
+	data, err := os.ReadFile(layout)
+	if err != nil {
+		return
+	}
+	if !strings.Contains(string(data), oldTag) {
+		return
+	}
+	// Every occurrence: the scaffolded layout defines more than one page
+	// shell, each with its own script tags, and replacing the first left the
+	// fullscreen layout still loading a client that had just been deleted.
+	updated := strings.ReplaceAll(string(data), oldTag, newTag)
+	if err := os.WriteFile(layout, []byte(updated), 0o644); err != nil {
+		return
+	}
+	fmt.Println()
+	fmt.Printf("  updated: %s — Datastar now comes from the framework\n", layout)
+	if pathExists(vendored) {
+		if err := os.Remove(vendored); err == nil {
+			fmt.Printf("  removed: %s (was pinned to whatever was current when this\n", vendored)
+			fmt.Println("           project was created; irgo serves the matching client now)")
+		}
+	}
 }

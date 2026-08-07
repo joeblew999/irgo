@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -303,5 +304,37 @@ func TestTestRegeneratesAssets(t *testing.T) {
 	if !strings.Contains(body[i:], "ensureAssets()") {
 		t.Error("project test does not regenerate assets, but its help says it does — " +
 			"a fresh clone cannot compile the templates package")
+	}
+}
+
+// TestNoUnpinnedDatastarCDN — the client came from an unversioned CDN URL in
+// one place and a release candidate in another. Neither should come back.
+func TestNoUnpinnedDatastarCDN(t *testing.T) {
+	roots := []string{"../../pkg", "../../cmd", "../../examples"}
+	for _, root := range roots {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			switch filepath.Ext(path) {
+			case ".go", ".templ", ".tmpl", ".html":
+			default:
+				return nil
+			}
+			if strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			body, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			if strings.Contains(string(body), "cdn.jsdelivr.net") &&
+				strings.Contains(string(body), "datastar") {
+				t.Errorf("%s loads Datastar from a CDN — it is embedded in pkg/datastarjs "+
+					"and served at /_irgo/datastar.js, so the client and the Go library "+
+					"cannot drift apart", path)
+			}
+			return nil
+		})
 	}
 }
