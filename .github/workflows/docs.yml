@@ -87,9 +87,13 @@ jobs:
           else
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
-      # Generated and gitignored, so a fresh clone has neither.
-      - run: go run ./cmd/irgo -C docs-templ project assets
-      - run: go run ./cmd/irgo -C docs-templ app build cloudflare
+      # app deploy builds, and building regenerates the assets — there is
+      # nothing to sequence by hand.
       - name: Deploy
         if: steps.creds.outputs.deploy == 'true'
         run: go run ./cmd/irgo -C docs-templ app deploy cloudflare
+      # Still build when there are no credentials, so a broken site is caught
+      # whether or not this repository can deploy it.
+      - name: Build only
+        if: steps.creds.outputs.deploy != 'true'
+        run: go run ./cmd/irgo -C docs-templ app build cloudflare

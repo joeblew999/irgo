@@ -221,3 +221,25 @@ func TestDeclaredFlagsExist(t *testing.T) {
 		}
 	}
 }
+
+// TestDeployBuildsThroughTheBuildPath guards a shortcut that reintroduced a
+// fixed bug.
+//
+// deployCloudflare called buildCloudflare directly, one layer below the
+// asset regeneration every build path does, so a deploy could ship a stale
+// stylesheet — measured: `app build` refreshed it, `app deploy` did not.
+// Deploying must be building plus uploading, and nothing else.
+func TestDeployBuildsThroughTheBuildPath(t *testing.T) {
+	src, err := os.ReadFile("app_cloudflare_deploy.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	if strings.Contains(body, "buildCloudflare(") {
+		t.Error("deploy calls buildCloudflare directly — that skips ensureAssets " +
+			"and ships whatever happens to be on disk; call runBuild instead")
+	}
+	if !strings.Contains(body, `runBuild("cloudflare"`) {
+		t.Error("deploy does not build through runBuild, so it does not do what `app build` does")
+	}
+}

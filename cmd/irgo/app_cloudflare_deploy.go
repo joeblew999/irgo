@@ -17,7 +17,12 @@ import (
 
 func deployCloudflare(modulePath string) error {
 	deploying = true
-	if err := buildCloudflare(modulePath); err != nil {
+	// runBuild, not buildCloudflare: deploying has to be building plus
+	// uploading, and nothing else. Calling the inner function skipped the
+	// asset regeneration that every other build path does, so a deploy could
+	// ship a stale stylesheet — the exact failure `app package` documents as
+	// impossible, reintroduced by taking a shortcut one layer down.
+	if err := runBuild("cloudflare", false, false, ""); err != nil {
 		return err
 	}
 

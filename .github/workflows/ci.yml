@@ -74,9 +74,9 @@ jobs:
       # what should be tested here — the commit's behaviour, not a pinned
       # release's.
       #
-      # _templ.go and output.css are generated and gitignored, so a fresh clone
-      # has neither and the package would not compile.
-      - run: go run ./cmd/irgo -C docs-templ project assets
+      # No separate asset step: project test and app build both regenerate what
+      # they need. A pipeline that has to remember the order is a pipeline that
+      # will one day forget.
       # Its CLI reference is generated from this checkout's own declarations, so
       # a command renamed here and not regenerated there fails as a test rather
       # than shipping a page describing a command that no longer exists.
