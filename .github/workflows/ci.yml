@@ -68,6 +68,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # _templ.go and output.css are generated and gitignored, so a fresh clone
+      # has neither and the package would not compile.
+      - run: go tool irgo project assets
+        working-directory: docs-templ
       # Its CLI reference is generated from this checkout's own declarations, so
       # a command renamed here and not regenerated there fails as a test rather
       # than shipping a page describing a command that no longer exists.

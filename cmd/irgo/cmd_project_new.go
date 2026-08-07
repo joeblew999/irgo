@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -64,19 +63,19 @@ func downloadDatastar(projectDir string) error {
 }
 
 // getGoVersion returns the current Go version (e.g., "1.24.12")
-func getGoVersion() string {
-	out, err := exec.Command(goBin(), "version").Output()
-	if err != nil {
-		return "1.23"
-	}
-	// Parse "go version go1.24.12 darwin/arm64"
-	re := regexp.MustCompile(`go(\d+\.\d+(?:\.\d+)?)`)
-	match := re.FindStringSubmatch(string(out))
-	if len(match) > 1 {
-		return match[1]
-	}
-	return "1.23"
-}
+// minGoVersion is the Go a generated project requires.
+//
+// Deliberately a constant rather than whatever is installed here. Writing the
+// developer's toolchain into go.mod pins every teammate and every CI runner to
+// what happened to be on one machine: a project scaffolded on Go 1.26 fails to
+// build on the 1.24 irgo itself targets, with "go.mod requires go >= 1.26.5"
+// in a repository that never asked for it. That is what happened to the docs
+// site, and it failed in CI rather than for the person who created it.
+//
+// A test keeps this equal to the framework's own requirement.
+const minGoVersion = "1.24"
+
+func getGoVersion() string { return minGoVersion }
 
 // replaceDirective returns the go.mod `replace` line for the generated project,
 // or "" to build against the published upstream module.

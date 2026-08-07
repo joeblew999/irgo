@@ -51,3 +51,35 @@ func TestNoFilenameEndsInGOOS(t *testing.T) {
 		}
 	}
 }
+
+// TestGeneratedProjectsRequireTheFrameworksGo keeps minGoVersion equal to what
+// irgo itself needs.
+//
+// Too low and a generated project fails to compile against the framework; too
+// high and it fails on any runner older than the machine that raised it. The
+// second is what shipped: projects carried the scaffolding developer's
+// toolchain, so the docs site demanded Go 1.26.5 from a CI running 1.24.
+func TestGeneratedProjectsRequireTheFrameworksGo(t *testing.T) {
+	data, err := os.ReadFile("../../go.mod")
+	if err != nil {
+		t.Skip("not in the framework repository")
+	}
+	var want string
+	for _, line := range strings.Split(string(data), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			parts := strings.Split(strings.TrimSpace(v), ".")
+			if len(parts) >= 2 {
+				want = parts[0] + "." + parts[1]
+			}
+			break
+		}
+	}
+	if want == "" {
+		t.Fatal("cannot read the go directive from the framework's go.mod")
+	}
+	if minGoVersion != want {
+		t.Errorf("generated projects require Go %s but irgo requires %s — "+
+			"a project cannot demand a newer toolchain than the framework it uses",
+			minGoVersion, want)
+	}
+}
