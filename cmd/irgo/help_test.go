@@ -82,13 +82,32 @@ func TestUsageIndexListsEveryCommand(t *testing.T) {
 	}
 }
 
-// TestUsageIndexListsEveryBuildTarget catches the narrower version: a target
-// the dispatch accepts but the index does not name.
-func TestUsageIndexListsEveryBuildTarget(t *testing.T) {
-	out := captureStdout(t, printUsage)
-	for _, target := range buildTargets {
-		if !strings.Contains(out, target) {
-			t.Errorf("irgo help never mentions the build target %q", target)
+// TestEveryDeclaredBuildTargetIsDispatched checks the list against the code
+// that has to honour it.
+//
+// Comparing the list to the help would prove nothing — the help is rendered
+// from the list, so the two agree by construction and the test passes for a
+// target that does not exist. What can actually be wrong is the list promising
+// a target runBuild has no case for, which fails at run time with "unknown
+// target" after the help said it was supported.
+func TestEveryDeclaredBuildTargetIsDispatched(t *testing.T) {
+	// Two files and two shapes, because desktop is dispatched by an if in
+	// runAppBuild while the rest are cases in runBuild. That inconsistency is
+	// why this reads the source rather than the switch: there is no single
+	// switch to read.
+	var body string
+	for _, f := range []string{"cmd_app_build.go", "cmd_app.go"} {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
 		}
+		body += string(src)
+	}
+	for _, target := range buildTargets {
+		if strings.Contains(body, `case "`+target+`"`) || strings.Contains(body, `== "`+target+`"`) {
+			continue
+		}
+		t.Errorf("buildTargets promises %q but nothing dispatches it — "+
+			"the help would advertise a target that fails at run time", target)
 	}
 }
