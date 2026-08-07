@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/starfederation/datastar-go/datastar"
 	"github.com/stukennedy/irgo/pkg/render"
 	"github.com/stukennedy/irgo/pkg/router"
 	"todo/templates"
@@ -111,8 +112,14 @@ func Mount(r *router.Router) {
 		todo := store.Add(signals.Title)
 		sse := ctx.SSE()
 
-		// Prepend new todo to list
-		sse.PatchTempl(templates.TodoItem(todo))
+		// Prepend into the list. Without a selector and a mode, PatchTempl
+		// does an outer merge keyed on the element's own id — and a brand new
+		// todo has no element in the DOM to merge over, so the item was
+		// created server-side and never appeared. The comment said prepend;
+		// the code did not.
+		sse.PatchTempl(templates.TodoItem(todo),
+			datastar.WithSelector("#todo-list"),
+			datastar.WithModePrepend())
 
 		// Clear the input
 		sse.PatchSignals(map[string]any{"title": ""})
