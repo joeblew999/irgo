@@ -96,4 +96,8 @@ jobs:
       # failed with "no go.mod" and `project assets` silently skipped Tailwind.
       # It is a normal irgo project now, driven the way any project is.
       - run: go run ./cmd/irgo -C examples/todo project test
-      - run: go run ./cmd/irgo -C examples/todo app build desktop linux
+      # Cloudflare rather than desktop: this job exists to show the CLI can
+      # drive the example, and a wasm build needs no system libraries. Linux
+      # desktop needs webkit2gtk, which ubuntu-latest no longer ships — the
+      # demo's matrix pins ubuntu-22.04 for that and covers it properly.
+      - run: go run ./cmd/irgo -C examples/todo app build cloudflare
