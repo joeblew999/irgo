@@ -74,11 +74,15 @@ func downloadDatastar(projectDir string) error {
 // site, and it failed in CI rather than for the person who created it.
 //
 // The full version, not just the major and minor: a module whose go directive
-// is lower than a dependency's fails outright, and irgo requires 1.24.12, so a
-// project declaring 1.24 cannot build against it.
+// is lower than a dependency's fails outright.
+//
+// 1.25 because gomobile requires golang.org/x/mobile in the project's
+// dependency graph and x/mobile requires 1.25. irgo builds for iOS and
+// Android, so that is irgo's floor too — declaring less would mean every
+// mobile build silently rewrote the project's go.mod to raise it.
 //
 // A test keeps this equal to the framework's own requirement.
-const minGoVersion = "1.24.12"
+const minGoVersion = "1.25.0"
 
 // scaffoldGoVersion is what a generated project should require.
 func scaffoldGoVersion() string { return minGoVersion }
