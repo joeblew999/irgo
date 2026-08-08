@@ -48,18 +48,6 @@ jobs:
       # this file so it runs the same way on a laptop as it does here.
       - run: go test ./...
 
-  website:
-    name: Docs site builds
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-      # No Node: the scripts run vite and wrangler on bun's own runtime.
-      - run: bun install --frozen-lockfile --ignore-scripts
-        working-directory: website
-      - run: bun run build
-        working-directory: website
-
   docs-templ:
     name: Docs site (templ) builds and matches the CLI
     runs-on: ubuntu-latest
