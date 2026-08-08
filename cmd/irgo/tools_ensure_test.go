@@ -83,9 +83,11 @@ func TestRemovalCoversWhatIrgoInstalled(t *testing.T) {
 			t.Errorf("%s is in %s but nothing offers to remove it", row.name, irgoHome())
 		}
 	}
-	if removable == 0 {
-		t.Error("nothing at all is removable, which cannot be right on a machine irgo has built on")
-	}
+	// Nothing removable is the correct answer on a machine irgo has never
+	// installed anything on — a fresh CI runner, for one. The invariant is
+	// that what irgo installed is offered back, which the loop above checks;
+	// asserting a non-zero count assumed a developer's machine and failed
+	// everywhere else.
 	t.Logf("%d tools removable", removable)
 }
 

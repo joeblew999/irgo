@@ -2,6 +2,7 @@ package main
 
 import (
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -58,8 +59,15 @@ func toolsIrgoRuns() []string {
 		"templ": true, "air": true, "gomobile": true, "gobind": true,
 		"node": true, "java": true, "keytool": true, "adb": true,
 		"sdkmanager": true, "avdmanager": true, "go": true, "git": true,
-		"sops": true, "xcrun": true, "xcodebuild": true, "codesign": true,
-		"security": true, "clang": true,
+		"sops": true,
+	}
+	// Apple's tools are only expected where they can exist. doctor lists them
+	// on darwin and not elsewhere, correctly — so requiring them everywhere
+	// failed this on Linux while describing a real absence as a defect.
+	if runtime.GOOS == "darwin" {
+		for _, n := range []string{"xcrun", "xcodebuild", "codesign", "security", "clang"} {
+			want[n] = true
+		}
 	}
 	var names []string
 	for _, n := range strings.Split(strings.TrimSpace(string(out)), "\n") {
