@@ -90,7 +90,35 @@ func isJava17(bin string) bool {
 // is fully self-contained and cross-platform — no brew/apt/winget anywhere.
 const managedJDKRel = ".irgo/jdks/temurin-17"
 
+// pinJDK is the exact Temurin build the Android toolchain uses.
+//
+// irgo's own downloader asks Adoptium for latest/17/ga, so two developers who
+// ran it months apart get different JDKs and neither can say which. mise can
+// name the build, so when it is doing the installing the version is pinned
+// like every other tool. The Adoptium fallback keeps its old behaviour, since
+// there is nothing to pin it to.
+const pinJDK = "temurin-17.0.20+8"
+
 func managedJDKHome() string { return filepath.Join(homeDir(), managedJDKRel) }
+
+// managedJDKRoot is the directory holding every JDK irgo has downloaded — the
+// parent of managedJDKHome. `tools remove` used to spell this out as
+// filepath.Join(home, ".irgo", "jdks"), which meant a change to managedJDKRel
+// would leave it deleting the wrong directory.
+func managedJDKRoot() string { return filepath.Dir(managedJDKHome()) }
+
+// ndkDir is the pinned NDK inside an SDK. Built in four places before this,
+// once of them in doctor, so doctor could look somewhere the build does not.
+func ndkDir(sdk string) string { return filepath.Join(sdk, "ndk", pinNDK) }
+
+// emulatorBin is the emulator inside an SDK. Also built in four places.
+func emulatorBin(sdk string) string {
+	name := "emulator"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(sdk, "emulator", name)
+}
 
 // findManagedJDK returns the extracted JDK home under ~/.irgo/jdks/temurin-17
 // (the Adoptium archive contains a single jdk-17.x.y/ dir — on macOS with a
@@ -117,6 +145,37 @@ func findManagedJDK() string {
 
 // installManagedJDK downloads a Temurin JDK 17 (Adoptium) for the current
 // platform/arch and extracts it into ~/.irgo/jdks/temurin-17. Returns its home.
+// miseJDK returns a JDK from mise, at irgo's pin.
+//
+// Returns "" when mise cannot supply it, which sends the caller to the
+// Adoptium download that has always been there.
+func miseJDK(install bool) string {
+	find := miseWhere
+	if install {
+		if bin := miseTool("java@"+pinJDK, "java"); bin != "" {
+			return javaHomeFor(bin)
+		}
+		return ""
+	}
+	mise, ok := miseCmd()
+	if !ok {
+		return ""
+	}
+	if bin := find(mise, "java@"+pinJDK, "java"); bin != "" {
+		return javaHomeFor(bin)
+	}
+	return ""
+}
+
+// javaHomeFor turns .../bin/java into the JAVA_HOME the Android tools want.
+func javaHomeFor(bin string) string {
+	home := filepath.Dir(filepath.Dir(bin))
+	if !isJava17(bin) {
+		return ""
+	}
+	return home
+}
+
 func installManagedJDK() (string, error) {
 	// Idempotent: reuse an already-extracted JDK 17.
 	if p := findManagedJDK(); p != "" && isJava17(filepath.Join(p, "bin", "java")) {
@@ -181,6 +240,12 @@ func installManagedJDK() (string, error) {
 // copy, macOS java_home, Linux /usr/lib/jvm, java on PATH. With install=true,
 // a missing JDK is downloaded cross-platform into ~/.irgo/jdks.
 func detectJDK17(install bool) (string, bool) {
+	// mise, at the pinned build, before irgo's own 308 MB download. Looked up
+	// whether or not this call may install, so doctor names the JDK a build
+	// would use rather than a second copy.
+	if home := miseJDK(false); home != "" {
+		return home, true
+	}
 	if jh := os.Getenv("JAVA_HOME"); jh != "" {
 		if isJava17(filepath.Join(jh, "bin", "java")) {
 			return jh, true
@@ -211,6 +276,11 @@ func detectJDK17(install bool) (string, bool) {
 		return "", true
 	}
 	if install {
+		// mise at the pinned build first: 308 MB that a machine with mise does
+		// not need a second copy of, and a version irgo can actually name.
+		if home := miseJDK(true); home != "" {
+			return home, true
+		}
 		p, err := installManagedJDK()
 		if err != nil {
 			fmt.Printf("  ! automatic JDK install failed: %v\n", err)
@@ -564,7 +634,7 @@ func ensureEmulatorRunning() error {
 	if adbRunning() {
 		return nil
 	}
-	emu := filepath.Join(androidHome(), "emulator", "emulator")
+	emu := emulatorBin(androidHome())
 	if runtime.GOOS == "windows" {
 		emu += ".exe"
 	}
@@ -759,7 +829,7 @@ func ensureAndroidToolchain(withEmulator bool, avdName string) error {
 
 	// Fast path: when the pinned NDK + platform-tools already exist the
 	// components are installed — skip the sdkmanager round-trip entirely.
-	ndk := filepath.Join(sdk, "ndk", pinNDK)
+	ndk := ndkDir(sdk)
 	if !isDir(ndk) || !isDir(filepath.Join(sdk, "platform-tools")) {
 		fmt.Println("Accepting Android SDK licenses...")
 		acceptLicenses(sdkm, sdk)
@@ -803,7 +873,7 @@ func installAndroidTools(withEmulator bool, avdName string) error {
 		return err
 	}
 	sdk := androidHome()
-	ndk := filepath.Join(sdk, "ndk", pinNDK)
+	ndk := ndkDir(sdk)
 	fmt.Printf("\nAndroid toolchain ready.\n")
 	fmt.Printf("  ANDROID_HOME=%s\n", sdk)
 	fmt.Printf("  ANDROID_NDK_HOME=%s\n", ndk)
@@ -892,7 +962,7 @@ func findAvdDir(avdName string) string {
 		}
 	}
 	// Ask the emulator where it thinks the AVD lives.
-	emu := filepath.Join(androidHome(), "emulator", "emulator")
+	emu := emulatorBin(androidHome())
 	if runtime.GOOS == "windows" {
 		emu += ".exe"
 	}
@@ -954,7 +1024,7 @@ func uninstallAndroidTools(removeJDK bool) error {
 	}
 	if removeJDK {
 		fmt.Println("Removing managed JDK (~/.irgo/jdks)...")
-		_ = os.RemoveAll(filepath.Join(home, ".irgo", "jdks"))
+		_ = os.RemoveAll(managedJDKRoot())
 		_ = os.Remove(filepath.Join(home, ".irgo")) // empty parent
 	}
 
@@ -983,8 +1053,8 @@ func uninstallAndroidTools(removeJDK bool) error {
 func doctorAndroid() error {
 	fail := false
 	sdk := androidHome()
-	ndk := filepath.Join(sdk, "ndk", pinNDK)
-	emulator := filepath.Join(sdk, "emulator", "emulator")
+	ndk := ndkDir(sdk)
+	emulator := emulatorBin(sdk)
 
 	fmt.Println("Android toolchain doctor:")
 	fmt.Printf("  ANDROID_HOME: %s\n", sdk)

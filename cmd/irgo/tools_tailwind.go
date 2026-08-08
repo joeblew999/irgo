@@ -27,7 +27,23 @@ func tailwindBin() string {
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	return filepath.Join(homeDir(), ".irgo", "bin", name)
+	return filepath.Join(irgoBinDir(), name)
+}
+
+// tailwindPath finds an existing Tailwind without installing one.
+//
+// irgo's own copy, then mise's. doctor calls this, so it names the binary a
+// build would use — it was reporting "absent" while builds happily used the
+// one mise had, which is the gap this whole exercise kept turning up.
+func tailwindPath() string {
+	if fi, err := os.Stat(tailwindBin()); err == nil && fi.Mode()&0o111 != 0 {
+		return tailwindBin()
+	}
+	if mise, ok := miseCmd(); ok {
+		return miseWhere(mise, "aqua:tailwindlabs/tailwindcss@"+
+			strings.TrimPrefix(pinTailwind, "v"), "tailwindcss")
+	}
+	return ""
 }
 
 // tailwindAsset maps the host to a release asset name.
@@ -53,8 +69,15 @@ func tailwindAsset() (string, error) {
 // its path. Idempotent: the version is in the filename, so an upgrade fetches
 // a new file rather than silently replacing one that a build may be using.
 func ensureTailwind() (string, error) {
+	if bin := tailwindPath(); bin != "" {
+		return bin, nil
+	}
 	bin := tailwindBin()
-	if fi, err := os.Stat(bin); err == nil && fi.Mode()&0o111 != 0 {
+
+	// mise first, at irgo's pin. aqua has it, which the registry does not say
+	// because that listing is truncated.
+	if bin := miseTool("aqua:tailwindlabs/tailwindcss@"+strings.TrimPrefix(pinTailwind, "v"),
+		"tailwindcss"); bin != "" {
 		return bin, nil
 	}
 
@@ -92,7 +115,7 @@ func ensureTailwind() (string, error) {
 // removeTailwindPath removes the downloaded Tailwind binaries and returns the
 // last path removed, or "" when none were present.
 func removeTailwindPath() string {
-	dir := filepath.Join(homeDir(), ".irgo", "bin")
+	dir := irgoBinDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
@@ -113,7 +136,7 @@ func removeTailwindPath() string {
 
 // removeTailwind is the inverse, for uninstall-tools.
 func removeTailwind() bool {
-	dir := filepath.Join(homeDir(), ".irgo", "bin")
+	dir := irgoBinDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
