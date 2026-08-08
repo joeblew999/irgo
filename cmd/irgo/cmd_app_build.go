@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/modfile"
 )
 
 // runBuild builds for mobile platforms. sim additionally builds the runnable
@@ -143,6 +145,38 @@ func ensureGobindTool() error {
 }
 
 func ensureMobileBuildSetup() error {
+	// An existing go.work can be stale: it references the temp x/mobile clone
+	// (os.TempDir()/golang-mobile) that macOS may clean up between sessions. A
+	// stale go.work breaks every `go` command with "use ...: directory does not
+	// exist", and irgo previously never validated it — users had to delete it
+	// by hand. Validate now; if any referenced dir is gone, drop the file (and
+	// go.work.sum) so it is regenerated below.
+	//
+	// This must run before ensureGobindTool: its `go get` loads the workspace
+	// and dies on the stale file, so validating afterwards would never repair
+	// exactly the legacy projects this exists for.
+	if _, err := os.Stat("go.work"); err == nil && !goWorkFileValid("go.work") {
+		// Only files irgo itself generated are regenerated wholesale.
+		// go.work is gitignored in generated projects, so deleting a
+		// developer's customized workspace (replace directives, extra use
+		// entries) would destroy configuration with no way to recover it.
+		if !goWorkIrgoGenerated("go.work") {
+			return fmt.Errorf("go.work is stale or unparseable, but looks customized (replace/extra use entries, or edits irgo cannot verify) so irgo will not overwrite it.\n" +
+				"  Fix go.work by hand, or delete go.work and go.work.sum to let irgo regenerate them")
+		}
+		fmt.Println("go.work references missing directories — regenerating")
+		// Failed removal must be fatal: continuing would leave the stale
+		// file in place, skip regeneration below, and report success while
+		// the next gomobile command fails on the same missing use target
+		// (e.g. Windows file locks, or an unwritable project directory).
+		if err := os.Remove("go.work"); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing stale go.work: %w", err)
+		}
+		if err := os.Remove("go.work.sum"); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing stale go.work.sum: %w", err)
+		}
+	}
+
 	if err := ensureGobindTool(); err != nil {
 		return err
 	}
@@ -155,8 +189,22 @@ func ensureMobileBuildSetup() error {
 		// Get irgo path for replacement
 		irgoPath := getIrgoPath()
 
-		// Clone x/mobile if not already present
+		// Clone x/mobile if not already present. "Present" means a usable
+		// module: a partial clone (process killed between MkdirAll and
+		// checkout) must be removed and re-cloned, or the regenerated
+		// go.work would point at a directory Go still cannot load.
 		mobileDir := filepath.Join(os.TempDir(), "golang-mobile")
+		if !mobileCloneUsable(mobileDir) {
+			if _, statErr := os.Stat(mobileDir); statErr == nil {
+				fmt.Println("Removing unusable or stale x/mobile clone...")
+				// A failed removal must be fatal: the existence check below
+				// would see the directory, skip the clone, and write a
+				// workspace referencing a module Go cannot load.
+				if err := os.RemoveAll(mobileDir); err != nil {
+					return fmt.Errorf("removing partial x/mobile clone: %w", err)
+				}
+			}
+		}
 		if _, err := os.Stat(mobileDir); os.IsNotExist(err) {
 			fmt.Println("Cloning golang.org/x/mobile...")
 			// Pinned to a commit. `git clone --depth 1` with no ref tracks
@@ -199,7 +247,7 @@ func ensureMobileBuildSetup() error {
 		}
 
 		// Create go.work file
-		workContent := fmt.Sprintf("go %s\n\nuse (\n\t.\n", goVersion)
+		workContent := fmt.Sprintf("%s\n\ngo %s\n\nuse (\n\t.\n", goWorkGeneratedMarker, goVersion)
 		// Not when it is this directory: building irgo's own mobile package
 		// from the irgo checkout put the same module in the workspace twice,
 		// and Go rejects the whole file — "appears multiple times in
@@ -338,4 +386,245 @@ func sameDir(a, b string) bool {
 	ra, err1 := filepath.EvalSymlinks(aa)
 	rb, err2 := filepath.EvalSymlinks(bb)
 	return err1 == nil && err2 == nil && ra == rb
+}
+
+// goWorkFileValid reports whether every directory referenced by a go.work
+// file still exists. A stale file (e.g. a cleaned-up temp x/mobile clone) is
+// invalid so ensureMobileBuildSetup can regenerate it.
+//
+// Uses Go's own work-file parser: hand-splitting lines would misread inline
+// comments (`. // root module`), quoted paths, and single-line `use`
+// directives as missing directories — and deleting a user's customized
+// workspace over a parse artifact is exactly the kind of damage this check
+// exists to prevent. An unparseable file is treated as invalid: `go` would
+// reject it anyway, so regenerating is the recovery.
+func goWorkFileValid(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	wf, err := modfile.ParseWork(path, data, nil)
+	if err != nil {
+		return false
+	}
+	dir := filepath.Dir(path)
+	for _, use := range wf.Use {
+		p := use.Path
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(dir, p)
+		}
+		// A use target must be a module, not merely an existing directory
+		// (`go work use` semantics). A bare existence check would pass a
+		// partial x/mobile clone — e.g. a process killed between MkdirAll
+		// and checkout — and the workspace would stay broken. Any stat
+		// error counts: ENOTDIR (path replaced by a file) and EACCES leave
+		// the module just as unloadable as ENOENT, and go.mod must be a
+		// regular file.
+		if !isModuleDir(p) {
+			return false
+		}
+	}
+	return true
+}
+
+// goWorkIrgoGenerated reports whether a go.work file contains only the
+// members irgo itself writes — the project root, the irgo checkout (local
+// development), and the temp x/mobile clone — and no replace directives.
+// Only such files are safe to delete and regenerate; anything else carries
+// developer customization that must not be destroyed (go.work is gitignored
+// in generated projects, so it is unrecoverable).
+//
+// goWorkGeneratedMarker is written into every go.work irgo creates. It is
+// provenance, not a blank check: customization checks still run on parseable
+// files (go work edit preserves comments, so a customized file keeps the
+// marker), and an unparseable file is protected regardless of the marker,
+// because content that cannot be inspected cannot be shown to be irgo-only.
+const goWorkGeneratedMarker = "// Code generated by irgo. Safe to delete; it will be regenerated on the next mobile build."
+
+func goWorkIrgoGenerated(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	marked := strings.Contains(string(data), goWorkGeneratedMarker)
+
+	wf, err := modfile.ParseWork(path, data, nil)
+	if err != nil {
+		// Unparseable: almost always a developer's unfinished hand edit
+		// (go work edit never writes broken syntax), and go work edit
+		// preserves comments, so even a marked file may carry customization
+		// the parse failure hides. Protect it — the refusal error tells the
+		// user to fix or delete the file, whereas deleting a half-edited
+		// workspace would destroy work in progress (go.work is gitignored,
+		// so unrecoverable).
+		return false
+	}
+	// Customization checks apply even to marked files: `go work edit
+	// -replace/-use/-toolchain/-godebug` preserves comments, so a developer
+	// can customize a generated workspace without ever seeing — or
+	// removing — the marker. Provenance says irgo wrote the file once;
+	// only the content can say nobody added to it since.
+	// toolchain and godebug are workspace settings irgo never writes —
+	// their presence means a developer configured this file by hand.
+	// The go directive is deliberately NOT a customization signal: irgo
+	// owns it by design (the workspace tracks the running toolchain and
+	// the x/mobile clone's go.mod is rewritten to match), every generated
+	// file has one, and the toolchain routinely changes between sessions —
+	// so its value cannot distinguish a user edit from normal drift.
+	if len(wf.Replace) > 0 || wf.Toolchain != nil || len(wf.Godebug) > 0 {
+		return false
+	}
+
+	// The discovered irgo checkout is deliberately NOT allowlisted here:
+	// getIrgoPath's discovery uses a tolerant substring test, so its result
+	// must not authorize deletion. Live irgo checkouts are recognized in
+	// the loop below via isIrgoCheckout's strict exact-path parse instead,
+	// which covers the discovered checkout and any previous one alike.
+	known := map[string]bool{
+		filepath.Clean("."):                          true,
+		filepath.Join(os.TempDir(), "golang-mobile"): true,
+	}
+
+	dir := filepath.Dir(path)
+
+	// Legacy files carry no marker, but they carry irgo's signature all the
+	// same: a use entry for the private x/mobile temp clone. Nobody writes
+	// $TMPDIR/golang-mobile into a workspace by hand — irgo's generator is
+	// its only author — so such a member (at the current temp location, or
+	// vanished from an earlier TMPDIR's) is provenance that irgo wrote the
+	// membership, standing in for the marker below.
+	provenance := marked
+	if !provenance {
+		for _, use := range wf.Use {
+			p := filepath.Clean(use.Path)
+			abs := p
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(dir, abs)
+			}
+			if known[abs] && filepath.Base(abs) == "golang-mobile" {
+				provenance = true
+				break
+			}
+			if filepath.Base(p) == "golang-mobile" {
+				if _, err := os.Stat(abs); os.IsNotExist(err) {
+					provenance = true
+					break
+				}
+				if isXMobileCheckout(abs) {
+					provenance = true
+					break
+				}
+			}
+		}
+	}
+
+	for _, use := range wf.Use {
+		p := filepath.Clean(use.Path)
+		abs := p
+		if !filepath.IsAbs(abs) {
+			// Relative entries resolve against the go.work directory.
+			abs = filepath.Join(dir, abs)
+		}
+		if known[p] || known[abs] {
+			continue
+		}
+		// Files irgo provably generated (marker, or the legacy temp-clone
+		// signature above): irgo wrote the membership, so a vanished entry
+		// is one of its generated members (typically a deleted local irgo
+		// checkout). Even if a customization pointed there, regeneration
+		// loses only a dangling reference to a path that no longer exists.
+		// Live unknown entries still mean customization and stay protected.
+		if provenance {
+			if _, err := os.Stat(abs); os.IsNotExist(err) {
+				continue
+			}
+		}
+		// Legacy files only (no marker): a go.work generated under an
+		// earlier TMPDIR references that session's golang-mobile clone, not
+		// the current os.TempDir()'s — exactly the macOS scenario this
+		// repair exists for. Recognize such entries as irgo's own when the
+		// directory is gone, or when it is live and actually an x/mobile
+		// checkout (strict parse, exact module — a live directory merely
+		// named golang-mobile could be a real custom module and stays
+		// protected). New files carry the marker, so this heuristic ages
+		// out with pre-marker projects.
+		if filepath.Base(p) == "golang-mobile" {
+			if _, err := os.Stat(abs); os.IsNotExist(err) {
+				continue
+			}
+			if isXMobileCheckout(abs) {
+				continue
+			}
+		}
+		// Legacy files only: the entry may be an irgo checkout recorded by
+		// a previous CLI whose getIrgoPath() no longer discovers it (e.g.
+		// after switching from a locally built CLI to an installed one).
+		// Its go.mod module declaration is the provenance — the same test
+		// getIrgoPath itself uses.
+		if isIrgoCheckout(abs) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// isModuleDir reports whether dir contains a loadable module: a readable
+// go.mod declaring a valid module path. Reading covers every unusable shape
+// in one test — missing file (ENOENT), dir-in-place-of-file (EISDIR), path
+// replaced by a file (ENOTDIR), unreadable (EACCES) — and parsing catches a
+// truncated or malformed go.mod left by an interrupted checkout, which Go
+// would reject just the same.
+func isModuleDir(dir string) bool {
+	return parseModulePath(dir) != ""
+}
+
+// parseModulePath returns the module path declared by dir/go.mod, or "" if
+// the file is missing, unreadable, or fails a full strict parse.
+// modfile.ModulePath would tolerate errors elsewhere in the file by
+// contract, but Go itself does not — a valid module line above a truncated
+// require block still fails to load, so both the workspace validator and
+// the destructive-provenance check must use the strict parse.
+func parseModulePath(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	f, err := modfile.Parse("go.mod", data, nil)
+	if err != nil || f.Module == nil {
+		return ""
+	}
+	return f.Module.Mod.Path
+}
+
+// isIrgoCheckout reports whether dir is a checkout of the irgo framework
+// itself, identified by its go.mod module declaration. The path is
+// strict-parsed and matched exactly: a substring test would accept e.g.
+// github.com/stukennedy/irgo-tools, and a tolerant parse would accept a
+// corrupted checkout — both would wrongly authorize a destructive
+// regeneration.
+func isIrgoCheckout(dir string) bool {
+	return parseModulePath(dir) == "github.com/stukennedy/irgo"
+}
+
+// isXMobileCheckout reports whether dir is a checkout of golang.org/x/mobile
+// — the module irgo clones into $TMPDIR/golang-mobile. Same strict-parse,
+// exact-match standard as isIrgoCheckout, and for the same reason: it is
+// used as destructive provenance.
+func isXMobileCheckout(dir string) bool {
+	return parseModulePath(dir) == "golang.org/x/mobile"
+}
+
+// mobileCloneUsable reports whether the temp clone is the module we expect
+// at the revision we pin. Accepting any parseable module here would let
+// setup rewrite an unrelated directory's go.mod and install tools from
+// unverified source (the dir name is guessable), and accepting the right
+// module at the wrong revision would mean pinXMobile bumps never take
+// effect for machines with an existing clone.
+func mobileCloneUsable(dir string) bool {
+	if !isXMobileCheckout(dir) {
+		return false
+	}
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	return err == nil && strings.TrimSpace(string(out)) == pinXMobile
 }
