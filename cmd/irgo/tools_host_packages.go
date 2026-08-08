@@ -90,6 +90,17 @@ func (p osPackage) pkgNameFor(mgr string) string {
 	return ""
 }
 
+// hostPackageKeys names every package irgo can install through the host's
+// package manager. Their markers have no path to check, so marker pruning
+// needs to know them by name.
+func hostPackageKeys() []string {
+	var out []string
+	for _, p := range osPackages() {
+		out = append(out, p.key)
+	}
+	return out
+}
+
 func findOSPackage(key string) (osPackage, bool) {
 	for _, p := range osPackages() {
 		if p.key == key {

@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -26,7 +27,7 @@ import (
 // failing because upstream moved.
 const pinNode = "22.14.0"
 
-func managedNodeHome() string { return filepath.Join(homeDir(), ".irgo", "node") }
+func managedNodeHome() string { return filepath.Join(irgoHome(), "node") }
 
 // nodeBin returns a usable node, provisioning one if needed.
 //
@@ -34,9 +35,24 @@ func managedNodeHome() string { return filepath.Join(homeDir(), ".irgo", "node")
 // that errors when no version is selected reports success to LookPath and then
 // fails, so it is tested rather than trusted.
 func nodeBin(install bool) (string, error) {
+	// The developer's own node, if it is new enough. Never replaced.
 	if p, err := exec.LookPath("node"); err == nil && nodeWorks(p) {
 		return p, nil
 	}
+
+	// mise before irgo's own copy. Every other tool resolves this way, and
+	// node did not only because it was wired first: it preferred ~/.irgo/node
+	// and so kept 165 MB alive that mise already had. Whichever is chosen
+	// here is the one doctor names, so the order is the answer to "which node
+	// is this build using".
+	if mise, ok := miseCmd(); ok {
+		for _, spec := range []string{"node@" + pinNode, "node"} {
+			if bin := miseWhere(mise, spec, "node"); nodeWorks(bin) {
+				return bin, nil
+			}
+		}
+	}
+
 	managed := filepath.Join(managedNodeHome(), "bin", "node")
 	if runtime.GOOS == "windows" {
 		managed = filepath.Join(managedNodeHome(), "node.exe")
@@ -44,25 +60,53 @@ func nodeBin(install bool) (string, error) {
 	if nodeWorks(managed) {
 		return managed, nil
 	}
+
 	if !install {
 		return "", fmt.Errorf("no working node found — irgo can install one into %s", managedNodeHome())
+	}
+	if bin := miseTool("node@"+pinNode, "node"); nodeWorks(bin) {
+		return bin, nil
 	}
 	return installNode()
 }
 
 // nodeWorks reports whether this binary actually runs.
 func nodeWorks(bin string) bool {
+	major, ok := nodeMajor(bin)
+	return ok && major >= minNodeMajor
+}
+
+// minNodeMajor is what wrangler 4 requires.
+//
+// A developer's own node is preferred, but "runs" is not the same as "works":
+// node 18 is still common, wrangler 4 refuses it, and the failure arrives from
+// inside npx looking like a Cloudflare problem. Too old is skipped here, so
+// irgo falls through to mise or its own copy — which leaves the developer's
+// node exactly where it was. irgo never replaces what is on the machine.
+const minNodeMajor = 20
+
+// nodeMajor runs a candidate and reports its major version.
+func nodeMajor(bin string) (int, bool) {
 	if bin == "" {
-		return false
+		return 0, false
 	}
 	if _, err := os.Stat(bin); err != nil {
-		return false
+		return 0, false
 	}
 	out, err := exec.Command(bin, "--version").CombinedOutput()
 	if err != nil {
-		return false
+		return 0, false
 	}
-	return strings.HasPrefix(strings.TrimSpace(string(out)), "v")
+	v := strings.TrimSpace(string(out))
+	if !strings.HasPrefix(v, "v") {
+		return 0, false
+	}
+	major, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), ".")
+	n, err := strconv.Atoi(major)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // installNode downloads Node into ~/.irgo/node.

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -443,14 +442,14 @@ func printAndroidDetail() {
 		fmt.Println("  JDK 17        not found — fetched into ~/.irgo/jdks on first build")
 	}
 
-	ndk := filepath.Join(sdk, "ndk", pinNDK)
+	ndk := ndkDir(sdk)
 	if fi, err := os.Stat(ndk); err == nil && fi.IsDir() {
 		fmt.Printf("  NDK           %s\n", pinNDK)
 	} else {
 		fmt.Printf("  NDK           %s not installed — fetched on first build\n", pinNDK)
 	}
 
-	emu := filepath.Join(sdk, "emulator", "emulator")
+	emu := emulatorBin(sdk)
 	if runtime.GOOS == "windows" {
 		emu += ".exe"
 	}

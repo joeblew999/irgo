@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,23 @@ import (
 	"runtime"
 	"strings"
 )
+
+// Where irgo keeps what it installs.
+//
+// These paths were spelled out with filepath.Join(homeDir(), ".irgo", ...) in
+// seven places across four files, so nothing owned the layout and moving it
+// meant finding them all. Every caller asks here now.
+func irgoHome() string { return filepath.Join(homeDir(), ".irgo") }
+
+// irgoBinDir holds single-binary tools irgo downloads.
+func irgoBinDir() string { return filepath.Join(irgoHome(), "bin") }
+
+// goTools are the tools irgo installs with `go install`.
+//
+// This list was written out in five places — install, remove, doctor and two
+// tests — and had already drifted: install was missing gobind, so `tools
+// install` left behind a tool that `tools remove` then offered to delete.
+func goTools() []string { return []string{"templ", "air", "gomobile", "gobind"} }
 
 // runTempl generates templ files
 func runTempl() error {
@@ -34,6 +52,11 @@ const pinTempl = "v0.3.977"
 // build nobody can reproduce.
 const pinAir = "v1.63.0"
 
+// sops decrypts the secrets a deploy needs, when a project keeps them
+// encrypted in the repository rather than in a keychain. Installed when a
+// fnox.toml actually declares a sops provider, not before.
+const pinSops = "v3.12.2"
+
 func goToolPkg(name string) string {
 	switch name {
 	case "templ":
@@ -47,6 +70,8 @@ func goToolPkg(name string) string {
 		return "github.com/a-h/templ/cmd/templ@" + pinTempl
 	case "air":
 		return "github.com/air-verse/air@" + pinAir
+	case "sops":
+		return "github.com/getsops/sops/v3/cmd/sops@" + pinSops
 	case "gomobile", "gobind":
 		// Same commit as the x/mobile checkout gomobile builds against.
 		// Installing @latest while pinning the source is how a tool ends up
@@ -65,7 +90,7 @@ func goToolPkg(name string) string {
 // played safe and skipped them, leave a half-provisioned machine that silently
 // fails to re-provision.
 func irgoToolsDir() string {
-	return filepath.Join(homeDir(), ".irgo", "tools")
+	return filepath.Join(irgoHome(), "tools")
 }
 
 func markToolInstalled(name string) {
@@ -106,6 +131,17 @@ func ensureGoTool(name string) error {
 	if _, err := exec.LookPath(name); err == nil {
 		return nil
 	}
+	// mise first when it can provide the tool: it installs into a directory
+	// the developer's own version manager can see and clean up, rather than a
+	// GOBIN that irgo then has to prepend to PATH. Only some are in its
+	// registry — templ, gomobile and gobind are not — so `go install` remains
+	// the answer for the rest, and the fallback for all of them.
+	if spec, ok := miseSpec(name); ok {
+		if bin := miseTool(spec, name); bin != "" {
+			markToolInstalled(name)
+			return prependToPATH(filepath.Dir(bin))
+		}
+	}
 	pkg := goToolPkg(name)
 	if pkg == "" {
 		return fmt.Errorf("%s not found, and no install source is known for it", name)
@@ -126,6 +162,68 @@ func ensureGoTool(name string) error {
 	return nil
 }
 
+// miseSpec maps a tool to what mise is asked for, at irgo's own pin.
+//
+// Every one of these was verified to resolve — `mise ls-remote <spec>` lists
+// the exact version. An earlier version of this table claimed templ, gomobile
+// and tailwindcss were not available, on the strength of grepping
+// `mise registry`, which is capped at a thousand entries and lists none of
+// them. The backends have them all.
+//
+// The pin travels in the spec, so no mise.toml is involved and the developer's
+// own config is never consulted: `mise install templ@0.3.977` means that
+// version whatever their config says.
+func miseSpec(name string) (spec string, ok bool) {
+	v := func(pin string) string { return strings.TrimPrefix(pin, "v") }
+	switch name {
+	case "templ":
+		if p := templVersionFromGoMod(); p != "" {
+			return "go:github.com/a-h/templ/cmd/templ@" + p, true
+		}
+		return "go:github.com/a-h/templ/cmd/templ@" + v(pinTempl), true
+	// The short registry name, not the backend-qualified one. mise installs
+	// sops@3.12.2 and aqua:getsops/sops@3.12.2 into different directories, so
+	// asking for the qualified form would ignore a sops the developer already
+	// had and install a second copy beside it. tailwindcss is the exception:
+	// it is not in the registry, so only the backend spec resolves.
+	case "air":
+		return "air@" + v(pinAir), true
+	case "sops":
+		return "sops@" + v(pinSops), true
+	case "gomobile":
+		return "go:golang.org/x/mobile/cmd/gomobile@" + pinXMobile, true
+	case "gobind":
+		return "go:golang.org/x/mobile/cmd/gobind@" + pinXMobile, true
+	}
+	return "", false
+}
+
+// miseSpecFor covers every tool with a mise spec, including the two that are
+// not go-installed.
+func miseSpecFor(name string) (string, bool) {
+	switch name {
+	case "tailwindcss":
+		return "aqua:tailwindlabs/tailwindcss@" + strings.TrimPrefix(pinTailwind, "v"), true
+	case "node":
+		return "node@" + pinNode, true
+	case "jdk":
+		// doctor calls the row jdk; mise calls it java. Missing this pruned
+		// the marker for a JDK that was installed and in use, which would have
+		// left tools remove unable to give it back.
+		return "java@" + pinJDK, true
+	}
+	return miseSpec(name)
+}
+
+// prependToPATH makes a freshly installed tool resolvable for the rest of
+// this process, wherever it landed.
+func prependToPATH(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	return os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 // runCSS rebuilds the Tailwind stylesheet. static/css/output.css is generated
 // and gitignored, but it is embedded into every build — so skipping it ships an
 // unstyled app. No-op for projects without a Tailwind entry point.
@@ -143,8 +241,9 @@ func runCSS() error {
 }
 
 // ensureAssets regenerates everything that is gitignored yet embedded into a
-// build: _templ.go and the Tailwind stylesheet. Every build path runs this, so
-// a fresh clone builds correctly without the caller sequencing it by hand.
+// build: _templ.go, the Tailwind stylesheet, and whatever the project
+// generates for itself. Every build path runs this, so a fresh clone builds
+// correctly without the caller sequencing it by hand.
 func ensureAssets() error {
 	if err := runTempl(); err != nil {
 		return err
@@ -152,24 +251,102 @@ func ensureAssets() error {
 	return runCSS()
 }
 
+// ensureAssetsAndGenerate is ensureAssets plus the project's own generators.
+//
+// Kept separate because ensureAssets is the hot path: .air.toml runs
+// `irgo project assets` on every save, and generators are not save-cheap. A
+// project whose generators shell out to `go test` turns one keystroke into a
+// test compile, and a watch loop into a fork bomb — 95 of them, the first time
+// this ran. Generation belongs where correctness matters and latency does not:
+// builds, deploys and tests.
+func ensureAssetsAndGenerate() error {
+	if err := ensureAssets(); err != nil {
+		return err
+	}
+	return runGoGenerate()
+}
+
+// runGoGenerate runs the project's own generators.
+//
+// Some projects derive content from source rather than typing it — a docs site
+// generating its API reference from go/doc, say. That belongs to the project,
+// not to irgo, so this runs the standard Go mechanism and stays ignorant of
+// what any particular project generates. A project with no //go:generate
+// directives spends a few milliseconds here and produces nothing.
+//
+// It runs after templ and Tailwind, so a generator can rely on a package that
+// compiles.
+func runGoGenerate() error {
+	if !hasGoGenerate() {
+		return nil
+	}
+	fmt.Println("Running go generate...")
+	return runCommand("go", "generate", "./...")
+}
+
+// hasGoGenerate reports whether the project declares any generator, so the
+// common case prints nothing and pays nothing.
+func hasGoGenerate() bool {
+	found := false
+	_ = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if err != nil || found {
+			return nil
+		}
+		if info.IsDir() {
+			switch info.Name() {
+			case "node_modules", "vendor", "build", "tmp", ".git":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err == nil && bytes.Contains(data, []byte("\n//go:generate")) {
+			found = true
+		}
+		return nil
+	})
+	return found
+}
+
 // installTools installs required development tools
 func installTools() error {
 	fmt.Println("Installing irgo development tools...")
 	fmt.Println()
 
-	// ensureGoTool owns pinning (templ tracks the project's go.mod version),
-	// marker-writing for uninstall, and PATH fix-up. This is just the eager
-	// form of what every build does lazily.
-	for _, tool := range []string{"templ", "air", "gomobile"} {
-		if _, err := exec.LookPath(tool); err == nil {
-			fmt.Printf("  %s: already installed\n", tool)
+	// The same table doctor reports from, so `tools install` cannot provide a
+	// different set of tools than `tools doctor` describes. Each row carries
+	// how to get itself; this is the eager form of what every build does
+	// lazily when a call needs something.
+	//
+	// Skipped here: the heavy toolchains. The Android SDK is hundreds of
+	// megabytes and only an Android build needs it, so it stays lazy — the
+	// closing message says so.
+	eager := map[string]bool{}
+	for _, name := range goTools() {
+		eager[name] = true
+	}
+	eager["tailwindcss"] = true
+
+	for _, row := range toolLocators() {
+		if !eager[row.name] {
 			continue
 		}
-		if err := ensureGoTool(tool); err != nil {
+		if row.path != "" {
+			fmt.Printf("  %s: already installed\n", row.name)
+			continue
+		}
+		if row.ensure == nil {
+			fmt.Printf("  %s: not something irgo can install\n", row.name)
+			continue
+		}
+		if err := row.ensure(); err != nil {
 			fmt.Printf("  Warning: %v\n", err)
 			continue
 		}
-		fmt.Printf("  %s: installed\n", tool)
+		fmt.Printf("  %s: installed\n", row.name)
 	}
 
 	if err := installOSPackages(); err != nil {
@@ -249,9 +426,7 @@ func uninstallTools(scope string, all, yes, keepJDK bool) error {
 	case "android":
 		planAndroid(&p, keepJDK)
 	default:
-		planGoTools(&p, all)
-		planDownloads(&p)
-		planNode(&p)
+		planTools(&p, all)
 		planHostPackages(&p, all)
 		planAndroid(&p, keepJDK)
 	}
@@ -305,5 +480,5 @@ func pruneIrgoStateDir() {
 	// os.Remove only succeeds on an empty directory, which is exactly the
 	// condition we want — never delete state that is still in use.
 	_ = os.Remove(irgoToolsDir())
-	_ = os.Remove(filepath.Join(homeDir(), ".irgo"))
+	_ = os.Remove(irgoHome())
 }

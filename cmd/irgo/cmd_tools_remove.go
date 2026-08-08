@@ -24,7 +24,10 @@ type removalPlan struct {
 	groups []planGroup
 	// kept lists things irgo did not install, which are reported and skipped.
 	kept []string
-	acts []func(*removalTally)
+	// notes are printed after the plan: things irgo will not touch, and what
+	// to run instead.
+	notes []string
+	acts  []func(*removalTally)
 }
 
 type planGroup struct {
@@ -58,6 +61,10 @@ func confirmRemoval(p *removalPlan, yes bool) (bool, error) {
 			fmt.Printf("  %s\n", l)
 		}
 	}
+	for _, n := range p.notes {
+		fmt.Println()
+		fmt.Println(n)
+	}
 	if len(p.kept) > 0 {
 		fmt.Println()
 		fmt.Printf("Kept (irgo did not install these): %s\n", strings.Join(p.kept, ", "))
@@ -73,100 +80,184 @@ func confirmRemoval(p *removalPlan, yes bool) (bool, error) {
 			"  Nothing has been deleted. Re-run with --yes to proceed:\n" +
 			"    irgo tools remove --yes")
 	}
-	fmt.Print("Proceed? [y/N] ")
+	if !confirm("Proceed?", false) {
+		fmt.Println("Nothing removed.")
+		return false, nil
+	}
+	return true, nil
+}
+
+// confirm asks, unless told not to. Outside a terminal it refuses rather than
+// assuming yes: a script that meant to pass --yes should say so.
+func confirm(question string, yes bool) bool {
+	if yes {
+		return true
+	}
+	if !interactive() {
+		return false
+	}
+	fmt.Printf("%s [y/N] ", question)
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
-		return false, nil
+		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":
-		return true, nil
-	}
-	fmt.Println("Nothing removed.")
-	return false, nil
-}
-
-// planGoTools adds the go-installed tools irgo owns.
-func planGoTools(p *removalPlan, all bool) {
-	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
-		t := tool
-		if !all && !toolInstalledByIrgo(t) {
-			if pathOnPATH(t) {
-				p.kept = append(p.kept, t)
-			}
-			continue
-		}
-		path := ""
-		for _, dir := range toolBinDirs() {
-			candidate := filepath.Join(dir, exeName(t))
-			if pathExists(candidate) {
-				path = candidate
-				break
-			}
-		}
-		if path == "" {
-			continue
-		}
-		p.add("Go tools", fmt.Sprintf("%-14s %s", t, path), func(tally *removalTally) {
-			if q := removeToolPath(t); q != "" {
-				tally.report(t, "removed", q)
-			} else {
-				tally.report(t, "absent", "")
-			}
-			clearToolMarker(t)
-		})
-	}
-}
-
-func pathOnPATH(name string) bool {
-	for _, dir := range toolBinDirs() {
-		if pathExists(filepath.Join(dir, exeName(name))) {
-			return true
-		}
+		return true
 	}
 	return false
 }
 
-// planDownloads adds the pinned binaries under ~/.irgo.
-func planDownloads(p *removalPlan) {
-	bin := filepath.Join(homeDir(), ".irgo", "bin")
-	entries, err := os.ReadDir(bin)
+// planGoTools adds the go-installed tools irgo owns.
+// planMiseTools offers back the tools irgo asked mise to install.
+//
+// Only those irgo installed: the marker decides. A mise tool that was already
+// on the machine belongs to the developer and probably to other projects too,
+// and uninstalling their node because irgo happened to use it would be the
+// worst thing this command could do.
+//
+// mise uninstall rather than deleting the directory, so mise's own view stays
+// correct.
+// planTools adds every tool irgo installed, from the table doctor reports.
+//
+// This replaced four planners — Go tools, mise tools, downloads, node — that
+// each rediscovered paths doctor had already found, in their own way. One of
+// them searched a different order than the build did, which is how remove
+// could offer a copy nothing was using.
+//
+// The table knows where each tool is and how to take it back; this decides
+// what to show and groups it.
+func planTools(p *removalPlan, all bool) {
+	var mise []toolStatus
+	claimed := map[string]bool{}
+	for _, row := range toolLocators() {
+		// Tools that live in mise are reported, not removed. See planMiseNote.
+		if row.how == "mise" {
+			mise = append(mise, row)
+			continue
+		}
+		// The Android section reports these with the rest of that toolchain,
+		// where they make sense together. Listing them here too offered the
+		// same JDK twice.
+		switch row.name {
+		case "jdk", "sdkmanager", "avdmanager", "adb", "emulator", "ndk":
+			if row.path != "" {
+				claimed[irgoOwnedDir(row.path)] = true
+			}
+			continue
+		}
+		if row.remove != nil && strings.HasPrefix(row.path, irgoHome()) {
+			claimed[irgoOwnedDir(row.path)] = true
+		}
+		if row.remove == nil {
+			// Nothing of irgo's to remove. Worth naming when it is present and
+			// irgo could have installed it, so the report is not silently
+			// short.
+			if row.path != "" && row.ensure != nil && !all {
+				p.kept = append(p.kept, row.name)
+			}
+			continue
+		}
+		name, undo := row.name, row.remove
+		where := row.path
+		if row.size != "" {
+			where += "  (" + row.size + ")"
+		}
+		p.add(removalGroup(row), fmt.Sprintf("%-14s %s", name, where),
+			func(tally *removalTally) {
+				if err := undo(); err != nil {
+					tally.report(name, "failed", err.Error())
+					return
+				}
+				tally.report(name, "removed", row.path)
+			})
+	}
+	planIrgoLeftovers(p, claimed)
+	planMiseNote(p, mise)
+}
+
+// planMiseNote lists the tools irgo uses from mise, with the command to
+// remove them — rather than removing them itself.
+//
+// irgo cannot tell which of these it installed. This machine's sops 3.12.2 was
+// installed in April and its tailwindcss today, both by the same mechanism
+// into the same place, and mise records no owner. A marker file could have
+// tracked it, at the cost of a folder to keep swept.
+//
+// But ownership is the wrong question. These live where the developer's own
+// version manager can see them and other projects may be using them, so the
+// decision is theirs — and printing the command costs nothing while getting it
+// wrong costs someone else's build.
+func planMiseNote(p *removalPlan, rows []toolStatus) {
+	if len(rows) == 0 {
+		return
+	}
+	var lines []string
+	for _, r := range rows {
+		if spec, ok := miseSpecFor(r.name); ok {
+			lines = append(lines, "  mise uninstall "+spec)
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+	p.notes = append(p.notes,
+		"From mise (shared with anything else on this machine that uses them):",
+		strings.Join(lines, "\n"),
+		"  mise prune   # anything no config asks for")
+}
+
+// planIrgoLeftovers adds anything still sitting in ~/.irgo that no tool row
+// points at any more.
+//
+// The table only names the copy a build would use. Once node came from mise,
+// the 176 MB irgo had downloaded stopped being referenced by any row and
+// would have been left on disk forever — invisible to the one command whose
+// job is finding it.
+//
+// irgo owns ~/.irgo entirely, so anything in it is irgo's to offer back.
+func planIrgoLeftovers(p *removalPlan, claimed map[string]bool) {
+	entries, err := os.ReadDir(irgoHome())
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), "tailwindcss") {
+		// tools holds the markers, bin is handled per-file, jdks belongs to
+		// the Android section which reports it with the rest of that toolchain.
+		switch e.Name() {
+		case "tools", "jdks":
 			continue
 		}
-		p.add("Downloads", fmt.Sprintf("%-14s %s", "tailwindcss", filepath.Join(bin, e.Name())),
+		dir := filepath.Join(irgoHome(), e.Name())
+		if claimed[dir] || !isDir(dir) {
+			continue
+		}
+		if empty, _ := os.ReadDir(dir); len(empty) == 0 {
+			continue
+		}
+		name := e.Name()
+		p.add("Downloads", fmt.Sprintf("%-14s %s%s", name, dir, dirSizeNote(dir)),
 			func(tally *removalTally) {
-				if q := removeTailwindPath(); q != "" {
-					tally.report("tailwindcss", "removed", q)
-				} else {
-					tally.report("tailwindcss", "absent", "")
+				if err := os.RemoveAll(dir); err != nil {
+					tally.report(name, "failed", err.Error())
+					return
 				}
+				clearToolMarker(name)
+				tally.report(name, "removed", dir)
 			})
-		return
 	}
 }
 
-// planNode adds the Node irgo downloads for wrangler. It is large and it is
-// only there for Cloudflare deploys, so leaving it behind after a removal
-// would be the kind of quiet leftover this command exists to prevent.
-func planNode(p *removalPlan) {
-	dir := managedNodeHome()
-	if !isDir(dir) {
-		return
+// removalGroup is the heading a tool appears under, taken from where it came
+// from rather than from a second list.
+func removalGroup(row toolStatus) string {
+	switch row.how {
+	case "mise":
+		return "mise tools"
+	case howGoInstall:
+		return "Go tools"
 	}
-	p.add("Downloads", fmt.Sprintf("%-14s %s%s", "node", dir, dirSizeNote(dir)),
-		func(tally *removalTally) {
-			if err := os.RemoveAll(dir); err != nil {
-				tally.report("node", "failed", err.Error())
-				return
-			}
-			clearToolMarker("node")
-			tally.report("node", "removed", dir)
-		})
+	return "Downloads"
 }
 
 // planHostPackages adds packages installed through the host package manager.
@@ -218,8 +309,9 @@ func planAndroid(p *removalPlan, keepJDK bool) {
 		p.kept = append(p.kept, "android SDK (not provisioned by irgo)")
 	}
 
-	jdk := filepath.Join(home, ".irgo", "jdks")
-	if !keepJDK && pathExists(jdk) {
+	// The JDK, when irgo downloaded it. A JDK from mise belongs to mise, and
+	// `mise uninstall java@...` is how it goes.
+	if jdk := managedJDKRoot(); !keepJDK && pathExists(jdk) {
 		p.add("Android", fmt.Sprintf("%-14s %s%s", "JDK 17", jdk, dirSizeNote(jdk)), func(tally *removalTally) {
 			if os.RemoveAll(jdk) == nil {
 				tally.report("managed-jdk", "removed", jdk)
