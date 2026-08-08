@@ -1,0 +1,286 @@
+package templates
+
+import "docs-templ/content"
+
+// The landing page, ported from the TSX site's Home.tsx.
+
+templ HomePage() {
+	@SiteLayout(
+		"irgo - Native Apps with Go + Datastar",
+		"Build native iOS, Android, and desktop apps using Go, HTML, and Datastar. No JavaScript frameworks required.",
+	) {
+		@homeHero()
+		@homePlatforms()
+		@homeFeatures()
+		@homeCode()
+		@homeArchitecture()
+		@homeComparison()
+		@homeCTA()
+	}
+}
+
+templ homeHero() {
+	<section class="section section--hero">
+		<div class="hero__glow hero__glow--1"></div>
+		<div class="hero__glow hero__glow--2"></div>
+		<div class="container hero">
+			<div class="hero__badge">
+				<span>Now with Desktop Support</span>
+			</div>
+			<h1 class="hero__title">
+				Native Apps with
+				<br/>
+				<span class="hero__title-accent">Go + Datastar</span>
+			</h1>
+			<p class="hero__subtitle">
+				Build native iOS, Android, and desktop apps using Go, HTML, and
+				Datastar. The richness of a webapp in a native app. No JavaScript
+				frameworks required.
+			</p>
+			<div class="hero__actions">
+				<a href="/docs/getting-started" class="btn btn--primary btn--lg">
+					Get Started
+					<svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M5 12h14M12 5l7 7-7 7"/>
+					</svg>
+				</a>
+				<a href="https://github.com/stukennedy/irgo" class="btn btn--secondary btn--lg" target="_blank" rel="noopener">
+					@githubIcon(24)
+					View on GitHub
+				</a>
+			</div>
+			<div class="hero__code mt-2xl">
+				<div class="install-cmd">
+					<span class="install-cmd__prompt">$</span>
+					<span class="install-cmd__text">go install github.com/stukennedy/irgo/cmd/irgo@latest</span>
+					<button
+						class="install-cmd__copy"
+						aria-label="Copy install command"
+						data-on:click="navigator.clipboard.writeText('go install github.com/stukennedy/irgo/cmd/irgo@latest')"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+							<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+						</svg>
+					</button>
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+var platforms = []struct{ Icon, Name, Desc string }{
+	{"ios", "iOS", "Native iOS apps via gomobile"},
+	{"android", "Android", "Native Android apps via gomobile"},
+	{"desktop", "Desktop", "macOS, Windows, Linux with webview"},
+	{"web", "Web", "Standard HTTP server for browsers"},
+}
+
+templ homePlatforms() {
+	<section class="section platforms" id="platforms">
+		<div class="container">
+			<div class="features__header">
+				<h2>One Codebase. Every Platform.</h2>
+				<p>Write your app logic once in Go. Deploy everywhere.</p>
+			</div>
+			<div class="grid grid--4">
+				for _, p := range platforms {
+					<div class="platform-card">
+						<div class="platform-card__icon">
+							@icon(p.Icon, 48)
+						</div>
+						<h3 class="platform-card__name">{ p.Name }</h3>
+						<p class="platform-card__desc">{ p.Desc }</p>
+					</div>
+				}
+			</div>
+		</div>
+	</section>
+}
+
+var features = []struct{ Icon, Title, Desc string }{
+	{"bolt", "Go-Powered Runtime",
+		"Write your backend logic in Go. Compile to native mobile frameworks or desktop apps with full access to the Go ecosystem."},
+	{"refresh", "Datastar for Interactivity",
+		"Use Datastar's hypermedia approach with SSE instead of complex JavaScript frameworks. Return HTML via Server-Sent Events. Simple and powerful."},
+	{"code", "Type-Safe Templates",
+		"Use templ for compile-time checked HTML templates. Catch errors at build time, not runtime. Full Go type safety."},
+	{"cube", "Virtual HTTP (Mobile)",
+		"No network sockets on mobile. Requests are intercepted and handled directly by Go in-process. Fast and secure."},
+	{"fire", "Hot Reload Development",
+		"Edit Go and templ code and see changes instantly. Full hot reload support for rapid development."},
+	{"terminal", "Powerful CLI",
+		"Create, develop, and build projects with simple commands. irgo project new, irgo server dev, irgo app build - that's it."},
+}
+
+templ homeFeatures() {
+	<section class="section features" id="features">
+		<div class="container">
+			<div class="features__header">
+				<h2>Why irgo?</h2>
+				<p>The hypermedia approach to native app development</p>
+			</div>
+			<div class="grid grid--3">
+				for _, f := range features {
+					<div class="feature-card">
+						<div class="feature-card__icon">
+							@icon(f.Icon, 24)
+						</div>
+						<h3 class="feature-card__title">{ f.Title }</h3>
+						<p class="feature-card__description">{ f.Desc }</p>
+					</div>
+				}
+			</div>
+		</div>
+	</section>
+}
+
+templ homeCode() {
+	<section class="section" id="code">
+		<div class="container">
+			<div class="features__header">
+				<h2>Simple, Expressive Code</h2>
+				<p>Build interactive UIs with Go handlers and templ templates</p>
+			</div>
+			<div class="grid grid--2 grid--gap-xl">
+				<div>
+					<h3 class="column-heading">Handler</h3>
+					@sample("home-handler")
+				</div>
+				<div>
+					<h3 class="column-heading">Template</h3>
+					@sample("home-template")
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+// sample renders one of the standalone samples declared in content.
+templ sample(name string) {
+	if s, ok := content.Samples[name]; ok {
+		@siteCode(s.Lang, s.File, s.Text)
+	}
+}
+
+templ homeArchitecture() {
+	<section class="section architecture" id="architecture">
+		<div class="container">
+			<div class="features__header">
+				<h2>The Thin Client Advantage</h2>
+				<p>
+					Go compiles your app and serves HTML partials directly. No
+					frontend framework, no JSON APIs, no virtual DOM.
+				</p>
+			</div>
+			@ArchitectureDiagram()
+			<div class="grid grid--2 grid--gap-2xl arch-columns">
+				<div>
+					<h3 class="column-heading">Mobile Architecture</h3>
+					@MobileArchitectureDiagram()
+				</div>
+				<div>
+					<h3 class="column-heading">How It's Different</h3>
+					<div class="arch-diagram arch-compare">
+						<div class="arch-compare__block">
+							<h4 class="arch-compare__title arch-compare__title--old">Traditional SPA</h4>
+							<p class="arch-compare__flow">API → JSON → JS Framework → Virtual DOM → DOM reconciliation</p>
+							<div class="arch-compare__tags">
+								<span class="arch-tag">React/Vue/Angular</span>
+								<span class="arch-tag">State Management</span>
+								<span class="arch-tag">Build Tools</span>
+							</div>
+						</div>
+						<div class="arch-compare__block">
+							<h4 class="arch-compare__title arch-compare__title--new">irgo Approach</h4>
+							<p class="arch-compare__flow arch-compare__flow--new">Go Handler → templ → SSE → DOM morph</p>
+							<div class="arch-compare__tags">
+								<span class="arch-tag arch-tag--good">No JS Framework</span>
+								<span class="arch-tag arch-tag--good">Server State</span>
+								<span class="arch-tag arch-tag--good">Just Go</span>
+							</div>
+						</div>
+						<div class="arch-compare__note">
+							<p>
+								<strong>The client is thin.</strong> It just renders what Go
+								sends. Datastar handles the SSE updates and DOM morphing. Your
+								Go code is the single source of truth.
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ homeComparison() {
+	<section class="section" id="comparison">
+		<div class="container">
+			<div class="features__header">
+				<h2>Platform Comparison</h2>
+				<p>Choose the right mode for your target platform</p>
+			</div>
+			<div class="table-wrapper">
+				<table class="comparison-table">
+					<thead>
+						<tr>
+							<th>Aspect</th>
+							<th>Mobile (iOS/Android)</th>
+							<th>Desktop</th>
+							<th>Web</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>HTTP</td>
+							<td>Virtual (no sockets)</td>
+							<td>Real localhost server</td>
+							<td>Real HTTP server</td>
+						</tr>
+						<tr>
+							<td>Bridge</td>
+							<td>gomobile + native code</td>
+							<td>None (direct HTTP)</td>
+							<td>None</td>
+						</tr>
+						<tr>
+							<td>Entry Point</td>
+							<td><code>main.go</code></td>
+							<td><code>main_desktop.go</code></td>
+							<td><code>main.go</code> (serve)</td>
+						</tr>
+						<tr>
+							<td>Build Tag</td>
+							<td><code>!desktop</code></td>
+							<td><code>desktop</code></td>
+							<td><code>!desktop</code></td>
+						</tr>
+						<tr>
+							<td>CGO Required</td>
+							<td>No</td>
+							<td>Yes (webview)</td>
+							<td>No</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+}
+
+templ homeCTA() {
+	<section class="section section--cta">
+		<div class="container">
+			<h2>Ready to Build?</h2>
+			<p class="section--cta__lede">
+				Get started in minutes. Create your first irgo app and deploy to any
+				platform.
+			</p>
+			<div class="hero__actions">
+				<a href="/docs/getting-started" class="btn btn--primary btn--lg">Read the Docs</a>
+				<a href="/docs/examples" class="btn btn--secondary btn--lg">View Examples</a>
+			</div>
+		</div>
+	</section>
+}

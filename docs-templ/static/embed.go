@@ -3,5 +3,5 @@ package static
 
 import "embed"
 
-//go:embed css js
+//go:embed css js img llms.txt
 var Files embed.FS

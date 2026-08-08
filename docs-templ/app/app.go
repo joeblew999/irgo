@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"docs-templ/apidoc"
 	"docs-templ/clidoc"
 	"docs-templ/content"
 	"docs-templ/handlers"
@@ -25,8 +26,30 @@ func NewRouter() *router.Router {
 	staticFS, _ := fs.Sub(static.Files, ".")
 	r.Static("/static", http.FS(staticFS))
 
-	// Home page
+	// llms.txt is what the Introduction page points an AI assistant at, so it
+	// has to be text/plain rather than a rendered page — hence HandleFunc
+	// rather than the usual GET.
+	r.HandleFunc("/llms.txt", func(w http.ResponseWriter, req *http.Request) {
+		data, err := static.Files.ReadFile("llms.txt")
+		if err != nil {
+			http.Error(w, "llms.txt is missing from the build", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(data)
+	})
+
+	// The landing page, the interactive demo, and the documentation index.
 	r.GET("/", func(ctx *router.Context) (string, error) {
+		return Renderer.Render(templates.HomePage())
+	})
+	r.GET("/demo", func(ctx *router.Context) (string, error) {
+		return Renderer.Render(templates.DemoPage())
+	})
+	r.GET("/constellation", func(ctx *router.Context) (string, error) {
+		return Renderer.Render(templates.ConstellationPage())
+	})
+	r.GET("/docs", func(ctx *router.Context) (string, error) {
 		return Renderer.Render(templates.DocsHome())
 	})
 
@@ -40,6 +63,12 @@ func NewRouter() *router.Router {
 		}
 		return Renderer.Render(templates.CLIReference(clidoc.Nouns(), byNoun))
 	})
+	// The API reference, generated from the framework's source for the same
+	// reason the CLI reference is generated from the binary.
+	r.GET("/docs/api", func(ctx *router.Context) (string, error) {
+		return Renderer.Render(templates.APIReference(apidoc.Packages()))
+	})
+
 	// Every prose page, from one declaration each.
 	for _, p := range content.Pages {
 		page := p

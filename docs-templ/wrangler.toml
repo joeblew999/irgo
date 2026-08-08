@@ -7,6 +7,9 @@
 # request gets a fresh Go runtime, so a package-level counter resets each time.
 # Per-connection state inside a single SSE stream is fine, because that stream
 # holds one instance open for its lifetime.
-name = "irgo-docs"
+# irgo-dev is the name the published docs site has always had. The templ port
+# ran alongside as irgo-docs while it was catching up; it has, so it takes the
+# name and the TSX site is gone.
+name = "irgo-dev"
 main = "./build/worker/worker.mjs"
 compatibility_date = "2025-08-03"

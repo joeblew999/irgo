@@ -1,0 +1,1611 @@
+[
+  {
+    "import": "github.com/stukennedy/irgo/pkg/router",
+    "name": "router",
+    "doc": "Package router provides a Datastar-aware HTTP router built on chi.",
+    "funcs": [
+      {
+        "name": "CORSMiddleware",
+        "sig": "func CORSMiddleware(allowedOrigins ...string) func(http.Handler) http.Handler",
+        "doc": "CORSMiddleware adds CORS headers for development."
+      },
+      {
+        "name": "DatastarRequestMiddleware",
+        "sig": "func DatastarRequestMiddleware(next http.Handler) http.Handler",
+        "doc": "DatastarRequestMiddleware detects and tags Datastar SSE requests. Datastar sends Accept: text/event-stream for SSE requests."
+      },
+      {
+        "name": "IsDatastarRequest",
+        "sig": "func IsDatastarRequest(r *http.Request) bool",
+        "doc": "IsDatastarRequest returns true if the request is a Datastar SSE request."
+      },
+      {
+        "name": "NoCacheMiddleware",
+        "sig": "func NoCacheMiddleware(next http.Handler) http.Handler",
+        "doc": "NoCacheMiddleware sets headers to prevent caching."
+      },
+      {
+        "name": "RequireDatastar",
+        "sig": "func RequireDatastar(next http.Handler) http.Handler",
+        "doc": "RequireDatastar returns 400 if the request is not a Datastar SSE request."
+      },
+      {
+        "name": "SecretValidationMiddleware",
+        "sig": "func SecretValidationMiddleware(secret string, excludePaths []string) func(http.Handler) http.Handler",
+        "doc": "SecretValidationMiddleware validates the X-Irgo-Secret header on requests. Requests without a valid secret receive a 403 Forbidden response."
+      },
+      {
+        "name": "StrictOriginMiddleware",
+        "sig": "func StrictOriginMiddleware(allowedOrigins ...string) func(http.Handler) http.Handler",
+        "doc": "StrictOriginMiddleware validates the Origin header exactly. For non-safe methods (not GET, HEAD, OPTIONS), the Origin must exactly match one of the allowed origins. This prevents DNS rebinding and CSRF attacks. Uses exact string matching only - no suffix/prefix patterns."
+      },
+      {
+        "name": "WebSocketSecretMiddleware",
+        "sig": "func WebSocketSecretMiddleware(secret string) func(http.Handler) http.Handler",
+        "doc": "WebSocketSecretMiddleware validates the secret for WebSocket upgrade requests. Since the WebSocket API doesn't support custom headers, the secret is passed as a query parameter: ?secret=xxx"
+      }
+    ],
+    "types": [
+      {
+        "name": "Context",
+        "doc": "Context provides request data and response helpers for handlers.",
+        "decl": "type Context struct {\n\tRequest *http.Request\n\tResponse http.ResponseWriter\n}",
+        "ctors": [
+          {
+            "name": "NewContext",
+            "sig": "func NewContext(w http.ResponseWriter, r *http.Request) *Context",
+            "doc": "NewContext creates a new Context from the standard http types."
+          }
+        ],
+        "methods": [
+          {
+            "name": "BadRequest",
+            "sig": "func (c *Context) BadRequest(message string)",
+            "doc": "BadRequest writes a 400 response."
+          },
+          {
+            "name": "Bind",
+            "sig": "func (c *Context) Bind(v any) error",
+            "doc": "Bind decodes JSON body into the given struct."
+          },
+          {
+            "name": "Context",
+            "sig": "func (c *Context) Context() context.Context",
+            "doc": "Context returns the request's context. It is cancelled when the client disconnects (including WebView cancellation on mobile), so pass it to native.Call, database queries, and long-lived work."
+          },
+          {
+            "name": "Error",
+            "sig": "func (c *Context) Error(err error)",
+            "doc": "Error writes an error response."
+          },
+          {
+            "name": "ErrorStatus",
+            "sig": "func (c *Context) ErrorStatus(status int, message string)",
+            "doc": "ErrorStatus writes an error response with custom status."
+          },
+          {
+            "name": "FormValue",
+            "sig": "func (c *Context) FormValue(key string) string",
+            "doc": "FormValue returns a form field value (works for POST form data)."
+          },
+          {
+            "name": "HTML",
+            "sig": "func (c *Context) HTML(html string)",
+            "doc": "HTML writes an HTML response with 200 status."
+          },
+          {
+            "name": "HTMLStatus",
+            "sig": "func (c *Context) HTMLStatus(status int, html string)",
+            "doc": "HTMLStatus writes an HTML response with custom status."
+          },
+          {
+            "name": "Header",
+            "sig": "func (c *Context) Header(key string) string",
+            "doc": "Header returns a request header value."
+          },
+          {
+            "name": "IsDatastar",
+            "sig": "func (c *Context) IsDatastar() bool",
+            "doc": "IsDatastar returns true if this is a Datastar request. Datastar sends an Accept header with text/event-stream for SSE requests."
+          },
+          {
+            "name": "JSON",
+            "sig": "func (c *Context) JSON(data any)",
+            "doc": "JSON writes a JSON response with 200 status."
+          },
+          {
+            "name": "JSONStatus",
+            "sig": "func (c *Context) JSONStatus(status int, data any)",
+            "doc": "JSONStatus writes a JSON response with custom status."
+          },
+          {
+            "name": "NoContent",
+            "sig": "func (c *Context) NoContent()",
+            "doc": "NoContent writes a 204 No Content response."
+          },
+          {
+            "name": "NotFound",
+            "sig": "func (c *Context) NotFound(message string)",
+            "doc": "NotFound writes a 404 response."
+          },
+          {
+            "name": "Param",
+            "sig": "func (c *Context) Param(key string) string",
+            "doc": "Param returns a URL path parameter extracted by chi router."
+          },
+          {
+            "name": "Query",
+            "sig": "func (c *Context) Query(key string) string",
+            "doc": "Query returns a query string parameter."
+          },
+          {
+            "name": "QueryDefault",
+            "sig": "func (c *Context) QueryDefault(key, defaultValue string) string",
+            "doc": "QueryDefault returns a query parameter or default value if not present."
+          },
+          {
+            "name": "ReadSignals",
+            "sig": "func (c *Context) ReadSignals(v any) error",
+            "doc": "ReadSignals extracts Datastar signals from the request body. For GET requests, signals are read from URL query parameters. For other methods, signals are read from the JSON-encoded request body."
+          },
+          {
+            "name": "Redirect",
+            "sig": "func (c *Context) Redirect(url string)",
+            "doc": "Redirect sends a standard HTTP redirect response."
+          },
+          {
+            "name": "SSE",
+            "sig": "func (c *Context) SSE() *datastar.SSE",
+            "doc": "SSE creates a new SSE writer for streaming Datastar responses. Use this to send DOM patches, signal updates, and other SSE events."
+          },
+          {
+            "name": "SetHeader",
+            "sig": "func (c *Context) SetHeader(key, value string)",
+            "doc": "SetHeader sets a response header."
+          },
+          {
+            "name": "Written",
+            "sig": "func (c *Context) Written() bool",
+            "doc": "Written returns true if a response has been written."
+          }
+        ]
+      },
+      {
+        "name": "LayoutWrapper",
+        "doc": "LayoutWrapper wraps fragment responses in a full page layout when the request is not from Datastar (direct browser navigation).",
+        "decl": "type LayoutWrapper struct {\n\tLayout func(content string) string\n}",
+        "methods": [
+          {
+            "name": "Wrap",
+            "sig": "func (l *LayoutWrapper) Wrap(next http.Handler) http.Handler",
+            "doc": "Wrap returns middleware that wraps non-Datastar responses in a layout."
+          }
+        ]
+      },
+      {
+        "name": "Router",
+        "doc": "Router wraps chi with hypermedia-specific conventions.",
+        "ctors": [
+          {
+            "name": "New",
+            "sig": "func New() *Router",
+            "doc": "New creates a new Router with default middleware. The framework endpoints GET /_irgo/bridge.js (the JS bridge) and POST /_irgo/native (Go-side native-capability fallback for web/desktop) are served automatically."
+          },
+          {
+            "name": "NewWithoutMiddleware",
+            "sig": "func NewWithoutMiddleware() *Router",
+            "doc": "NewWithoutMiddleware creates a Router without default middleware or framework endpoints."
+          }
+        ],
+        "methods": [
+          {
+            "name": "DELETE",
+            "sig": "func (r *Router) DELETE(pattern string, handler FragmentHandler)",
+            "doc": "DELETE registers a DELETE handler that returns HTML fragments."
+          },
+          {
+            "name": "DSDelete",
+            "sig": "func (r *Router) DSDelete(pattern string, handler SSEHandler)",
+            "doc": "DSDelete registers a DELETE handler for Datastar SSE requests."
+          },
+          {
+            "name": "DSGet",
+            "sig": "func (r *Router) DSGet(pattern string, handler SSEHandler)",
+            "doc": "DSGet registers a GET handler for Datastar SSE requests."
+          },
+          {
+            "name": "DSPatch",
+            "sig": "func (r *Router) DSPatch(pattern string, handler SSEHandler)",
+            "doc": "DSPatch registers a PATCH handler for Datastar SSE requests."
+          },
+          {
+            "name": "DSPost",
+            "sig": "func (r *Router) DSPost(pattern string, handler SSEHandler)",
+            "doc": "DSPost registers a POST handler for Datastar SSE requests."
+          },
+          {
+            "name": "DSPut",
+            "sig": "func (r *Router) DSPut(pattern string, handler SSEHandler)",
+            "doc": "DSPut registers a PUT handler for Datastar SSE requests."
+          },
+          {
+            "name": "Fragment",
+            "sig": "func (r *Router) Fragment(method, pattern string, handler FragmentHandler)",
+            "doc": "Fragment registers a handler that returns HTML fragments (for initial page loads)."
+          },
+          {
+            "name": "GET",
+            "sig": "func (r *Router) GET(pattern string, handler FragmentHandler)",
+            "doc": "GET registers a GET handler that returns HTML fragments."
+          },
+          {
+            "name": "Group",
+            "sig": "func (r *Router) Group(fn func(r *Router))",
+            "doc": "Group creates a new route group with shared middleware."
+          },
+          {
+            "name": "Handle",
+            "sig": "func (r *Router) Handle(pattern string, handler http.Handler)",
+            "doc": "Handle registers a standard http.Handler."
+          },
+          {
+            "name": "HandleFunc",
+            "sig": "func (r *Router) HandleFunc(pattern string, handler http.HandlerFunc)",
+            "doc": "HandleFunc registers a standard http.HandlerFunc."
+          },
+          {
+            "name": "Handler",
+            "sig": "func (r *Router) Handler() http.Handler",
+            "doc": "Handler returns the underlying http.Handler for use with the adapter."
+          },
+          {
+            "name": "MethodNotAllowed",
+            "sig": "func (r *Router) MethodNotAllowed(handler http.HandlerFunc)",
+            "doc": "MethodNotAllowed registers a custom 405 handler."
+          },
+          {
+            "name": "Mount",
+            "sig": "func (r *Router) Mount(pattern string, handler http.Handler)",
+            "doc": "Mount attaches a sub-router at the given pattern."
+          },
+          {
+            "name": "NotFound",
+            "sig": "func (r *Router) NotFound(handler http.HandlerFunc)",
+            "doc": "NotFound registers a custom 404 handler."
+          },
+          {
+            "name": "PATCH",
+            "sig": "func (r *Router) PATCH(pattern string, handler FragmentHandler)",
+            "doc": "PATCH registers a PATCH handler that returns HTML fragments."
+          },
+          {
+            "name": "POST",
+            "sig": "func (r *Router) POST(pattern string, handler FragmentHandler)",
+            "doc": "POST registers a POST handler that returns HTML fragments."
+          },
+          {
+            "name": "PUT",
+            "sig": "func (r *Router) PUT(pattern string, handler FragmentHandler)",
+            "doc": "PUT registers a PUT handler that returns HTML fragments."
+          },
+          {
+            "name": "Route",
+            "sig": "func (r *Router) Route(pattern string, fn func(r *Router))",
+            "doc": "Route creates a new route group at the given pattern."
+          },
+          {
+            "name": "SSE",
+            "sig": "func (r *Router) SSE(method, pattern string, handler SSEHandler)",
+            "doc": "SSE registers a handler for Datastar SSE requests."
+          },
+          {
+            "name": "ServeHTTP",
+            "sig": "func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request)",
+            "doc": "ServeHTTP implements http.Handler."
+          },
+          {
+            "name": "Static",
+            "sig": "func (r *Router) Static(pattern string, root http.FileSystem)",
+            "doc": "Static serves static files from the given filesystem."
+          },
+          {
+            "name": "Use",
+            "sig": "func (r *Router) Use(middlewares ...func(http.Handler) http.Handler)",
+            "doc": "Use adds middleware to the router."
+          },
+          {
+            "name": "With",
+            "sig": "func (r *Router) With(middlewares ...func(http.Handler) http.Handler) *Router",
+            "doc": "With adds inline middleware for a route."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/pkg/render",
+    "name": "render",
+    "doc": "Package render provides a template engine for HTML fragment rendering.",
+    "funcs": [
+      {
+        "name": "DefaultFuncs",
+        "sig": "func DefaultFuncs() template.FuncMap",
+        "doc": "DefaultFuncs returns the standard template functions for Datastar."
+      },
+      {
+        "name": "MustRenderComponent",
+        "sig": "func MustRenderComponent(component templ.Component) string",
+        "doc": "MustRenderComponent renders a templ component, panics on error."
+      },
+      {
+        "name": "RenderComponent",
+        "sig": "func RenderComponent(component templ.Component) (string, error)",
+        "doc": "RenderComponent is a convenience function to render a templ component."
+      },
+      {
+        "name": "TemplHandler",
+        "sig": "func TemplHandler(component templ.Component) func() (string, error)",
+        "doc": "TemplHandler returns a fragment handler that renders a templ component."
+      }
+    ],
+    "types": [
+      {
+        "name": "Engine",
+        "doc": "Engine manages template parsing and rendering.",
+        "ctors": [
+          {
+            "name": "New",
+            "sig": "func New() *Engine",
+            "doc": "New creates a new template engine with default functions."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AddFunc",
+            "sig": "func (e *Engine) AddFunc(name string, fn any)",
+            "doc": "AddFunc registers a custom template function. Must be called before loading templates."
+          },
+          {
+            "name": "AddFuncs",
+            "sig": "func (e *Engine) AddFuncs(funcs template.FuncMap)",
+            "doc": "AddFuncs registers multiple template functions."
+          },
+          {
+            "name": "Clone",
+            "sig": "func (e *Engine) Clone() (*Engine, error)",
+            "doc": "Clone creates a copy of the engine with the same templates and funcs."
+          },
+          {
+            "name": "Component",
+            "sig": "func (e *Engine) Component(name string, data any) (string, error)",
+            "doc": "Component renders a reusable UI component. Prepends \"components/\" to the name."
+          },
+          {
+            "name": "Fragment",
+            "sig": "func (e *Engine) Fragment(name string, data any) (string, error)",
+            "doc": "Fragment renders a partial/component from the fragments directory. Prepends \"fragments/\" to the name."
+          },
+          {
+            "name": "HasTemplate",
+            "sig": "func (e *Engine) HasTemplate(name string) bool",
+            "doc": "HasTemplate checks if a template exists."
+          },
+          {
+            "name": "Layout",
+            "sig": "func (e *Engine) Layout(name string, data any) (string, error)",
+            "doc": "Layout renders a layout template. Prepends \"layouts/\" to the name."
+          },
+          {
+            "name": "LoadFS",
+            "sig": "func (e *Engine) LoadFS(fsys fs.FS, patterns ...string) error",
+            "doc": "LoadFS loads templates from an embedded filesystem."
+          },
+          {
+            "name": "LoadFiles",
+            "sig": "func (e *Engine) LoadFiles(filenames ...string) error",
+            "doc": "LoadFiles loads specific template files."
+          },
+          {
+            "name": "LoadGlob",
+            "sig": "func (e *Engine) LoadGlob(pattern string) error",
+            "doc": "LoadGlob loads templates matching a glob pattern."
+          },
+          {
+            "name": "MustRender",
+            "sig": "func (e *Engine) MustRender(name string, data any) string",
+            "doc": "MustRender executes a template and panics on error."
+          },
+          {
+            "name": "Page",
+            "sig": "func (e *Engine) Page(name string, data any) (string, error)",
+            "doc": "Page renders a full page template. Prepends \"pages/\" to the name."
+          },
+          {
+            "name": "Parse",
+            "sig": "func (e *Engine) Parse(name, text string) error",
+            "doc": "Parse parses a template string directly."
+          },
+          {
+            "name": "Render",
+            "sig": "func (e *Engine) Render(name string, data any) (string, error)",
+            "doc": "Render executes a template and returns HTML string."
+          },
+          {
+            "name": "Templates",
+            "sig": "func (e *Engine) Templates() []string",
+            "doc": "Templates returns the list of defined template names."
+          }
+        ]
+      },
+      {
+        "name": "TemplRenderer",
+        "doc": "TemplRenderer wraps templ components for use with the router.",
+        "ctors": [
+          {
+            "name": "NewTemplRenderer",
+            "sig": "func NewTemplRenderer() *TemplRenderer",
+            "doc": "NewTemplRenderer creates a new templ renderer."
+          }
+        ],
+        "methods": [
+          {
+            "name": "MustRender",
+            "sig": "func (r *TemplRenderer) MustRender(component templ.Component) string",
+            "doc": "MustRender renders a templ component, panics on error."
+          },
+          {
+            "name": "Render",
+            "sig": "func (r *TemplRenderer) Render(component templ.Component) (string, error)",
+            "doc": "Render renders a templ component to a string."
+          },
+          {
+            "name": "RenderTo",
+            "sig": "func (r *TemplRenderer) RenderTo(w io.Writer, component templ.Component) error",
+            "doc": "RenderTo renders a templ component to a writer."
+          },
+          {
+            "name": "WithContext",
+            "sig": "func (r *TemplRenderer) WithContext(ctx context.Context) *TemplRenderer",
+            "doc": "WithContext returns a renderer with the given context."
+          }
+        ]
+      },
+      {
+        "name": "TemplateError",
+        "doc": "TemplateError wraps template execution errors.",
+        "decl": "type TemplateError struct {\n\tName string\n\tErr error\n}",
+        "methods": [
+          {
+            "name": "Error",
+            "sig": "func (e *TemplateError) Error() string"
+          },
+          {
+            "name": "Unwrap",
+            "sig": "func (e *TemplateError) Unwrap() error"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/pkg/datastar",
+    "name": "datastar",
+    "doc": "Package datastar provides Server-Sent Events (SSE) support for Datastar integration. It wraps the datastar-go SDK with convenience methods for the Irgo framework.",
+    "funcs": [
+      {
+        "name": "ReadSignals",
+        "sig": "func ReadSignals(r *http.Request, signals any) error",
+        "doc": "ReadSignals extracts Datastar signals from an HTTP request and unmarshals them. For GET requests, signals are read from URL query parameters. For other methods, signals are read from the JSON-encoded request body."
+      },
+      {
+        "name": "RenderTempl",
+        "sig": "func RenderTempl(c templ.Component) (string, error)",
+        "doc": "RenderTempl renders a templ component to a string. This is useful for testing or when you need the HTML string directly."
+      }
+    ],
+    "types": [
+      {
+        "name": "SSE",
+        "doc": "SSE wraps the datastar ServerSentEventGenerator with additional convenience methods.",
+        "ctors": [
+          {
+            "name": "NewSSE",
+            "sig": "func NewSSE(w http.ResponseWriter, r *http.Request, opts ...datastar.SSEOption) *SSE",
+            "doc": "NewSSE creates a new SSE writer for streaming responses to the client. The connection stays alive until the context is canceled or the handler returns."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AppendTempl",
+            "sig": "func (s *SSE) AppendTempl(c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "AppendTempl appends a templ component inside an element."
+          },
+          {
+            "name": "AppendTemplByID",
+            "sig": "func (s *SSE) AppendTemplByID(id string, c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "AppendTemplByID appends a templ component inside a specific element by ID."
+          },
+          {
+            "name": "ConsoleError",
+            "sig": "func (s *SSE) ConsoleError(err error, opts ...datastar.ExecuteScriptOption) error",
+            "doc": "ConsoleError logs an error to the browser console."
+          },
+          {
+            "name": "ConsoleLog",
+            "sig": "func (s *SSE) ConsoleLog(msg string, opts ...datastar.ExecuteScriptOption) error",
+            "doc": "ConsoleLog logs a message to the browser console."
+          },
+          {
+            "name": "Context",
+            "sig": "func (s *SSE) Context() context.Context",
+            "doc": "Context returns the request context, which can be used to detect client disconnection."
+          },
+          {
+            "name": "DispatchEvent",
+            "sig": "func (s *SSE) DispatchEvent(eventName string, detail any, opts ...datastar.DispatchCustomEventOption) error",
+            "doc": "DispatchEvent dispatches a custom event on the client."
+          },
+          {
+            "name": "ExecuteScript",
+            "sig": "func (s *SSE) ExecuteScript(script string, opts ...datastar.ExecuteScriptOption) error",
+            "doc": "ExecuteScript executes JavaScript on the client."
+          },
+          {
+            "name": "IsClosed",
+            "sig": "func (s *SSE) IsClosed() bool",
+            "doc": "IsClosed returns true if the client has disconnected."
+          },
+          {
+            "name": "PatchHTML",
+            "sig": "func (s *SSE) PatchHTML(html string, opts ...datastar.PatchElementOption) error",
+            "doc": "PatchHTML patches raw HTML into the DOM."
+          },
+          {
+            "name": "PatchHTMLByID",
+            "sig": "func (s *SSE) PatchHTMLByID(id string, html string, opts ...datastar.PatchElementOption) error",
+            "doc": "PatchHTMLByID patches raw HTML into a specific element by ID."
+          },
+          {
+            "name": "PatchSignals",
+            "sig": "func (s *SSE) PatchSignals(signals any, opts ...datastar.PatchSignalsOption) error",
+            "doc": "PatchSignals updates client-side signals with the provided data. The signals parameter should be a struct or map that will be marshaled to JSON."
+          },
+          {
+            "name": "PatchSignalsIfMissing",
+            "sig": "func (s *SSE) PatchSignalsIfMissing(signals any, opts ...datastar.PatchSignalsOption) error",
+            "doc": "PatchSignalsIfMissing updates signals only if they don't already exist on the client."
+          },
+          {
+            "name": "PatchTempl",
+            "sig": "func (s *SSE) PatchTempl(c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "PatchTempl renders a templ component and patches it into the DOM. This is a convenience method that wraps PatchElementTempl."
+          },
+          {
+            "name": "PatchTemplByID",
+            "sig": "func (s *SSE) PatchTemplByID(id string, c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "PatchTemplByID renders a templ component and patches it into a specific element by ID."
+          },
+          {
+            "name": "PrependTempl",
+            "sig": "func (s *SSE) PrependTempl(c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "PrependTempl prepends a templ component inside an element."
+          },
+          {
+            "name": "PrependTemplByID",
+            "sig": "func (s *SSE) PrependTemplByID(id string, c templ.Component, opts ...datastar.PatchElementOption) error",
+            "doc": "PrependTemplByID prepends a templ component inside a specific element by ID."
+          },
+          {
+            "name": "Redirect",
+            "sig": "func (s *SSE) Redirect(url string, opts ...datastar.ExecuteScriptOption) error",
+            "doc": "Redirect navigates the client to a new URL."
+          },
+          {
+            "name": "Remove",
+            "sig": "func (s *SSE) Remove(selector string, opts ...datastar.PatchElementOption) error",
+            "doc": "Remove removes elements matching a CSS selector."
+          },
+          {
+            "name": "RemoveByID",
+            "sig": "func (s *SSE) RemoveByID(id string) error",
+            "doc": "RemoveByID removes an element by its ID."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/pkg/websocket",
+    "name": "websocket",
+    "doc": "Package websocket provides virtual WebSocket support for real-time communication. It enables bidirectional communication between the WebView and Go without actual network sockets, complementing Datastar's SSE-based updates.",
+    "types": [
+      {
+        "name": "Envelope",
+        "doc": "Envelope represents a message from the server to the client. Used for WebSocket-based real-time updates.",
+        "decl": "type Envelope struct {\n\tChannel string\n\tFormat string\n\tTarget string\n\tSwap string\n\tPayload string\n\tRequestID string\n}",
+        "ctors": [
+          {
+            "name": "HTMLEnvelope",
+            "sig": "func HTMLEnvelope(target, html string) *Envelope",
+            "doc": "HTMLEnvelope creates an envelope for HTML content targeting a specific element."
+          },
+          {
+            "name": "JSONEnvelope",
+            "sig": "func JSONEnvelope(channel string, data any) (*Envelope, error)",
+            "doc": "JSONEnvelope creates an envelope for JSON data on a custom channel."
+          },
+          {
+            "name": "NewEnvelope",
+            "sig": "func NewEnvelope(payload string) *Envelope",
+            "doc": "NewEnvelope creates a new UI/HTML envelope with the given payload."
+          },
+          {
+            "name": "ReplyEnvelope",
+            "sig": "func ReplyEnvelope(requestID, html string) *Envelope",
+            "doc": "ReplyEnvelope creates an envelope that replies to a specific request."
+          },
+          {
+            "name": "SwapEnvelope",
+            "sig": "func SwapEnvelope(target, swap, html string) *Envelope",
+            "doc": "SwapEnvelope creates an envelope with a specific swap strategy."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AsJSON",
+            "sig": "func (e *Envelope) AsJSON() *Envelope",
+            "doc": "AsJSON sets the envelope to use JSON format instead of HTML."
+          },
+          {
+            "name": "JSON",
+            "sig": "func (e *Envelope) JSON() ([]byte, error)",
+            "doc": "JSON encodes the envelope to JSON bytes."
+          },
+          {
+            "name": "MustJSON",
+            "sig": "func (e *Envelope) MustJSON() string",
+            "doc": "MustJSON encodes the envelope to JSON string, panics on error."
+          },
+          {
+            "name": "ToChannel",
+            "sig": "func (e *Envelope) ToChannel(channel string) *Envelope",
+            "doc": "ToChannel sets a custom channel for non-UI messages."
+          },
+          {
+            "name": "WithRequestID",
+            "sig": "func (e *Envelope) WithRequestID(id string) *Envelope",
+            "doc": "WithRequestID sets the request ID for response matching."
+          },
+          {
+            "name": "WithSwap",
+            "sig": "func (e *Envelope) WithSwap(swap string) *Envelope",
+            "doc": "WithSwap sets the swap strategy."
+          },
+          {
+            "name": "WithTarget",
+            "sig": "func (e *Envelope) WithTarget(target string) *Envelope",
+            "doc": "WithTarget sets the target selector."
+          }
+        ]
+      },
+      {
+        "name": "Hub",
+        "doc": "Hub manages all WebSocket sessions and message routing.",
+        "ctors": [
+          {
+            "name": "NewHub",
+            "sig": "func NewHub() *Hub",
+            "doc": "NewHub creates a new WebSocket hub."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AllSessions",
+            "sig": "func (h *Hub) AllSessions() []*Session",
+            "doc": "AllSessions returns all active sessions."
+          },
+          {
+            "name": "Broadcast",
+            "sig": "func (h *Hub) Broadcast(envelope *Envelope)",
+            "doc": "Broadcast sends an envelope to all sessions."
+          },
+          {
+            "name": "BroadcastHTML",
+            "sig": "func (h *Hub) BroadcastHTML(target, html string)",
+            "doc": "BroadcastHTML sends HTML to all sessions."
+          },
+          {
+            "name": "BroadcastToURL",
+            "sig": "func (h *Hub) BroadcastToURL(urlPattern string, envelope *Envelope)",
+            "doc": "BroadcastToURL sends to all sessions connected to URLs matching the pattern."
+          },
+          {
+            "name": "CleanupExpired",
+            "sig": "func (h *Hub) CleanupExpired(ttl time.Duration)",
+            "doc": "CleanupExpired removes stale pending requests from all sessions."
+          },
+          {
+            "name": "Close",
+            "sig": "func (h *Hub) Close()",
+            "doc": "Close closes all sessions and cleans up the hub."
+          },
+          {
+            "name": "Connect",
+            "sig": "func (h *Hub) Connect(url string) (*Session, error)",
+            "doc": "Connect creates a new session for the given URL. Returns the session ID and the session."
+          },
+          {
+            "name": "ConnectWithID",
+            "sig": "func (h *Hub) ConnectWithID(sessionID, url string) (*Session, error)",
+            "doc": "ConnectWithID creates a session with a specific ID (for reconnection)."
+          },
+          {
+            "name": "Disconnect",
+            "sig": "func (h *Hub) Disconnect(sessionID string)",
+            "doc": "Disconnect closes and removes a session."
+          },
+          {
+            "name": "GetSession",
+            "sig": "func (h *Hub) GetSession(sessionID string) (*Session, bool)",
+            "doc": "GetSession returns a session by ID."
+          },
+          {
+            "name": "Handle",
+            "sig": "func (h *Hub) Handle(pattern string, handler MessageHandler)",
+            "doc": "Handle registers a handler for a URL pattern. Patterns can be exact (\"/ws/chat\") or prefix (\"/ws/\")."
+          },
+          {
+            "name": "HandleFunc",
+            "sig": "func (h *Hub) HandleFunc(pattern string, handler func(*Session, *Request) (*Envelope, error))",
+            "doc": "HandleFunc registers a function handler for a URL pattern."
+          },
+          {
+            "name": "HandleMessage",
+            "sig": "func (h *Hub) HandleMessage(sessionID string, data []byte) (*Envelope, error)",
+            "doc": "HandleMessage processes an incoming message for a session."
+          },
+          {
+            "name": "OnSessionCreated",
+            "sig": "func (h *Hub) OnSessionCreated(fn func(*Session))",
+            "doc": "OnSessionCreated sets a callback for when sessions are created."
+          },
+          {
+            "name": "OnSessionDestroyed",
+            "sig": "func (h *Hub) OnSessionDestroyed(fn func(*Session))",
+            "doc": "OnSessionDestroyed sets a callback for when sessions are destroyed."
+          },
+          {
+            "name": "Send",
+            "sig": "func (h *Hub) Send(sessionID string, envelope *Envelope) error",
+            "doc": "Send sends an envelope to a specific session."
+          },
+          {
+            "name": "SendHTML",
+            "sig": "func (h *Hub) SendHTML(sessionID, target, html string) error",
+            "doc": "SendHTML sends an HTML fragment to a session."
+          },
+          {
+            "name": "SessionCount",
+            "sig": "func (h *Hub) SessionCount() int",
+            "doc": "Sessions returns the number of active sessions."
+          },
+          {
+            "name": "SessionsForURL",
+            "sig": "func (h *Hub) SessionsForURL(urlPattern string) []*Session",
+            "doc": "SessionsForURL returns sessions connected to URLs matching the pattern."
+          },
+          {
+            "name": "SetDefaultHandler",
+            "sig": "func (h *Hub) SetDefaultHandler(handler MessageHandler)",
+            "doc": "SetDefaultHandler sets the handler for URLs that don't match any pattern."
+          }
+        ]
+      },
+      {
+        "name": "MessageHandlerFunc",
+        "doc": "MessageHandlerFunc is a function adapter for simple handlers.",
+        "methods": [
+          {
+            "name": "OnClose",
+            "sig": "func (f MessageHandlerFunc) OnClose(session *Session)",
+            "doc": "OnClose implements MessageHandler (no-op)."
+          },
+          {
+            "name": "OnConnect",
+            "sig": "func (f MessageHandlerFunc) OnConnect(session *Session) error",
+            "doc": "OnConnect implements MessageHandler (no-op)."
+          },
+          {
+            "name": "OnMessage",
+            "sig": "func (f MessageHandlerFunc) OnMessage(session *Session, req *Request) (*Envelope, error)",
+            "doc": "OnMessage implements MessageHandler."
+          }
+        ]
+      },
+      {
+        "name": "Request",
+        "doc": "Request represents a message from the client via WebSocket. Used for real-time bidirectional communication alongside Datastar's SSE.",
+        "decl": "type Request struct {\n\tType string\n\tRequestID string\n\tEvent string\n\tHeaders map[string]string\n\tValues map[string]any\n\tPath string\n\tID string\n}",
+        "ctors": [
+          {
+            "name": "ParseRequest",
+            "sig": "func ParseRequest(data []byte) (*Request, error)",
+            "doc": "ParseRequest parses a JSON message into a Request."
+          }
+        ],
+        "methods": [
+          {
+            "name": "CurrentURL",
+            "sig": "func (r *Request) CurrentURL() string",
+            "doc": "CurrentURL returns the HX-Current-URL header value."
+          },
+          {
+            "name": "GetHeader",
+            "sig": "func (r *Request) GetHeader(key string) string",
+            "doc": "GetHeader returns a header value."
+          },
+          {
+            "name": "GetStringValue",
+            "sig": "func (r *Request) GetStringValue(key string) string",
+            "doc": "GetStringValue returns a string value from Values."
+          },
+          {
+            "name": "GetValue",
+            "sig": "func (r *Request) GetValue(key string) any",
+            "doc": "GetValue returns a value from the Values map."
+          },
+          {
+            "name": "Target",
+            "sig": "func (r *Request) Target() string",
+            "doc": "Target returns the HX-Target header value."
+          }
+        ]
+      },
+      {
+        "name": "Session",
+        "doc": "Session represents a virtual WebSocket connection. Each WebSocket connection from the WebView creates one session.",
+        "decl": "type Session struct {\n\tID string\n\tURL string\n\tCreatedAt time.Time\n\tSendChan chan *Envelope\n\tHandler MessageHandler\n}",
+        "ctors": [
+          {
+            "name": "NewSession",
+            "sig": "func NewSession(id, url string, handler MessageHandler) *Session",
+            "doc": "NewSession creates a new WebSocket session."
+          }
+        ],
+        "methods": [
+          {
+            "name": "CleanupExpiredPending",
+            "sig": "func (s *Session) CleanupExpiredPending(ttl time.Duration)",
+            "doc": "CleanupExpiredPending removes pending requests older than ttl."
+          },
+          {
+            "name": "Close",
+            "sig": "func (s *Session) Close()",
+            "doc": "Close marks the session as closed and cleans up."
+          },
+          {
+            "name": "Delete",
+            "sig": "func (s *Session) Delete(key string)",
+            "doc": "Delete removes metadata."
+          },
+          {
+            "name": "Done",
+            "sig": "func (s *Session) Done() \u003c-chan struct{}",
+            "doc": "Done returns a channel that is closed when the session closes."
+          },
+          {
+            "name": "Get",
+            "sig": "func (s *Session) Get(key string) (any, bool)",
+            "doc": "Get retrieves metadata from the session."
+          },
+          {
+            "name": "GetInt",
+            "sig": "func (s *Session) GetInt(key string) int",
+            "doc": "GetInt retrieves int metadata."
+          },
+          {
+            "name": "GetPendingRequest",
+            "sig": "func (s *Session) GetPendingRequest(requestID string) *Request",
+            "doc": "GetPendingRequest retrieves a pending request by ID."
+          },
+          {
+            "name": "GetString",
+            "sig": "func (s *Session) GetString(key string) string",
+            "doc": "GetString retrieves string metadata."
+          },
+          {
+            "name": "HandleMessage",
+            "sig": "func (s *Session) HandleMessage(data []byte) (*Envelope, error)",
+            "doc": "HandleMessage processes an incoming message from the client."
+          },
+          {
+            "name": "IsClosed",
+            "sig": "func (s *Session) IsClosed() bool",
+            "doc": "IsClosed returns true if the session has been closed."
+          },
+          {
+            "name": "Reply",
+            "sig": "func (s *Session) Reply(requestID, html string) bool",
+            "doc": "Reply sends a response matching a specific request."
+          },
+          {
+            "name": "Send",
+            "sig": "func (s *Session) Send(envelope *Envelope) bool",
+            "doc": "Send queues an envelope to be sent to the client. Returns false if the session is closed or the send buffer is full."
+          },
+          {
+            "name": "SendHTML",
+            "sig": "func (s *Session) SendHTML(target, html string) bool",
+            "doc": "SendHTML sends an HTML fragment to a target element."
+          },
+          {
+            "name": "SendHTMLStream",
+            "sig": "func (s *Session) SendHTMLStream(ctx context.Context, target string, htmlStream \u003c-chan string) error",
+            "doc": "SendHTMLStream sends a stream of HTML updates to a target element. Convenience wrapper around SendStream for HTML content."
+          },
+          {
+            "name": "SendStream",
+            "sig": "func (s *Session) SendStream(ctx context.Context, stream \u003c-chan *Envelope) error",
+            "doc": "SendStream sends a stream of envelopes with backpressure handling. It blocks until all envelopes are sent, the stream is closed, or ctx is cancelled. Returns ErrSessionClosed if the session is closed during streaming."
+          },
+          {
+            "name": "Set",
+            "sig": "func (s *Session) Set(key string, value any)",
+            "doc": "Set stores metadata on the session."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/pkg/adapter",
+    "name": "adapter",
+    "doc": "Package adapter provides the virtual HTTP adapter that bridges core.Request/Response to standard net/http handlers.",
+    "types": [
+      {
+        "name": "HTTPAdapter",
+        "doc": "HTTPAdapter bridges core.Request/Response to net/http.Handler. This is the key component that enables \"virtual HTTP\" - executing HTTP handlers without any network I/O.",
+        "ctors": [
+          {
+            "name": "NewHTTPAdapter",
+            "sig": "func NewHTTPAdapter(handler http.Handler) *HTTPAdapter",
+            "doc": "NewHTTPAdapter creates an adapter for the given http.Handler."
+          },
+          {
+            "name": "NewHandlerFuncAdapter",
+            "sig": "func NewHandlerFuncAdapter(fn HandlerFunc) *HTTPAdapter",
+            "doc": "NewHandlerFuncAdapter creates an adapter from a handler function."
+          }
+        ],
+        "methods": [
+          {
+            "name": "HandleRequest",
+            "sig": "func (a *HTTPAdapter) HandleRequest(req *core.Request) *core.Response",
+            "doc": "HandleRequest converts a core.Request, executes through the http.Handler, and returns a core.Response. This is the \"virtual HTTP\" implementation."
+          },
+          {
+            "name": "HandleRequestStream",
+            "sig": "func (a *HTTPAdapter) HandleRequestStream(ctx context.Context, req *core.Request, stream ResponseStream)",
+            "doc": "HandleRequestStream executes the handler and streams the response through the given ResponseStream. It blocks until the handler returns or ctx is cancelled; callers typically run it on a background goroutine."
+          },
+          {
+            "name": "Handler",
+            "sig": "func (a *HTTPAdapter) Handler() http.Handler",
+            "doc": "Handler returns the underlying http.Handler."
+          },
+          {
+            "name": "SetHandler",
+            "sig": "func (a *HTTPAdapter) SetHandler(handler http.Handler)",
+            "doc": "SetHandler updates the underlying http.Handler."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/pkg/testing",
+    "name": "testing",
+    "doc": "Package testing provides utilities for testing irgo applications.",
+    "funcs": [
+      {
+        "name": "AssertNoPanic",
+        "sig": "func AssertNoPanic(t *testing.T, f func())",
+        "doc": "AssertNoPanic asserts that the given function does not panic."
+      },
+      {
+        "name": "AssertPanics",
+        "sig": "func AssertPanics(t *testing.T, f func())",
+        "doc": "AssertPanics asserts that the given function panics."
+      },
+      {
+        "name": "BodyReader",
+        "sig": "func BodyReader(s string) io.Reader",
+        "doc": "BodyReader is a helper to create readers from strings for request bodies."
+      },
+      {
+        "name": "NewTestServer",
+        "sig": "func NewTestServer(handler http.Handler) *httptest.Server",
+        "doc": "NewTestServer creates an httptest.Server for integration tests."
+      }
+    ],
+    "types": [
+      {
+        "name": "Client",
+        "doc": "Client provides test utilities for irgo applications.",
+        "ctors": [
+          {
+            "name": "NewClient",
+            "sig": "func NewClient(handler http.Handler) *Client",
+            "doc": "NewClient creates a new test client for the given handler."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Datastar",
+            "sig": "func (c *Client) Datastar() *Client",
+            "doc": "Datastar returns a client configured for Datastar SSE requests."
+          },
+          {
+            "name": "DatastarWithSignals",
+            "sig": "func (c *Client) DatastarWithSignals(signalsJSON string) *Client",
+            "doc": "DatastarWithSignals returns a client configured for Datastar requests with initial signals."
+          },
+          {
+            "name": "Delete",
+            "sig": "func (c *Client) Delete(path string) *Response",
+            "doc": "Delete performs a DELETE request."
+          },
+          {
+            "name": "Get",
+            "sig": "func (c *Client) Get(path string) *Response",
+            "doc": "Get performs a GET request."
+          },
+          {
+            "name": "Patch",
+            "sig": "func (c *Client) Patch(path string, body io.Reader) *Response",
+            "doc": "Patch performs a PATCH request with the given body."
+          },
+          {
+            "name": "PatchJSON",
+            "sig": "func (c *Client) PatchJSON(path string, jsonBody string) *Response",
+            "doc": "PatchJSON performs a PATCH request with JSON body."
+          },
+          {
+            "name": "Post",
+            "sig": "func (c *Client) Post(path string, body io.Reader) *Response",
+            "doc": "Post performs a POST request with the given body."
+          },
+          {
+            "name": "PostForm",
+            "sig": "func (c *Client) PostForm(path string, data map[string]string) *Response",
+            "doc": "PostForm performs a POST request with form data."
+          },
+          {
+            "name": "PostJSON",
+            "sig": "func (c *Client) PostJSON(path string, jsonBody string) *Response",
+            "doc": "PostJSON performs a POST request with JSON body."
+          },
+          {
+            "name": "Put",
+            "sig": "func (c *Client) Put(path string, body io.Reader) *Response",
+            "doc": "Put performs a PUT request with the given body."
+          },
+          {
+            "name": "PutForm",
+            "sig": "func (c *Client) PutForm(path string, data map[string]string) *Response",
+            "doc": "PutForm performs a PUT request with form data."
+          },
+          {
+            "name": "PutJSON",
+            "sig": "func (c *Client) PutJSON(path string, jsonBody string) *Response",
+            "doc": "PutJSON performs a PUT request with JSON body."
+          },
+          {
+            "name": "WithHeader",
+            "sig": "func (c *Client) WithHeader(key, value string) *Client",
+            "doc": "WithHeader returns a new client with the specified header set."
+          }
+        ]
+      },
+      {
+        "name": "HTMLAssertions",
+        "doc": "HTMLContains provides HTML-aware content checking.",
+        "methods": [
+          {
+            "name": "ContainsClass",
+            "sig": "func (h *HTMLAssertions) ContainsClass(class string)",
+            "doc": "ContainsClass asserts the HTML contains an element with the given class."
+          },
+          {
+            "name": "ContainsElement",
+            "sig": "func (h *HTMLAssertions) ContainsElement(tag string, attrs ...string)",
+            "doc": "ContainsElement asserts the HTML contains an element with the given tag and attributes. This is a simple string-based check, not a full HTML parser."
+          },
+          {
+            "name": "ContainsID",
+            "sig": "func (h *HTMLAssertions) ContainsID(id string)",
+            "doc": "ContainsID asserts the HTML contains an element with the given ID."
+          }
+        ]
+      },
+      {
+        "name": "MockRenderer",
+        "doc": "MockRenderer is a test renderer that captures rendered templates.",
+        "decl": "type MockRenderer struct {\n\tRendered []string\n}",
+        "methods": [
+          {
+            "name": "AssertRenderedCount",
+            "sig": "func (m *MockRenderer) AssertRenderedCount(t *testing.T, expected int)",
+            "doc": "AssertRenderedCount asserts the number of times Render was called."
+          },
+          {
+            "name": "Render",
+            "sig": "func (m *MockRenderer) Render(component interface{}) (string, error)",
+            "doc": "Render captures the template call and returns a placeholder."
+          },
+          {
+            "name": "Reset",
+            "sig": "func (m *MockRenderer) Reset()",
+            "doc": "Reset clears the render history."
+          }
+        ]
+      },
+      {
+        "name": "RequestBuilder",
+        "doc": "RequestBuilder provides a fluent API for building test requests.",
+        "ctors": [
+          {
+            "name": "NewRequest",
+            "sig": "func NewRequest(method, path string) *RequestBuilder",
+            "doc": "NewRequest creates a new request builder."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AsDatastar",
+            "sig": "func (rb *RequestBuilder) AsDatastar() *RequestBuilder",
+            "doc": "AsDatastar marks this as a Datastar SSE request."
+          },
+          {
+            "name": "Build",
+            "sig": "func (rb *RequestBuilder) Build() *http.Request",
+            "doc": "Build creates the http.Request."
+          },
+          {
+            "name": "Execute",
+            "sig": "func (rb *RequestBuilder) Execute(handler http.Handler) *Response",
+            "doc": "Execute runs the request against a handler and returns the response."
+          },
+          {
+            "name": "WithBody",
+            "sig": "func (rb *RequestBuilder) WithBody(body io.Reader) *RequestBuilder",
+            "doc": "WithBody sets the request body."
+          },
+          {
+            "name": "WithFormBody",
+            "sig": "func (rb *RequestBuilder) WithFormBody(data map[string]string) *RequestBuilder",
+            "doc": "WithFormBody sets form data as the request body."
+          },
+          {
+            "name": "WithHeader",
+            "sig": "func (rb *RequestBuilder) WithHeader(key, value string) *RequestBuilder",
+            "doc": "WithHeader adds a header to the request."
+          },
+          {
+            "name": "WithJSONBody",
+            "sig": "func (rb *RequestBuilder) WithJSONBody(json string) *RequestBuilder",
+            "doc": "WithJSONBody sets JSON as the request body."
+          }
+        ]
+      },
+      {
+        "name": "Response",
+        "doc": "Response represents the result of a test request.",
+        "decl": "type Response struct {\n\tStatusCode int\n\tHeaders http.Header\n\tBody []byte\n}",
+        "methods": [
+          {
+            "name": "AssertBadRequest",
+            "sig": "func (r *Response) AssertBadRequest(t *testing.T)",
+            "doc": "AssertBadRequest asserts the response status is 400."
+          },
+          {
+            "name": "AssertBodyEquals",
+            "sig": "func (r *Response) AssertBodyEquals(t *testing.T, expected string)",
+            "doc": "AssertBodyEquals asserts the response body exactly matches the given string."
+          },
+          {
+            "name": "AssertContains",
+            "sig": "func (r *Response) AssertContains(t *testing.T, expected string)",
+            "doc": "AssertContains asserts the response body contains the given string."
+          },
+          {
+            "name": "AssertContainsAll",
+            "sig": "func (r *Response) AssertContainsAll(t *testing.T, strs ...string)",
+            "doc": "AssertContainsAll asserts the body contains all the given strings."
+          },
+          {
+            "name": "AssertContentType",
+            "sig": "func (r *Response) AssertContentType(t *testing.T, expected string)",
+            "doc": "AssertContentType asserts the Content-Type header."
+          },
+          {
+            "name": "AssertCreated",
+            "sig": "func (r *Response) AssertCreated(t *testing.T)",
+            "doc": "AssertCreated asserts the response status is 201."
+          },
+          {
+            "name": "AssertHTML",
+            "sig": "func (r *Response) AssertHTML(t *testing.T)",
+            "doc": "AssertHTML asserts the Content-Type is text/html."
+          },
+          {
+            "name": "AssertHeader",
+            "sig": "func (r *Response) AssertHeader(t *testing.T, key, expected string)",
+            "doc": "AssertHeader asserts a response header has the expected value."
+          },
+          {
+            "name": "AssertHeaderExists",
+            "sig": "func (r *Response) AssertHeaderExists(t *testing.T, key string)",
+            "doc": "AssertHeaderExists asserts a response header exists."
+          },
+          {
+            "name": "AssertJSON",
+            "sig": "func (r *Response) AssertJSON(t *testing.T)",
+            "doc": "AssertJSON asserts the Content-Type is application/json."
+          },
+          {
+            "name": "AssertNoContent",
+            "sig": "func (r *Response) AssertNoContent(t *testing.T)",
+            "doc": "AssertNoContent asserts the response status is 204."
+          },
+          {
+            "name": "AssertNotContains",
+            "sig": "func (r *Response) AssertNotContains(t *testing.T, unexpected string)",
+            "doc": "AssertNotContains asserts the response body does not contain the given string."
+          },
+          {
+            "name": "AssertNotFound",
+            "sig": "func (r *Response) AssertNotFound(t *testing.T)",
+            "doc": "AssertNotFound asserts the response status is 404."
+          },
+          {
+            "name": "AssertOK",
+            "sig": "func (r *Response) AssertOK(t *testing.T)",
+            "doc": "AssertOK asserts the response status is 200."
+          },
+          {
+            "name": "AssertRedirect",
+            "sig": "func (r *Response) AssertRedirect(t *testing.T)",
+            "doc": "AssertRedirect asserts the response is a redirect (3xx status)."
+          },
+          {
+            "name": "AssertSSE",
+            "sig": "func (r *Response) AssertSSE(t *testing.T)",
+            "doc": "AssertSSE asserts the response is a valid SSE response."
+          },
+          {
+            "name": "AssertSSEContains",
+            "sig": "func (r *Response) AssertSSEContains(t *testing.T, expected string)",
+            "doc": "AssertSSEContains asserts the SSE response data contains the given string."
+          },
+          {
+            "name": "AssertSSEEvent",
+            "sig": "func (r *Response) AssertSSEEvent(t *testing.T, eventType string)",
+            "doc": "AssertSSEEvent asserts the response contains a specific SSE event type."
+          },
+          {
+            "name": "AssertStatus",
+            "sig": "func (r *Response) AssertStatus(t *testing.T, expected int)",
+            "doc": "AssertStatus asserts the response status code."
+          },
+          {
+            "name": "BodyString",
+            "sig": "func (r *Response) BodyString() string",
+            "doc": "BodyString returns the response body as a string."
+          },
+          {
+            "name": "ContainsAll",
+            "sig": "func (r *Response) ContainsAll(strs ...string) bool",
+            "doc": "ContainsAll checks if the body contains all the given strings."
+          },
+          {
+            "name": "HTML",
+            "sig": "func (r *Response) HTML(t *testing.T) *HTMLAssertions",
+            "doc": "HTML returns HTML assertion helpers for the response."
+          },
+          {
+            "name": "Header",
+            "sig": "func (r *Response) Header(key string) string",
+            "doc": "Header returns the value of a response header."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/desktop",
+    "name": "desktop",
+    "doc": "Package desktop provides desktop application support using webview. Desktop mode uses a real HTTP server (like dev mode) with a native webview window pointing to localhost.",
+    "funcs": [
+      {
+        "name": "FindResourcePath",
+        "sig": "func FindResourcePath() string",
+        "doc": "FindResourcePath finds the path to bundled resources. Handles platform-specific app bundle locations."
+      },
+      {
+        "name": "FindStaticDir",
+        "sig": "func FindStaticDir() string",
+        "doc": "FindStaticDir finds the static files directory, checking multiple locations. Returns the first valid path found, or \"static\" as fallback."
+      },
+      {
+        "name": "GenerateSecret",
+        "sig": "func GenerateSecret() (string, error)",
+        "doc": "GenerateSecret creates a cryptographically secure random secret for per-launch authentication. The secret is 32 bytes encoded as URL-safe base64, resulting in a 43-character string."
+      },
+      {
+        "name": "SetupMenu",
+        "sig": "func SetupMenu(appName, version string)",
+        "doc": "SetupMenu configures the native macOS menu bar with standard menus. This should be called before creating the webview."
+      },
+      {
+        "name": "StaticFS",
+        "sig": "func StaticFS(embedded fs.FS, devPath string) http.FileSystem",
+        "doc": "StaticFS returns a filesystem for static files. In development mode (devPath exists on disk), serves from filesystem. In production mode, serves from the embedded filesystem."
+      }
+    ],
+    "types": [
+      {
+        "name": "App",
+        "doc": "App represents a desktop application with an embedded HTTP server",
+        "ctors": [
+          {
+            "name": "New",
+            "sig": "func New(handler http.Handler, config Config) *App",
+            "doc": "New creates a new desktop app with the given HTTP handler"
+          },
+          {
+            "name": "NewWithHub",
+            "sig": "func NewWithHub(handler http.Handler, wsHub *ws.Hub, config Config) *App",
+            "doc": "NewWithHub creates a new desktop app with a custom WebSocket hub"
+          }
+        ],
+        "methods": [
+          {
+            "name": "Bind",
+            "sig": "func (a *App) Bind(name string, fn interface{}) error",
+            "doc": "Bind binds a Go function to a JavaScript name in the webview"
+          },
+          {
+            "name": "Eval",
+            "sig": "func (a *App) Eval(js string)",
+            "doc": "Eval evaluates JavaScript in the webview"
+          },
+          {
+            "name": "Hub",
+            "sig": "func (a *App) Hub() *ws.Hub",
+            "doc": "Hub returns the WebSocket hub for registering handlers"
+          },
+          {
+            "name": "Port",
+            "sig": "func (a *App) Port() int",
+            "doc": "Port returns the port the server is running on (0 for inprocess transport)"
+          },
+          {
+            "name": "RegisterChannelHandler",
+            "sig": "func (a *App) RegisterChannelHandler(pattern string, handler transport.ChannelHandler)",
+            "doc": "RegisterChannelHandler registers a handler for WebSocket channels matching a pattern"
+          },
+          {
+            "name": "Run",
+            "sig": "func (a *App) Run() error",
+            "doc": "Run starts the desktop app (blocking until window is closed)"
+          },
+          {
+            "name": "Secret",
+            "sig": "func (a *App) Secret() string",
+            "doc": "Secret returns the per-launch authentication secret"
+          },
+          {
+            "name": "SetDefaultChannelHandler",
+            "sig": "func (a *App) SetDefaultChannelHandler(handler transport.ChannelHandler)",
+            "doc": "SetDefaultChannelHandler sets the default handler for WebSocket channels"
+          },
+          {
+            "name": "Shutdown",
+            "sig": "func (a *App) Shutdown() error",
+            "doc": "Shutdown gracefully stops the app"
+          },
+          {
+            "name": "Transport",
+            "sig": "func (a *App) Transport() transport.Transport",
+            "doc": "Transport returns the underlying transport for advanced usage"
+          },
+          {
+            "name": "URL",
+            "sig": "func (a *App) URL() string",
+            "doc": "URL returns the local server URL (empty for inprocess transport)"
+          }
+        ]
+      },
+      {
+        "name": "Config",
+        "doc": "Config holds desktop app configuration",
+        "decl": "type Config struct {\n\tTitle string\n\tWidth int\n\tHeight int\n\tResizable bool\n\tDebug bool\n\tPort int\n\tTransport string\n\tVersion string\n\tSetupMenu bool\n}",
+        "ctors": [
+          {
+            "name": "DefaultConfig",
+            "sig": "func DefaultConfig() Config",
+            "doc": "DefaultConfig returns sensible defaults for a desktop app"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "import": "github.com/stukennedy/irgo/mobile",
+    "name": "mobile",
+    "doc": "Package mobile provides the gomobile-exported functions for iOS and Android. These functions are called by native code to handle HTTP requests and WebSocket messages without any network I/O.",
+    "funcs": [
+      {
+        "name": "ClearCookies",
+        "sig": "func ClearCookies()",
+        "doc": "ClearCookies removes all cookies, including persisted ones. Useful for implementing logout."
+      },
+      {
+        "name": "GetHub",
+        "sig": "func GetHub() *websocket.Hub",
+        "doc": "GetHub returns the WebSocket hub for handler registration."
+      },
+      {
+        "name": "HandleRequest",
+        "sig": "func HandleRequest(method, url, headers string, body []byte) *core.Response",
+        "doc": "HandleRequest processes an HTTP request and returns a response. This is the main entry point called by Swift/Kotlin for HTTP requests."
+      },
+      {
+        "name": "HandleRequestSimple",
+        "sig": "func HandleRequestSimple(method, url string) *core.Response",
+        "doc": "HandleRequestSimple is a simplified version for basic requests."
+      },
+      {
+        "name": "Initialize",
+        "sig": "func Initialize()",
+        "doc": "Initialize creates and configures the global bridge. Must be called once at app startup from native code. If the bridge already exists (e.g., from SetHandler), this is a no-op."
+      },
+      {
+        "name": "IsReady",
+        "sig": "func IsReady() bool",
+        "doc": "IsReady returns true if the bridge is initialized and ready."
+      },
+      {
+        "name": "NativeResult",
+        "sig": "func NativeResult(callID string, ok bool, payloadJSON string)",
+        "doc": "NativeResult delivers the result of a native-capability call back to Go. Called by the native shell when a plugin completes (or fails) a call."
+      },
+      {
+        "name": "OnBackground",
+        "sig": "func OnBackground()",
+        "doc": "OnBackground is called by native code when the app enters the background (iOS: sceneDidEnterBackground, Android: onPause/onStop). The bridge persists its state (cookie jar) and notifies the app's handler."
+      },
+      {
+        "name": "OnForeground",
+        "sig": "func OnForeground()",
+        "doc": "OnForeground is called by native code when the app returns to the foreground (iOS: sceneWillEnterForeground, Android: onResume)."
+      },
+      {
+        "name": "RenderInitialPage",
+        "sig": "func RenderInitialPage() string",
+        "doc": "RenderInitialPage renders the initial HTML page for the WebView. This is called once at app startup to get the initial content."
+      },
+      {
+        "name": "SetHandler",
+        "sig": "func SetHandler(handler http.Handler)",
+        "doc": "SetHandler sets the HTTP handler for the bridge. This is called from Go app code after setting up routes."
+      },
+      {
+        "name": "SetLifecycleHandler",
+        "sig": "func SetLifecycleHandler(h LifecycleHandler)",
+        "doc": "SetLifecycleHandler registers a Go-side lifecycle handler. Called from Go app code (not gomobile-bindable by design)."
+      },
+      {
+        "name": "SetNativeCallback",
+        "sig": "func SetNativeCallback(cb NativeCallback)",
+        "doc": "SetNativeCallback registers the native callback handler. Called from Swift/Kotlin during initialization."
+      },
+      {
+        "name": "SetNativeInvoker",
+        "sig": "func SetNativeInvoker(inv NativeInvoker)",
+        "doc": "SetNativeInvoker registers the platform dispatcher for native-capability calls. Called by the native shell during initialization."
+      },
+      {
+        "name": "SetStateDir",
+        "sig": "func SetStateDir(dir string)",
+        "doc": "SetStateDir enables on-disk persistence for bridge state (currently the cookie jar, so login sessions survive app restarts). Native code should call this at startup with an app-private writable directory: - iOS: Application Support or Documents directory - Android: context.filesDir"
+      },
+      {
+        "name": "SetWebSocketCallback",
+        "sig": "func SetWebSocketCallback(cb WebSocketCallback)",
+        "doc": "SetWebSocketCallback registers the native callback handler for WebSocket messages. Called from Swift/Kotlin during initialization."
+      },
+      {
+        "name": "Shutdown",
+        "sig": "func Shutdown()",
+        "doc": "Shutdown cleans up the bridge and closes all connections."
+      },
+      {
+        "name": "WebSocketBroadcast",
+        "sig": "func WebSocketBroadcast(urlPattern string, target string, html string)",
+        "doc": "WebSocketBroadcast sends a message to all sessions matching a URL pattern."
+      },
+      {
+        "name": "WebSocketBroadcastAll",
+        "sig": "func WebSocketBroadcastAll(target string, html string)",
+        "doc": "WebSocketBroadcastAll sends a message to all sessions."
+      },
+      {
+        "name": "WebSocketClose",
+        "sig": "func WebSocketClose(sessionID string) error",
+        "doc": "WebSocketClose closes a WebSocket session."
+      },
+      {
+        "name": "WebSocketConnect",
+        "sig": "func WebSocketConnect(url string) (string, error)",
+        "doc": "WebSocketConnect creates a new WebSocket session. Returns the session ID. Called from JavaScript when a WebSocket connection is requested."
+      },
+      {
+        "name": "WebSocketConnectWithID",
+        "sig": "func WebSocketConnectWithID(sessionID, url string) error",
+        "doc": "WebSocketConnectWithID creates a session with a specific ID (for reconnection)."
+      },
+      {
+        "name": "WebSocketPoll",
+        "sig": "func WebSocketPoll(sessionID string) string",
+        "doc": "WebSocketPoll polls for outgoing messages (alternative to callbacks). Returns JSON-encoded envelope or empty string if no messages. This is useful for platforms where callbacks are difficult."
+      },
+      {
+        "name": "WebSocketPollBlocking",
+        "sig": "func WebSocketPollBlocking(sessionID string, timeoutMs int) string",
+        "doc": "WebSocketPollBlocking polls with blocking until a message is available. timeout is in milliseconds, 0 for no timeout."
+      },
+      {
+        "name": "WebSocketSend",
+        "sig": "func WebSocketSend(sessionID string, data string) (string, error)",
+        "doc": "WebSocketSend sends a message from the WebView to Go. data is the JSON message in websocket.Request format. Returns the response envelope as JSON, or empty string if no immediate response."
+      },
+      {
+        "name": "WebSocketSendToSession",
+        "sig": "func WebSocketSendToSession(sessionID string, target string, html string) error",
+        "doc": "WebSocketSendToSession sends a message to a specific session."
+      },
+      {
+        "name": "WebSocketSessionCount",
+        "sig": "func WebSocketSessionCount() int",
+        "doc": "WebSocketSessionCount returns the number of active sessions."
+      },
+      {
+        "name": "WebSocketSessionCountForURL",
+        "sig": "func WebSocketSessionCountForURL(urlPattern string) int",
+        "doc": "WebSocketSessionCountForURL returns sessions connected to a URL pattern."
+      }
+    ],
+    "types": [
+      {
+        "name": "StreamHandle",
+        "doc": "StreamHandle lets native code cancel an in-flight streaming request, e.g. when the WebView navigates away or the scheme task is stopped. Cancelling cancels the handler's request context, so datastar handlers observing SSE.IsClosed()/Context() terminate just like on a real disconnect.",
+        "ctors": [
+          {
+            "name": "HandleRequestStream",
+            "sig": "func HandleRequestStream(method, url, headers string, body []byte, callback StreamCallback) *StreamHandle",
+            "doc": "HandleRequestStream processes an HTTP request, streaming the response through the callback. It returns immediately; callbacks are delivered from a background goroutine."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Cancel",
+            "sig": "func (h *StreamHandle) Cancel()",
+            "doc": "Cancel aborts the request. Safe to call multiple times and after completion."
+          }
+        ]
+      }
+    ]
+  }
+]

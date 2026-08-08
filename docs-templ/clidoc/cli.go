@@ -1,5 +1,7 @@
 package clidoc
 
+//go:generate sh -c "cd .. && go tool irgo help --json > clidoc/cli.json"
+
 import (
 	_ "embed"
 	"encoding/json"
@@ -83,8 +85,22 @@ func Commands() []Command {
 	return out
 }
 
-// CLINouns groups the commands the way the CLI's own help does.
-func Nouns() []string { return []string{"project", "app", "tools", "server"} }
+// Nouns groups the commands the way the CLI's own help does.
+//
+// Taken from the commands themselves, in the order they appear, rather than
+// listed here: a hand-written list is a second place to add a noun, and when
+// `secrets` arrived this one silently dropped it from the page.
+func Nouns() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range Commands() {
+		if !seen[c.Noun] {
+			seen[c.Noun] = true
+			out = append(out, c.Noun)
+		}
+	}
+	return out
+}
 
 // CommandsFor returns one noun's commands.
 func For(noun string) []Command {

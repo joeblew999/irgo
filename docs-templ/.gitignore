@@ -67,4 +67,3 @@ build-errors.log
 # Environment
 .env
 .env.local
-docs-templ/.github/
