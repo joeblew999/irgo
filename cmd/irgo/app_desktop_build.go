@@ -441,3 +441,35 @@ func launchBuiltDesktop() error {
 	fmt.Printf("Launching %s...\n", path)
 	return runCommand(cmd[0], cmd[1:]...)
 }
+
+// androidPackageFromModulePath is bundleIDFromModulePath for Android, where
+// the rules are stricter.
+//
+// An Apple bundle ID may contain hyphens; an Android package name may not,
+// because each segment has to be a Java identifier. The two shared one
+// function, so any repository with a hyphen in its name — irgo-demo, and the
+// scaffolding derives from the module path — produced com.irgo.irgo-demo and
+// was told it was fine until Play rejected the upload.
+//
+// Hyphens become underscores rather than being dropped: com.irgo.irgo_demo
+// still reads as the project it came from, where com.irgo.irgodemo does not.
+// A segment starting with a digit gets a leading underscore for the same
+// reason — an identifier cannot start with one, and truncating loses meaning.
+func androidPackageFromModulePath(modulePath string) string {
+	parts := strings.Split(bundleIDFromModulePath(modulePath), ".")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.ToLower(strings.ReplaceAll(p, "-", "_"))
+		if p == "" {
+			continue
+		}
+		if p[0] >= '0' && p[0] <= '9' {
+			p = "_" + p
+		}
+		out = append(out, p)
+	}
+	if len(out) < 2 {
+		return "com.irgo.app"
+	}
+	return strings.Join(out, ".")
+}

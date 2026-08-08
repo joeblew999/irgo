@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"github.com/stukennedy/irgo/pkg/secrets"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -323,6 +324,17 @@ func newProject(name string) error {
 		if strings.HasSuffix(path, "/"+packageConfigFile) || path == "templates/"+packageConfigFile {
 			if _, err := os.Stat(filepath.Join(projectDir, packageConfigFile)); err == nil {
 				fmt.Printf("  kept (yours): %s\n", packageConfigFile)
+				return nil
+			}
+		}
+
+		// fnox.toml names the secrets a project needs. Like irgo.package.toml
+		// it is a seed: once a project has declared what it uses, rewriting it
+		// would drop those declarations and the next deploy would fail looking
+		// for a token nothing asks for any more.
+		if strings.HasSuffix(path, "/"+secrets.ConfigName) || path == "templates/"+secrets.ConfigName {
+			if _, err := os.Stat(filepath.Join(projectDir, secrets.ConfigName)); err == nil {
+				fmt.Printf("  kept (yours): %s\n", secrets.ConfigName)
 				return nil
 			}
 		}

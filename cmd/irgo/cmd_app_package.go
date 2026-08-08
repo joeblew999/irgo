@@ -93,75 +93,15 @@ func parsePackageConfigFile(path string, cfg packageConfig) packageConfig {
 		}
 		key := strings.TrimSpace(line[:eq])
 		val := strings.Trim(strings.TrimSpace(line[eq+1:]), `"'`)
-		switch section {
-		case "common":
-			switch key {
-			case "version":
-				cfg.Version = val
-			case "icon":
-				cfg.Icon = val
-			}
-		case "ios":
-			switch key {
-			case "team":
-				cfg.IOSTeam = val
-			case "export_method":
-				cfg.IOSExportMethod = val
-			}
-		case "android":
-			switch key {
-			case "keystore":
-				cfg.AndroidKeystore = val
-			case "keystore_pass":
-				cfg.AndroidKeystorePw = val
-			case "key_alias":
-				cfg.AndroidKeyAlias = val
-			case "key_pass":
-				cfg.AndroidKeyPass = val
-			}
-		case "windows":
-			switch key {
-			case "publisher":
-				cfg.WindowsPublisher = val
-			case "cert":
-				cfg.WindowsCert = val
-			case "cert_pass":
-				cfg.WindowsCertPass = val
-			case "icon":
-				cfg.WindowsIcon = val
-			}
-		case "macos":
-			switch key {
-			case "identity":
-				cfg.MacIdentity = val
-			case "notarize":
-				cfg.MacNotarize = val == "true" || val == "1" || val == "yes"
-			case "apple_id":
-				cfg.MacAppleID = val
-			case "team":
-				cfg.MacTeam = val
-			case "password":
-				cfg.MacPassword = val
-			case "dmg":
-				cfg.MacDMG = val == "true" || val == "1" || val == "yes"
-			}
-		case "reviews":
-			switch key {
-			case "ios_app_id":
-				cfg.ReviewsIOSAppID = val
-			case "mac_app_id":
-				cfg.ReviewsMacAppID = val
-			case "ios_key_id":
-				cfg.ReviewsIOSKeyID = val
-			case "ios_issuer_id":
-				cfg.ReviewsIOSIssuerID = val
-			case "ios_private_key":
-				cfg.ReviewsIOSPrivateKey = val
-			case "android_package":
-				cfg.ReviewsAndroidPackage = val
-			case "android_service_account":
-				cfg.ReviewsAndroidServiceAcc = val
-			}
+		cv := registryFor(section, key)
+		if cv == nil {
+			continue // a key irgo does not know; leave it for whoever does
+		}
+		switch {
+		case cv.field != nil:
+			*cv.field(&cfg) = val
+		case cv.boolField != nil:
+			*cv.boolField(&cfg) = val == "true" || val == "1" || val == "yes"
 		}
 	}
 	return cfg
@@ -492,7 +432,7 @@ func packageCommand(args []string) error {
 			}
 		}
 		if check {
-			stores := []string{"ios", "android", "windows", "macos", "reviews-apple-ios", "reviews-apple-mac", "reviews-android"}
+			stores := configStores
 			if store != "" {
 				stores = []string{store}
 			}

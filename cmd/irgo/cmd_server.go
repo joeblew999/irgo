@@ -57,7 +57,7 @@ func runTest() error {
 	// with "package <mod>/templates is not in std" — which names neither templ
 	// nor the missing step. The help has always said this command regenerates;
 	// it did not, and CI trusted the documentation.
-	if err := ensureAssets(); err != nil {
+	if err := ensureAssetsAndGenerate(); err != nil {
 		return err
 	}
 	fmt.Println("Running tests...")

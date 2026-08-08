@@ -29,6 +29,9 @@ APP       what gets built, run, shipped and installed
 TOOLS     the toolchains on this machine
 ` + renderNounSection("tools") + `
 
+SECRETS   the credentials this project needs, and where they go
+` + renderNounSection("secrets") + `
+
 SERVER    the development server
 ` + renderNounSection("server") + `
 
@@ -65,7 +68,7 @@ func printCommandHelp(noun, verb string) {
 	}
 
 	switch key {
-	case "project", "app", "tools", "server":
+	case "project", "app", "tools", "secrets", "server":
 		fmt.Printf("irgo %s - %s\n\n", noun, nounSummary[noun])
 		fmt.Println("Verbs:")
 		fmt.Println(renderNounVerbs(noun, "irgo "))
@@ -131,6 +134,7 @@ var nounSummary = map[string]string{
 	"project": "the repository you are in",
 	"app":     "what gets built, run, shipped and installed",
 	"tools":   "the toolchains on this machine",
+	"secrets": "the credentials this project needs, and where they go",
 	"server":  "the development server",
 }
 
@@ -139,7 +143,7 @@ var nounSummary = map[string]string{
 func renderCommandTable() string {
 	var b strings.Builder
 	b.WriteString("| Command | What it does |\n|---|---|\n")
-	for _, noun := range []string{"project", "app", "tools", "server"} {
+	for _, noun := range []string{"project", "app", "tools", "secrets", "server"} {
 		for _, verb := range nounVerbs[noun] {
 			key := noun + " " + verb
 			c := commands[key]
@@ -210,7 +214,7 @@ func printCommandsJSON() {
 	}
 
 	var out []commandDoc
-	for _, noun := range []string{"project", "app", "tools", "server"} {
+	for _, noun := range []string{"project", "app", "tools", "secrets", "server"} {
 		for _, verb := range nounVerbs[noun] {
 			c := commands[noun+" "+verb]
 			d := commandDoc{

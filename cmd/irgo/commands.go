@@ -153,6 +153,87 @@ templ and the Tailwind standalone binary are installed on demand. There is no
 Node, npm or package.json.`,
 	},
 
+	"secrets list": {
+		summary: "What this project needs, and whether it resolves",
+		usage: [][2]string{
+			{"", "Names and status from fnox.toml — never values"},
+			{"--env <name>", "That environment's values instead of the defaults"},
+		},
+		flags: [][2]string{{"--env <name>", "Deployment environment (or IRGO_ENV)"}},
+		notes: `Secrets live in one place, the keychain, declared per repo in fnox.toml.
+Everything else is a copy that has to be pushed and kept in step.
+
+The convention across these repos: shared credentials keep their plain name
+(CLOUDFLARE_API_TOKEN is one account, one entry, every repo points at it), and
+per-project ones carry the project as a prefix (DO_LOCATOR_KV_NAMESPACE_ID), so
+a keychain dump says which repo owns what.
+
+Set one with fnox, which prompts rather than taking it as an argument:
+  fnox set -p keychain CLOUDFLARE_API_TOKEN`,
+	},
+
+	"secrets status": {
+		summary: "Whether each destination actually has them",
+		usage: [][2]string{
+			{"", "Compare what is declared against GitHub and the Worker"},
+			{"--env <name>", "That environment's destinations"},
+		},
+		flags: [][2]string{{"--env <name>", "Deployment environment (or IRGO_ENV)"}},
+		notes: `Pushing is a copy, and a copy goes stale. A secret rotated in the keychain
+but never pushed, or removed from fnox.toml but still sitting in the
+repository, is invisible from both ends until a release build fails on a tag.
+
+Names only. Both destinations are write-only by design — GitHub will say a
+secret exists and when it was last updated, never what it is — so agreement of
+names is not agreement of values.
+
+ORPHAN means the destination holds an IRGO_/CLOUDFLARE_ secret that nothing
+declares any more. It cannot be read back, so nobody can tell whether it still
+matters; that is the reason to name it rather than let it accumulate.`,
+	},
+
+	"secrets push": {
+		summary: "Copy them where they are also needed",
+		usage: [][2]string{
+			{"github", "GitHub Actions secrets for this repository"},
+			{"cloudflare", "Runtime secrets for this Worker"},
+		},
+		flags: [][2]string{
+			{"--yes, -y", "Do not ask"},
+			{"--env <name>", "Push that environment's values (or IRGO_ENV)"},
+		},
+		notes: `CI cannot read a laptop's keychain and neither can a Worker at runtime, so
+both need their own copy. This is what keeps them in step.
+
+Everything is resolved before anything is sent: a push that fails halfway
+would leave a destination holding some new values and some old.
+
+Only what a destination should hold is sent. A Worker gets the app's own
+secrets; the token that can redeploy it, and signing keys it could never use,
+stay in CI.
+
+Environments are the same names with different values, declared as
+[env.staging.secrets] in fnox.toml. They map onto what each destination
+already has — a GitHub environment, a wrangler --env — so staging values are
+not reachable from a job that deploys production.
+
+Values are piped in on stdin, so a secret never reaches the shell history, the
+process list, or this program's output. Both gh and wrangler read them that
+way.`,
+	},
+
+	"project generate": {
+		summary: "Run the project's own generators",
+		usage:   [][2]string{{"", "Run every //go:generate directive in the project"}},
+		notes: `For projects that derive content from source rather than typing it — a docs
+site generating its API reference, say. Most projects have no generators and
+this does nothing.
+
+Builds, deploys and tests run it for you. It is deliberately NOT part of
+` + "`project assets`" + `: that runs on every save under hot reload, and a
+generator is rarely save-cheap.`,
+	},
+
 	"project test": {
 		summary: "Run the tests",
 		usage:   [][2]string{{"", "Regenerate assets, then go test ./..."}},
@@ -368,8 +449,15 @@ download can be done deliberately rather than in the middle of a build.`,
 		notes: `Shows what it will delete, with sizes, and asks first. Outside a terminal it
 refuses rather than assuming yes.
 
-Only what irgo installed is removed: each install leaves a marker, and anything
-without one is left alone, so a toolchain you set up yourself survives.`,
+Only what irgo installed is removed, so a toolchain you set up yourself
+survives. Anything under ~/.irgo is irgo's by virtue of being there.
+
+Tools that came from mise are left alone, even ones irgo asked for. They live
+where your own version manager can see them, other projects may be using them,
+and mise already removes them:
+
+  mise uninstall sops@3.12.2
+  mise prune`,
 	},
 
 	// ---- server ------------------------------------------------------------

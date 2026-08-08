@@ -33,6 +33,13 @@ func route(noun, verb string, args []string) (error, bool) {
 		return nil, true
 	}
 
+	// Secrets before anything reads config: both resolve through IRGO_* env
+	// vars, so the keychain has to be in the environment before the first
+	// lookup. After the --help guard, because asking what a command does
+	// should not unlock a keychain.
+	currentEnv = envFlag(args)
+	applySecrets()
+
 	switch noun {
 
 	case "project":
@@ -60,6 +67,8 @@ func route(noun, verb string, args []string) (error, bool) {
 			return runCI(hasFlag(args, "--force", "-f")), true
 		case "assets":
 			return ensureAssets(), true
+		case "generate":
+			return runGoGenerate(), true
 		case "test":
 			return runTest(), true
 		case "config":
@@ -100,6 +109,9 @@ func route(noun, verb string, args []string) (error, bool) {
 		case "reviews":
 			return reviewsCommand(args), true
 		}
+
+	case "secrets":
+		return runSecrets(append([]string{verb}, args...)), true
 
 	case "tools":
 		rest := args
@@ -155,6 +167,7 @@ var nounVerbs = map[string][]string{
 	"project": {"new", "clean", "upgrade", "pin", "ci", "assets", "test", "config"},
 	"app":     {"build", "run", "package", "deploy", "install", "remove", "reviews"},
 	"tools":   {"install", "remove", "doctor"},
+	"secrets": {"list", "status", "push"},
 	"server":  {"dev", "serve"},
 }
 

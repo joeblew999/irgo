@@ -29,8 +29,10 @@ func runBuild(target string, sim, device bool, team string) error {
 
 	// _templ.go and output.css are generated and gitignored, yet the mobile
 	// package imports the former and every build embeds the latter. Regenerate
-	// both here rather than making callers remember the ordering.
-	if err := ensureAssets(); err != nil {
+	// both here rather than making callers remember the ordering — along with
+	// whatever the project generates for itself, which a build is the right
+	// moment for and a keystroke is not.
+	if err := ensureAssetsAndGenerate(); err != nil {
 		return err
 	}
 

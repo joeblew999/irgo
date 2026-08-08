@@ -1,12 +1,22 @@
 # Store packages for every target, built on the OS each one requires and
 # attached to a GitHub Release.
 #
-# Scaffolded by `irgo project ci`. Each job is skipped unless its signing secrets are
-# configured, so this is useful before you have any of them: what is set gets
-# packaged, what is not is skipped rather than failing the run.
+# Scaffolded by `irgo project ci`. Each job is skipped unless its signing
+# secrets are configured, so this is useful before you have any of them: what
+# is set gets packaged, what is not is skipped rather than failing the run.
 #
-# Configure the values with `irgo app package setup <store>`, then add them as
-# repository secrets. `irgo app package setup --check` reports what is missing.
+# The secret names here are the environment variables irgo already resolves,
+# which is why no job passes a --flag. Get them from a laptop to here with:
+#
+#   irgo secrets list             what this project needs
+#   irgo secrets push github      copy it into this repository
+#
+# They used to be spelled differently on each side — IOS_TEAM_ID here against
+# IRGO_IOS_TEAM in the CLI — so pushing them configured nothing. A test now
+# checks every name on this page against the CLI's own registry.
+#
+# Credentials that are files (keystore, PFX, .p8, Play JSON) travel as
+# <NAME>_BASE64 and irgo writes them back out before the build looks for them.
 
 name: release
 
@@ -23,24 +33,20 @@ jobs:
     # env. Mapping them here lets each job skip cleanly when unconfigured
     # instead of failing, so this workflow is usable before you have any.
     env:
-      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
-      KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+      IRGO_ANDROID_KEYSTORE_BASE64: ${{ secrets.IRGO_ANDROID_KEYSTORE_BASE64 }}
+      IRGO_ANDROID_KEYSTORE_PASS: ${{ secrets.IRGO_ANDROID_KEYSTORE_PASS }}
+      IRGO_ANDROID_KEY_ALIAS: ${{ secrets.IRGO_ANDROID_KEY_ALIAS }}
+      IRGO_ANDROID_KEY_PASS: ${{ secrets.IRGO_ANDROID_KEY_PASS }}
     steps:
       - uses: {{CHECKOUT}}
       - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       - name: Package
-        if: env.KEYSTORE_B64 != ''
-        run: |
-          echo "$KEYSTORE_B64" | base64 -d > release.keystore
-          irgo app package android --keystore release.keystore \
-            --keystore-pass "$KEYSTORE_PASS" --key-alias "$KEY_ALIAS" --key-pass "$KEY_PASS"
-          rm -f release.keystore
+        if: env.IRGO_ANDROID_KEYSTORE_BASE64 != ''
+        run: go tool irgo app package android
       - uses: {{UPLOAD_ARTIFACT}}
-        if: env.KEYSTORE_B64 != ''
+        if: env.IRGO_ANDROID_KEYSTORE_BASE64 != ''
         with:
           name: android-aab
           path: dist/
@@ -50,7 +56,7 @@ jobs:
     name: iOS (.ipa)
     runs-on: macos-latest
     env:
-      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      IRGO_IOS_TEAM: ${{ secrets.IRGO_IOS_TEAM }}
     steps:
       - uses: {{CHECKOUT}}
       - uses: {{SETUP_GO}}
@@ -59,10 +65,10 @@ jobs:
       # Signing needs a Distribution cert and provisioning profile in the
       # runner keychain — e.g. apple-actions/import-codesign-certs.
       - name: Package
-        if: env.IOS_TEAM_ID != ''
-        run: go tool irgo app package ios --team "$IOS_TEAM_ID"
+        if: env.IRGO_IOS_TEAM != ''
+        run: go tool irgo app package ios
       - uses: {{UPLOAD_ARTIFACT}}
-        if: env.IOS_TEAM_ID != ''
+        if: env.IRGO_IOS_TEAM != ''
         with:
           name: ios-ipa
           path: dist/
@@ -72,17 +78,23 @@ jobs:
     name: macOS (.app/.dmg)
     runs-on: macos-latest
     env:
-      MACOS_IDENTITY: ${{ secrets.MACOS_IDENTITY }}
+      IRGO_MACOS_IDENTITY: ${{ secrets.IRGO_MACOS_IDENTITY }}
+      # Notarization, if you have it. Without these the .app is signed but
+      # not notarized, which is fine for a direct download you tell people
+      # to right-click-open.
+      IRGO_APPLE_ID: ${{ secrets.IRGO_APPLE_ID }}
+      IRGO_APPLE_PASSWORD: ${{ secrets.IRGO_APPLE_PASSWORD }}
+      IRGO_MACOS_TEAM: ${{ secrets.IRGO_MACOS_TEAM }}
     steps:
       - uses: {{CHECKOUT}}
       - uses: {{SETUP_GO}}
         with:
           go-version-file: go.mod
       - name: Package
-        if: env.MACOS_IDENTITY != ''
-        run: go tool irgo app package macos --identity "$MACOS_IDENTITY" --dmg
+        if: env.IRGO_MACOS_IDENTITY != ''
+        run: go tool irgo app package macos --dmg
       - uses: {{UPLOAD_ARTIFACT}}
-        if: env.MACOS_IDENTITY != ''
+        if: env.IRGO_MACOS_IDENTITY != ''
         with:
           name: macos-dmg
           path: dist/
@@ -92,7 +104,11 @@ jobs:
     name: Windows (.msix)
     runs-on: windows-latest
     env:
-      WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
+      IRGO_WINDOWS_PUBLISHER: ${{ secrets.IRGO_WINDOWS_PUBLISHER }}
+      # A real cert, if you have one. Without it the package is test-signed,
+      # which the Store re-signs on upload anyway.
+      IRGO_WINDOWS_CERT_BASE64: ${{ secrets.IRGO_WINDOWS_CERT_BASE64 }}
+      IRGO_WINDOWS_CERT_PASS: ${{ secrets.IRGO_WINDOWS_CERT_PASS }}
     steps:
       - uses: {{CHECKOUT}}
       - uses: {{SETUP_GO}}
@@ -100,10 +116,10 @@ jobs:
           go-version-file: go.mod
       # MakeAppx/signtool come from the Windows SDK, preinstalled on the runner.
       - name: Package
-        if: env.WINDOWS_PUBLISHER != ''
-        run: go tool irgo app package windows --publisher "$env:WINDOWS_PUBLISHER"
+        if: env.IRGO_WINDOWS_PUBLISHER != ''
+        run: go tool irgo app package windows
       - uses: {{UPLOAD_ARTIFACT}}
-        if: env.WINDOWS_PUBLISHER != ''
+        if: env.IRGO_WINDOWS_PUBLISHER != ''
         with:
           name: windows-msix
           path: dist/

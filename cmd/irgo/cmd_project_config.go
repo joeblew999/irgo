@@ -142,13 +142,22 @@ func setConfig(key, value string) error {
 			return err
 		}
 	}
-	if k.secret {
-		fmt.Printf("note: %s is a secret. %s is committed; put it in %s or set the\n"+
-			"      environment variable instead — see: irgo app package setup --check\n",
-			k.key, packageConfigFile, packageLocalFile)
+	cv := registryFor(k.section, k.name)
+	if cv == nil {
+		return unknownConfigKey(k.key)
 	}
-	if err := writeConfigValue(k.section, k.name, value); err != nil {
+	if err := validateConfigValue(*cv, value); err != nil {
+		return fmt.Errorf("%s: %w\n  %s", k.key, err, cv.how)
+	}
+	if err := writeConfigValueFor(*cv, value); err != nil {
 		return err
+	}
+	// A secret goes to the gitignored overlay and is not echoed back: this
+	// used to print the value and say it had gone somewhere it had not.
+	if cv.secret {
+		fmt.Printf("%s set  (%s, gitignored — not committed)\n", k.key, packageLocalFile)
+		fmt.Printf("  for CI, set %s there instead\n", cv.env)
+		return nil
 	}
 	fmt.Printf("%s = %q  (%s)\n", k.key, value, packageConfigFile)
 	return nil
@@ -233,7 +242,7 @@ func readConfigRaw(path, section, key string) string {
 // envForConfigKey maps a setting to the environment variable that overrides
 // it, which is what a CI secret has to be called.
 func envForConfigKey(key string) string {
-	for _, store := range []string{"ios", "android", "windows", "macos", "reviews-apple-ios", "reviews-android"} {
+	for _, store := range configStores {
 		for _, cv := range storeConfigValues(store) {
 			if cv.tomlSection+"."+cv.tomlKey == key {
 				return cv.env
