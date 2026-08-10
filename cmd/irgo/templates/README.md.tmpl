@@ -562,6 +562,17 @@ r.DSPost("/register", func(ctx *router.Context) error {
 
 ## Datastar Attribute Reference
 
+The full reference — every attribute, every action, with examples — is in
+`.claude/skills/datastar/SKILL.md`, which your assistant loads on its own when
+you ask it to write a template. It arrives from the irgo module on every build;
+do not edit it, and do commit it, so a fresh clone has it before anything runs.
+
+`irgo project skills` lists what you have. The table below is the short form.
+
+**The syntax is a colon, not a hyphen.** `data-attr:class`, not
+`data-attr-class`. The hyphen form is silently inert: it parses, it renders, and
+nothing binds — which is why it is worth a line here.
+
 | Attribute | Description | Example |
 |-----------|-------------|---------|
 | `data-signals` | Initialize signals | `data-signals="{count: 0}"` |

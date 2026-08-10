@@ -1,0 +1,43 @@
+# Whether the skills irgo vendors still match upstream.
+#
+# Most skills cannot go stale: they ship inside a Go module, so their version is
+# whatever go.mod resolves and there is nothing to check. The Datastar one is
+# different — irgo keeps its own copy rather than taking a module dependency to
+# carry a document — and the failure mode of a copy is that it stops being one
+# without anything happening. No build reads it and no test covers upstream, so
+# nothing else here would ever notice.
+#
+# Weekly rather than per-push: it depends on someone else's repository, so it
+# fails for reasons this one did not cause, and a red mark on an unrelated pull
+# request teaches people to ignore it.
+
+name: skills
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  # So it can be run against a branch that changes the vendored copy.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: vendored skills vs upstream
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Reports rather than fails. Upstream moving is not this repository being
+      # broken, and the point is to be told, not to be blocked — taking the
+      # change is a judgement call about a document someone else maintains.
+      - name: Check
+        run: go run ./cmd/irgo project skills --check

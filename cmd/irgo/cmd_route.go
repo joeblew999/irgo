@@ -60,6 +60,8 @@ func route(noun, verb string, args []string) (error, bool) {
 			return runCI(hasFlag(args, "--force", "-f")), true
 		case "assets":
 			return ensureAssets(), true
+		case "skills":
+			return runSkills(args), true
 		case "test":
 			return runTest(), true
 		case "config":
