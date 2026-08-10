@@ -1,0 +1,56 @@
+package templates
+
+import "github.com/romshark/morpheus/neo"
+
+// HomePage shows the Morpheus component kit inside an irgo project.
+//
+// Morpheus is a web component kit: the Go side emits custom elements
+// (<neo-badge>, <neo-alert>) and the styling and behaviour come from static
+// assets. Those assets ship inside the Go module, so `irgo project assets`
+// refreshes them into static/ on every build — nothing to download, and no
+// version to keep in step, because the assets are the module the wrappers
+// were compiled against.
+//
+// The theme is a set of custom properties scoped to a class on <html>, so
+// switching one at runtime is switching that class. Datastar does that with a
+// signal and no server round trip, which is the switcher below.
+templ HomePage() {
+	@Page("irgo + Morpheus") {
+		<main data-signals:theme="'default'" class="p-8">
+			<h1>irgo + Morpheus</h1>
+			<p>
+				Web components from
+				<a href="https://github.com/romshark/morpheus">Morpheus</a>,
+				served from this project. Nothing is copied in and nothing is
+				forked.
+			</p>
+			<p>
+				@neo.Badge(neo.BadgeOpts{}) {
+					no build step
+				}
+			</p>
+			@neo.Alert(neo.AlertOpts{}) {
+				Rendered by Go, styled by morpheus.css, behaviour from the
+				bundle — all three refreshed from the Go module.
+			}
+			<h2>Themes</h2>
+			<p>
+				A theme is custom properties scoped to a class on the root
+				element, so switching is a class change rather than a
+				stylesheet swap. No reload, no request.
+			</p>
+			// Datastar writes the class from the signal; each button sets it.
+			// The value is the theme name, so adding one is adding a button.
+			<div
+				data-attr:class="'theme-' + $theme"
+				style="display:flex; gap:.5rem; flex-wrap:wrap"
+			>
+				for _, t := range []string{"default", "matrix", "ocean", "rose", "sunshine"} {
+					@neo.Button(neo.ButtonOpts{}) {
+						<span data-on:click={ "$theme = '" + t + "'" }>{ t }</span>
+					}
+				}
+			</div>
+		</main>
+	}
+}

@@ -1,0 +1,55 @@
+# Browser tests, on every desktop ecosystem.
+#
+# The interesting failures in an irgo app all render correct HTML: a component
+# that never upgraded, a stylesheet that 404s, a signal that never updated.
+# No handler-level test can see any of them, because they happen after the
+# response. So they need a browser, and a browser needs somewhere to run.
+#
+# Matrixed across three operating systems because that is where the differences
+# live. A module script rejected for its MIME type, a font that resolves on one
+# platform and not another — those do not show up on the author's laptop.
+
+name: browser
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  browser:
+    name: ${{ matrix.example }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # The examples are separate Go modules, so `go test ./...` at the
+        # repository root does not reach them. Each is entered explicitly.
+        example: [morpheus]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # From go.mod, not a literal. A version pinned here drifts from the
+          # one the module actually requires, and the failure is a compile
+          # error about something unrelated.
+          go-version-file: go.mod
+          cache: true
+
+      # --with-deps installs the system libraries a browser needs on Linux
+      # runners, which have none of them. It is a no-op elsewhere.
+      #
+      # Only chromium: firefox and webkit are worth installing when there is
+      # something to learn from them, and each is another few hundred megabytes
+      # on every job in the matrix.
+      - name: Install the browser
+        working-directory: examples/${{ matrix.example }}
+        run: go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium
+
+      - name: Test
+        working-directory: examples/${{ matrix.example }}
+        run: go test -v ./...
