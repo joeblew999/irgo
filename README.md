@@ -2,6 +2,17 @@
 
 A hypermedia-driven application framework that uses Go as a runtime kernel with Datastar. Build native iOS, Android, and **desktop** apps using Go, HTML, and Datastar - no JavaScript frameworks required.
 
+## Working on irgo
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the workflow: where to branch from, what
+is enforced versus habit, and how a release reaches a project.
+
+```sh
+mise install       # the branch tools
+mise run setup     # once per clone — protects main, blocks pushes to upstream
+mise tasks         # everything else, with a line each
+```
+
 ## Key Features
 
 - **Go-Powered Apps**: Write your backend logic in Go, compile to native mobile frameworks or desktop apps

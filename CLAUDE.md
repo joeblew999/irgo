@@ -1,5 +1,27 @@
 # Irgo Framework - LLM Reference
 
+## Before changing anything, read CONTRIBUTING.md
+
+It is short, and it is the part that is easy to get wrong. The summary:
+
+```sh
+mise run start feat/my-thing   # a branch off integration — where work begins
+mise run check                 # exactly what CI runs
+mise run ship                  # push
+```
+
+- **Work happens on branches off `integration`**, this fork's trunk. Never on
+  `main`, which mirrors upstream and has none of the fork's features.
+- **Never push to the upstream remote, and never open a pull request against
+  it.** `mise run setup` disables the push; the pull request is a decision for
+  the repository's owner, not for you.
+- **Use the tasks.** They are not decoration: `mise run check` runs what CI
+  runs, so passing it means passing CI. Reaching for raw git instead is how
+  this workflow was broken three times in one session — by an assistant that
+  had these instructions and did not follow them.
+
+`mise tasks` lists everything with a line each.
+
 This document provides a comprehensive reference for LLMs (Claude, GPT, etc.) working with the Irgo framework.
 
 ## Framework Overview
