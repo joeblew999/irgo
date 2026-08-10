@@ -23,6 +23,19 @@
 # works on one machine.
 
 [tools]
+# Go itself, so `mise install` is enough to build from a fresh clone. Without
+# it this file provisions the conveniences and not the one thing you cannot
+# work without.
+#
+# The minor matches go.mod's floor, which is what CI resolves through
+# `go-version-file: go.mod` — so a test that passes here passes there. mise
+# takes the latest patch of that minor, since a patch release is a bug fix and
+# pinning one only means being behind on it.
+#
+# A newer Go installed globally still works on this code; this pin only makes
+# the repository agree with its own CI.
+go = "1.25"
+
 # Stacked branch management. irgo's changes tend to arrive as a set of small
 # branches that depend on each other, and moving them when their base changes
 # is the tedious, error-prone part. `git-stack` renders the tree, rebases a
@@ -39,55 +52,63 @@
 # library but exposes no restore command, so it is worth having on its own.
 "ubi:gitext-rs/git-branch-stash" = "0.12.0"
 
-# The workflow, as commands rather than as a document nobody reads.
+# Where do I work?
 #
-# `mise tasks` lists them. Each is a single invocation of a real tool — no
-# shell pipelines, no && chains, nothing that behaves differently on Windows.
-# That is deliberate: an earlier attempt at this was a shell script called from
-# a git hook, which worked on one machine and nowhere else.
+#   mise run start my-thing
 #
-# These do not prevent you doing the wrong thing by hand. What they do is make
-# the right thing the shortest thing to type, and put the reasoning next to the
-# command instead of in a wiki. The one invariant that actually matters — that
-# this fork's main never diverges from upstream — is enforced by CI, because
-# that is the only place enforcement works for everyone.
+# That is the whole answer. It puts you on a new branch off main, which is
+# where every piece of work begins. You never work on main, and you never work
+# on integration.
+#
+#   mise run start <name>   begin a piece of work        <- start here
+#   mise run check          build and test it
+#   mise run ship           push it
+#
+# Those three cover a normal day. Everything below them is for the occasional
+# job — releasing, or moving your work when main has moved — and you can ignore
+# it until you need it.
+#
+#   mise run where          which branch am I on, and what else exists
+#   mise run save           snapshot every branch, before anything risky
+#   mise run restore        put them all back
+#   mise run rebase         move your branches onto an updated main
+#   mise run release        merge everything into integration and tag it
+#
+# Each task is a single invocation of a real tool: no shell pipelines, no &&
+# chains, nothing that behaves differently on Windows.
 
-[tasks.help]
-description = "What to run, and where the workflow is written down"
-run = "mise tasks"
+[tasks.start]
+# Two steps on purpose: switch to main, then branch from where you now are.
+# `git switch --create <name>` alone branches from whatever you had checked
+# out, which is usually your last piece of work — and a branch cut from work in
+# progress carries all of it along.
+description = "Begin a piece of work, on a new branch off main"
+run = ["git switch main", "git switch --create"]
+
+[tasks.check]
+description = "Build and test what you have"
+run = "go test ./..."
+
+[tasks.ship]
+description = "Push the branch you are on"
+run = "git push --set-upstream origin HEAD"
+
+[tasks.where]
+description = "Which branch you are on, and what else exists"
+run = "git-stack"
+
+[tasks.save]
+description = "Snapshot where every branch points, before anything risky"
+run = "git-branch-stash push"
+
+[tasks.restore]
+description = "Put every branch back where the last snapshot had it"
+run = "git-branch-stash pop"
+
+[tasks.rebase]
+description = "Move your branches onto an updated main"
+run = "git-stack --pull"
 
 [tasks.setup]
 description = "Protect main from rebases, once per clone"
 run = "git-stack --protect main"
-
-[tasks.stack]
-description = "Show your branches and what they sit on"
-run = "git-stack"
-
-[tasks.snapshot]
-description = "Save where every branch points, before anything risky"
-run = "git-branch-stash push"
-
-[tasks.undo]
-description = "Put every branch back where the last snapshot had it"
-run = "git-branch-stash pop"
-
-[tasks.sync]
-description = "Rebase your branches onto the updated parent"
-run = "git-stack --pull"
-
-[tasks.verify]
-description = "Build and test every branch in the stack, not just this one"
-run = "git-stack run go test ./..."
-
-[tasks.integrate]
-description = "Rebuild the integration branch from every ready branch"
-run = "git-stack --pull --stack all"
-
-[tasks.pr]
-# Two steps on purpose: switch to main, then branch from where you now are.
-# `git switch --create <name>` alone branches from whatever you had checked
-# out, which is usually the last thing you were working on — and a branch cut
-# from your own work in progress carries all of it into the pull request.
-description = "Start a branch for a pull request, cut from main so it carries only its own change"
-run = ["git switch main", "git switch --create"]

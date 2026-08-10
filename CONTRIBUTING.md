@@ -1,13 +1,47 @@
 # Working on irgo
 
+## Where do I work?
+
 ```sh
-mise install     # the tools, pinned and prebuilt
-mise run setup   # protect main, once per clone
-mise tasks       # what you can run, and what each does
+mise run start my-thing
 ```
 
-Everything below is plain git. The tools make the repetitive parts cheap;
-nothing here requires them, and CI uses none of them.
+That is the whole answer. It puts you on a new branch off `main`, which is
+where every piece of work begins.
+
+**You never work on `main`, and you never work on `integration`.** If you are
+sitting on either of them, you are not meant to be — run `mise run start`.
+
+A normal day is three commands:
+
+```sh
+mise run start my-thing    # begin
+mise run check             # build and test
+mise run ship              # push
+```
+
+Once per clone, before any of that:
+
+```sh
+mise install       # Go, and the branch tools
+mise run setup     # protects main so you cannot rewrite it by accident
+```
+
+Everything else — `where`, `save`, `restore`, `rebase`, `release` — is for the
+occasional job. `mise tasks` lists them with a line each. Ignore them until you
+need them.
+
+## What the other branches are
+
+You will see a lot of them. They are not places to work:
+
+| | |
+|---|---|
+| `main` | identical to upstream irgo. Never written to. The base for your branches |
+| `integration` | everything merged, so it can be tagged. Written to at release time, not by hand |
+| `rb/…` | finished work waiting to be offered upstream. Not yours to touch |
+
+If that list ever confuses you, `mise run where` draws it.
 
 ## Small branches, not one big one
 
