@@ -417,7 +417,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"project new", "project clean", "project upgrade", "project pin",
 		"project ci", "project assets", "project test", "project config",
 		"app build", "app run", "app package", "app deploy",
-		"app install", "app remove", "app reviews",
+		"app install", "app remove", "app stop", "app reviews",
 		"tools install", "tools remove", "tools doctor",
 		"secrets list", "secrets status", "secrets push",
 		"server dev", "server serve",
