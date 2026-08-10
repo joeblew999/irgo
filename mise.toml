@@ -23,18 +23,18 @@
 # works on one machine.
 
 [tools]
-# Go itself, so `mise install` is enough to build from a fresh clone. Without
-# it this file provisions the conveniences and not the one thing you cannot
-# work without.
+# Go is deliberately NOT pinned here.
 #
-# The minor matches go.mod's floor, which is what CI resolves through
-# `go-version-file: go.mod` — so a test that passes here passes there. mise
-# takes the latest patch of that minor, since a patch release is a bug fix and
-# pinning one only means being behind on it.
+# It manages its own version already: the `go` directive in go.mod is a floor,
+# and the toolchain mechanism fetches what a module needs. Adding mise's Go on
+# top puts a second manager on the same job, and they disagree — pinning 1.25
+# while the toolchain resolved 1.26 produced
 #
-# A newer Go installed globally still works on this code; this pin only makes
-# the repository agree with its own CI.
-go = "1.25"
+#   compile: version "go1.25.12" does not match go tool version "go1.26.5"
+#
+# on every package, from a clone that built fine a moment earlier. Nothing here
+# is worth that; install Go however you like, and go.mod will say if it is too
+# old.
 
 # Stacked branch management. irgo's changes tend to arrive as a set of small
 # branches that depend on each other, and moving them when their base changes
