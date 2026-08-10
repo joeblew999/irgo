@@ -35,8 +35,11 @@ jobs:
       # are replaced by `irgo project upgrade`. Editing one here means the edit
       # disappears at the next upgrade, so say so now rather than then.
       - run: go tool irgo project upgrade --check
-      - run: go tool irgo project assets
-      - run: go test ./...
+      # `project test` rather than `go test`, so CI runs what you run. It
+      # regenerates assets, syncs the agent skills, and installs a browser if —
+      # and only if — some test imports the browser harness. A browser test
+      # that silently skips in CI is worse than not having written it.
+      - run: go tool irgo project test
       - run: go build -o build/{{PROJECT_NAME}} .
       - uses: {{UPLOAD_ARTIFACT}}
         with:
