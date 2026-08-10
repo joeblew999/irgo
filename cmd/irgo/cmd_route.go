@@ -99,6 +99,11 @@ func route(noun, verb string, args []string) (error, bool) {
 				return fmt.Errorf("could not determine module path: %w", err), true
 			}
 			return deployCloudflare(modulePath), true
+		case "stop":
+			if target != "android" {
+				return fmt.Errorf("usage: irgo app stop android"), true
+			}
+			return runAndroidStop(), true
 		case "reviews":
 			return reviewsCommand(args), true
 		}

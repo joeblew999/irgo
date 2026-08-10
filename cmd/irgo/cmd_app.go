@@ -364,3 +364,21 @@ func init() {
 undone by irgo, so nothing it puts on a machine has to be hunted down by hand.`,
 	})
 }
+
+func init() {
+	register(command{
+		noun: "app", verb: "stop", order: 55,
+		summary: "Stop the emulator irgo started",
+		targets: []string{"android"},
+		usage:   [][2]string{{"android", "Shut the emulator down cleanly"}},
+		notes: `irgo boots an emulator when a run needs one and leaves it running, because
+booting takes minutes and running the app twice should not cost that twice.
+
+This is the other end of that. One here had been up since Thursday at 760% CPU,
+headless and invisible — nobody had started it deliberately and nothing offered
+to stop it.
+
+Not automatic: stopping after every run would make the second run as slow as
+the first, and you know when you have finished where irgo does not.`,
+	})
+}

@@ -439,6 +439,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"secrets push",
 		"server dev",
 		"server serve",
+		"app stop",
 	}
 	have := map[string]bool{}
 	for k := range allCommands() {

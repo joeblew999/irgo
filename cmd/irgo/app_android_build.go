@@ -255,6 +255,7 @@ func runAndroid(devMode bool) error {
 		devServerCmd.Wait()
 	} else {
 		fmt.Println("\nApp running on Android!")
+		warnIfEmulatorIsHeadless()
 	}
 
 	return nil

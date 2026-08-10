@@ -58,6 +58,16 @@ func verifyAndroidArtifact(path string) {
 		fmt.Println("       Play rejects unsigned uploads. See: irgo app package setup")
 	}
 
+	if debug, ks := signedWithDebugKeystore(); debug {
+		fmt.Println("  Signing key      DEBUG — Play will reject this")
+		fmt.Printf("       %s is the throwaway key every Android SDK ships.\n", ks)
+		fmt.Println("       A release needs your own, and it can never be changed after")
+		fmt.Println("       the first upload — losing it means a new listing:")
+		fmt.Println("         irgo app package setup")
+	} else {
+		fmt.Println("  Signing key      your own")
+	}
+
 	if v := artifactTargetSdk(path); v == 0 {
 		fmt.Println("  Target SDK       could not be read")
 	} else if v < playTargetSdkFloor {
@@ -198,4 +208,18 @@ func gradleDefaultTargetSdk() int {
 		}
 	}
 	return 0
+}
+
+// signedWithDebugKeystore reports whether the release would be signed with the
+// keystore every Android SDK ships.
+//
+// It signs, it installs, and it builds — and Play rejects the upload, after the
+// wait. Worth saying at build time rather than at the end of a release.
+func signedWithDebugKeystore() (bool, string) {
+	ks := settingValue("android.keystore")
+	if ks == "" {
+		ks = filepath.Join(homeDir(), ".android", "debug.keystore")
+	}
+	ks = expandHome(ks)
+	return strings.HasSuffix(ks, "debug.keystore"), ks
 }
