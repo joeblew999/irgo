@@ -1,0 +1,882 @@
+# Irgo Framework - AI Assistant Guide
+
+> This document instructs AI coding assistants on how to write applications using the Irgo framework.
+
+## Framework Overview
+
+Irgo is a mobile application framework that uses:
+- **Go** as the backend runtime (compiled via gomobile)
+- **Datastar** for frontend interactivity (hypermedia-driven via SSE)
+- **templ** for type-safe HTML templates
+- **WebView** to render the UI (iOS WKWebView, Android WebView)
+
+The key insight: there's no network - HTTP requests from Datastar are intercepted by the WebView and routed directly to Go handlers running in-process.
+
+## Core Principles
+
+1. **Hypermedia-Driven**: Return HTML fragments via SSE, not JSON. Datastar patches HTML directly into the DOM.
+2. **Server-Side State**: All state lives in Go. The WebView is a thin rendering layer.
+3. **Reactive Signals**: Use Datastar signals for client-side reactivity.
+4. **Type Safety**: Use templ for compile-time template checking.
+
+## Project Structure
+
+When working on an Irgo project, expect this structure:
+
+```
+project/
+├── main.go              # Entry point, dev server
+├── app/app.go           # Router setup
+├── handlers/            # HTTP handlers (business logic)
+├── templates/           # templ files (.templ)
+├── static/              # CSS, JS, images
+├── mobile/mobile.go     # Mobile bridge
+└── ios/                 # Xcode project
+```
+
+## Writing Handlers
+
+### Standard Handler Signature
+
+Standard handlers return HTML for full page loads:
+
+```go
+func(ctx *router.Context) (string, error)
+```
+
+### Datastar SSE Handler Signature
+
+Datastar handlers return error and use SSE for responses:
+
+```go
+func(ctx *router.Context) error
+```
+
+### Handler Examples
+
+```go
+// GET handler - return rendered template (full page)
+r.GET("/", func(ctx *router.Context) (string, error) {
+    return renderer.Render(templates.HomePage())
+})
+
+// GET with URL parameter
+r.GET("/items/{id}", func(ctx *router.Context) (string, error) {
+    id := ctx.Param("id")
+    item, err := getItem(id)
+    if err != nil {
+        return renderer.Render(templates.NotFound())
+    }
+    return renderer.Render(templates.ItemDetail(item))
+})
+
+// Datastar SSE handler - POST with signals
+r.DSPost("/items", func(ctx *router.Context) error {
+    var signals struct {
+        Title string `json:"title"`
+    }
+    ctx.ReadSignals(&signals)
+
+    item := createItem(signals.Title)
+
+    sse := ctx.SSE()
+    sse.PatchTempl(templates.ItemRow(item))
+    sse.PatchSignals(map[string]any{"title": ""}) // Clear input
+    return nil
+})
+
+// DELETE that removes element
+r.DSDelete("/items/{id}", func(ctx *router.Context) error {
+    id := ctx.Param("id")
+    deleteItem(id)
+    return ctx.SSE().Remove("#item-" + id)
+})
+```
+
+### Context Methods
+
+```go
+ctx.Param("name")           // URL path parameter: /users/{name}
+ctx.Query("key")            // Query parameter: ?key=value
+ctx.FormValue("field")      // Form field value
+ctx.Header("X-Custom")      // Request header
+ctx.IsDatastar()            // True if Accept: text/event-stream
+ctx.ReadSignals(&signals)   // Read signals from request body (Datastar)
+
+// SSE responses (Datastar handlers)
+sse := ctx.SSE()
+sse.PatchTempl(component)   // Patch HTML from templ component
+sse.PatchHTML("<div>...")   // Patch raw HTML
+sse.PatchSignals(map)       // Update client signals
+sse.Remove("#selector")     // Remove element
+sse.Redirect("/path")       // Redirect browser
+
+// Standard responses (full page handlers)
+ctx.HTML("<div>content</div>")
+ctx.Redirect("/path")
+```
+
+## Writing Templates
+
+### Template Syntax (templ)
+
+templ uses Go-like syntax with HTML:
+
+```go
+package templates
+
+// Component with parameters
+templ Button(text string, href string) {
+    <a href={ href } class="btn">{ text }</a>
+}
+
+// Component with children
+templ Card(title string) {
+    <div class="card">
+        <h2>{ title }</h2>
+        <div class="card-body">
+            { children... }
+        </div>
+    </div>
+}
+
+// Using components
+templ HomePage() {
+    @Layout("Home") {
+        @Card("Welcome") {
+            <p>Hello, world!</p>
+            @Button("Learn More", "/about")
+        }
+    }
+}
+
+// Conditional rendering
+templ UserStatus(user *User) {
+    if user != nil {
+        <span>Welcome, { user.Name }</span>
+    } else {
+        <a href="/login">Sign In</a>
+    }
+}
+
+// Loops
+templ ItemList(items []Item) {
+    <ul>
+        for _, item := range items {
+            <li>{ item.Name }</li>
+        }
+    </ul>
+}
+
+// Conditional classes
+templ TodoItem(todo Todo) {
+    <div class={ "todo", templ.KV("completed", todo.Done) }>
+        { todo.Title }
+    </div>
+}
+
+// Dynamic attributes
+templ Input(name string, value string, required bool) {
+    <input
+        type="text"
+        name={ name }
+        value={ value }
+        required?={ required }
+    />
+}
+```
+
+### Layout Pattern
+
+Always use a layout component for full pages:
+
+```go
+templ Layout(title string) {
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>{ title }</title>
+        <link rel="stylesheet" href="/static/css/output.css"/>
+        <script type="module" src="/static/js/datastar.js"></script>
+    </head>
+    <body>
+        { children... }
+    </body>
+    </html>
+}
+
+templ AboutPage() {
+    @Layout("About") {
+        <main class="container">
+            <h1>About Us</h1>
+        </main>
+    }
+}
+```
+
+### Fragment Pattern
+
+For Datastar partial updates, return just the fragment with an ID:
+
+```go
+// Full page (initial load)
+templ TodosPage(todos []Todo) {
+    @Layout("Todos") {
+        <main>
+            <h1>My Todos</h1>
+            @TodoList(todos)
+            @AddTodoForm()
+        </main>
+    }
+}
+
+// Fragment (for Datastar patches)
+templ TodoList(todos []Todo) {
+    <div id="todo-list">
+        for _, todo := range todos {
+            @TodoItem(todo)
+        }
+    </div>
+}
+
+// Single item fragment
+templ TodoItem(todo Todo) {
+    <div id={ "todo-" + todo.ID } class="todo-item">
+        { todo.Title }
+    </div>
+}
+```
+
+## Datastar Patterns
+
+### Signals (Client-Side State)
+
+```go
+// Initialize signals with data-signals
+templ Counter() {
+    <div data-signals="{count: 0}">
+        <span data-text="$count">0</span>
+        <button data-on:click="$count++">+</button>
+        <button data-on:click="$count--">-</button>
+    </div>
+}
+
+// Two-way binding with data-bind
+templ SearchForm() {
+    <div data-signals="{query: ''}">
+        <input
+            type="text"
+            data-bind:query
+            placeholder="Search..."
+        />
+        <span data-text="$query.length + ' characters'"></span>
+    </div>
+}
+```
+
+### Server Requests
+
+```go
+// GET request
+templ LoadButton() {
+    <button data-on:click="@get('/data')">
+        Load Data
+    </button>
+    <div id="result"></div>
+}
+
+// POST request with signals
+templ TodoForm() {
+    <div data-signals="{title: ''}">
+        <input type="text" data-bind:title placeholder="New todo"/>
+        <button data-on:click="@post('/todos')">Add</button>
+    </div>
+    <ul id="todo-list"></ul>
+}
+
+// PUT/PATCH/DELETE
+templ TodoItem(todo Todo) {
+    <li id={ fmt.Sprintf("todo-%d", todo.ID) }>
+        <input
+            type="checkbox"
+            checked?={ todo.Done }
+            data-on:click={ fmt.Sprintf("@patch('/todos/%d')", todo.ID) }
+        />
+        <span>{ todo.Title }</span>
+        <button data-on:click={ fmt.Sprintf("@delete('/todos/%d')", todo.ID) }>
+            Delete
+        </button>
+    </li>
+}
+```
+
+### Event Modifiers
+
+```go
+// Debounce input
+templ SearchInput() {
+    <input
+        type="text"
+        data-bind:query
+        data-on:input__debounce.300ms="@get('/search')"
+        placeholder="Search..."
+    />
+}
+
+// Prevent default
+templ Form() {
+    <form data-on:submit__prevent="@post('/submit')">
+        <input type="text" data-bind:name />
+        <button type="submit">Submit</button>
+    </form>
+}
+
+// Once (trigger only once)
+templ LazyLoad() {
+    <div data-on:intersect__once="@get('/lazy-content')">
+        Loading...
+    </div>
+}
+
+// Throttle
+templ ScrollHandler() {
+    <div data-on:scroll__throttle.100ms="@get('/scroll-position')">
+        Content
+    </div>
+}
+```
+
+### Conditional Display
+
+```go
+// Show/hide based on signal
+templ Modal() {
+    <div data-signals="{showModal: false}">
+        <button data-on:click="$showModal = true">Open</button>
+        <div data-show="$showModal" class="modal">
+            <p>Modal content</p>
+            <button data-on:click="$showModal = false">Close</button>
+        </div>
+    </div>
+}
+
+// Dynamic classes
+templ TabButton(name string) {
+    <button
+        data-class:active="$activeTab === '" + name + "'"
+        data-on:click={ "$activeTab = '" + name + "'" }
+    >
+        { name }
+    </button>
+}
+```
+
+### Loading Indicators
+
+```go
+templ LoadButton() {
+    <div data-signals="{loading: false}">
+        <button
+            data-on:click="@get('/slow-endpoint')"
+            data-indicator:loading
+            data-attr:disabled="$loading"
+        >
+            <span data-show="!$loading">Load Data</span>
+            <span data-show="$loading">Loading...</span>
+        </button>
+    </div>
+}
+```
+
+### Dynamic Attributes
+
+```go
+templ DisabledButton(enabled bool) {
+    <button
+        data-attr:disabled="!$enabled"
+        data-on:click="@post('/action')"
+    >
+        Click Me
+    </button>
+}
+
+templ DynamicLink() {
+    <div data-signals="{url: '/default'}">
+        <a data-attr:href="$url">Go</a>
+    </div>
+}
+```
+
+## Common Patterns
+
+### CRUD Operations
+
+```go
+// handlers/items.go
+package handlers
+
+type Item struct {
+    ID    string
+    Name  string
+}
+
+var items = make(map[string]Item)
+
+func MountItems(r *router.Router, renderer *render.TemplRenderer) {
+    // List (full page)
+    r.GET("/items", func(ctx *router.Context) (string, error) {
+        list := getItems()
+        return renderer.Render(templates.ItemsPage(list))
+    })
+
+    // Create (Datastar SSE)
+    r.DSPost("/items", func(ctx *router.Context) error {
+        var signals struct {
+            Name string `json:"name"`
+        }
+        ctx.ReadSignals(&signals)
+
+        item := createItem(signals.Name)
+
+        sse := ctx.SSE()
+        sse.PatchTempl(templates.ItemRow(item))
+        sse.PatchSignals(map[string]any{"name": ""}) // Clear input
+        return nil
+    })
+
+    // Read
+    r.GET("/items/{id}", func(ctx *router.Context) (string, error) {
+        id := ctx.Param("id")
+        item, ok := items[id]
+        if !ok {
+            ctx.SetStatus(404)
+            return renderer.Render(templates.NotFound())
+        }
+        return renderer.Render(templates.ItemDetail(item))
+    })
+
+    // Update (Datastar SSE)
+    r.DSPatch("/items/{id}", func(ctx *router.Context) error {
+        var signals struct {
+            Name string `json:"name"`
+        }
+        ctx.ReadSignals(&signals)
+
+        id := ctx.Param("id")
+        item := updateItem(id, signals.Name)
+
+        return ctx.SSE().PatchTempl(templates.ItemRow(item))
+    })
+
+    // Delete (Datastar SSE)
+    r.DSDelete("/items/{id}", func(ctx *router.Context) error {
+        id := ctx.Param("id")
+        deleteItem(id)
+        return ctx.SSE().Remove("#item-" + id)
+    })
+}
+```
+
+### Search/Filter
+
+```go
+// templates/search.templ
+templ SearchForm() {
+    <div data-signals="{query: ''}">
+        <input
+            type="search"
+            data-bind:query
+            placeholder="Search..."
+            data-on:input__debounce.300ms="@get('/search')"
+        />
+        <div id="results"></div>
+    </div>
+}
+
+// handlers/search.go
+r.DSGet("/search", func(ctx *router.Context) error {
+    var signals struct {
+        Query string `json:"query"`
+    }
+    ctx.ReadSignals(&signals)
+
+    results := search(signals.Query)
+    return ctx.SSE().PatchTempl(templates.SearchResults(results))
+})
+```
+
+### Infinite Scroll
+
+```go
+templ ItemListWithPagination(items []Item, page int, hasMore bool) {
+    for _, item := range items {
+        @ItemRow(item)
+    }
+    if hasMore {
+        <div
+            data-on:intersect__once={ fmt.Sprintf("@get('/items?page=%d')", page+1) }
+        >
+            Loading more...
+        </div>
+    }
+}
+```
+
+### Tabs
+
+```go
+templ TabContainer() {
+    <div data-signals="{activeTab: 'one'}">
+        <div class="tabs">
+            <button
+                data-on:click="$activeTab = 'one'"
+                data-class:active="$activeTab === 'one'"
+            >
+                Tab 1
+            </button>
+            <button
+                data-on:click="$activeTab = 'two'"
+                data-class:active="$activeTab === 'two'"
+            >
+                Tab 2
+            </button>
+        </div>
+        <div id="tab-content">
+            <div data-show="$activeTab === 'one'">
+                @TabOne()
+            </div>
+            <div data-show="$activeTab === 'two'">
+                @TabTwo()
+            </div>
+        </div>
+    </div>
+}
+```
+
+### Modal Dialog
+
+```go
+templ ModalTrigger() {
+    <div data-signals="{showModal: false}">
+        <button data-on:click="$showModal = true">
+            Open Modal
+        </button>
+        <div data-show="$showModal" class="modal-backdrop">
+            <div class="modal">
+                <h2>Confirm Action</h2>
+                <p>Are you sure?</p>
+                <button
+                    data-on:click="@post('/action'); $showModal = false"
+                >
+                    Confirm
+                </button>
+                <button data-on:click="$showModal = false">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+}
+```
+
+### Form Validation
+
+```go
+templ FormField(name, label, value, error string) {
+    <div class="field">
+        <label for={ name }>{ label }</label>
+        <input
+            type="text"
+            id={ name }
+            data-bind={ name }
+            data-on:blur={ "@post('/validate/" + name + "')" }
+            class={ templ.KV("error", error != "") }
+        />
+        <span id={ name + "-error" } class="error-message">
+            { error }
+        </span>
+    </div>
+}
+
+// Handler
+r.DSPost("/validate/email", func(ctx *router.Context) error {
+    var signals struct {
+        Email string `json:"email"`
+    }
+    ctx.ReadSignals(&signals)
+
+    sse := ctx.SSE()
+    if !isValidEmail(signals.Email) {
+        return sse.PatchHTML(`<span id="email-error" class="error">Invalid email address</span>`)
+    }
+    return sse.PatchHTML(`<span id="email-error"></span>`)
+})
+```
+
+## Mobile-Specific Patterns
+
+### Safe Area Handling
+
+```go
+templ MobileLayout(title string) {
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+        <style>
+            body {
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+        </style>
+    </head>
+    <body>
+        { children... }
+    </body>
+    </html>
+}
+```
+
+### Touch-Friendly Buttons
+
+```go
+templ MobileButton(text string) {
+    <button class="min-h-[44px] min-w-[44px] p-3 touch-manipulation">
+        { text }
+    </button>
+}
+```
+
+### Native Capabilities
+
+Call platform features with one API on every platform. From JS (Datastar
+expressions can call it directly):
+
+```go
+templ ShareButton(text string) {
+    <button data-on:click={ fmt.Sprintf("irgo.native('share.text', {text: %q})", text) }>
+        Share
+    </button>
+}
+
+templ HapticButton() {
+    <button data-on:click="irgo.native('haptics.impact', {style: 'light'}); @post('/like')">
+        Like
+    </button>
+}
+```
+
+From Go handlers:
+
+```go
+import "github.com/stukennedy/irgo/pkg/native"
+
+r.DSPost("/order", func(ctx *router.Context) error {
+    // ... create order ...
+    native.Call(ctx.Context(), "notifications.show", native.Params{
+        "title": "Order placed",
+        "body":  "We'll notify you when it ships",
+    })
+    return ctx.SSE().PatchTempl(templates.OrderConfirmed())
+})
+```
+
+Built-ins: device.info, haptics.impact/notification/selection,
+clipboard.read/write, share.text, browser.open, storage.get/set/remove,
+notifications.requestPermission/show, toast.show (Android). Register Go
+fallbacks with native.Register(method, handler) so web/desktop work too.
+Unsupported methods return native.ErrNotSupported — degrade gracefully.
+
+### Sessions and Cookies
+
+Cookies work on mobile exactly like on a server (the bridge keeps a
+persistent cookie jar). Use standard http.SetCookie in handlers for
+session auth; call mobile.ClearCookies() for logout.
+
+### Layout Script Order
+
+Always load the bridge before Datastar (both are served by the framework —
+no files to copy):
+
+```html
+<script src="/_irgo/bridge.js"></script>
+<script src="/static/js/datastar.js"></script>
+```
+
+### Streaming / Real-Time on Mobile
+
+SSE streams progressively through the mobile bridge. Long-lived handlers
+must watch for disconnect:
+
+```go
+r.DSGet("/live", func(ctx *router.Context) error {
+    sse := ctx.SSE()
+    for {
+        select {
+        case <-sse.Context().Done():
+            return nil // WebView cancelled the request
+        case update := <-updates:
+            sse.PatchTempl(templates.LiveRow(update))
+        }
+    }
+})
+```
+
+## Do's and Don'ts
+
+### DO:
+
+1. **Return HTML fragments** from handlers, not JSON
+2. **Use templ** for all HTML generation
+3. **Use semantic HTML** (buttons for actions, anchors for navigation)
+4. **Use IDs on elements** that will be patched by Datastar
+5. **Use data-signals** to initialize client-side state
+6. **Use data-bind** for two-way form binding
+7. **Keep handlers simple** - one responsibility each
+8. **Use Layout for full pages**, fragments for partial updates
+
+### DON'T:
+
+1. **Don't return JSON** - this is hypermedia, not an API
+2. **Don't use JavaScript frameworks** - Datastar handles interactivity
+3. **Don't manipulate DOM in JavaScript** - let Datastar do it
+4. **Don't store state in JavaScript** - keep it in Go
+5. **Don't forget element IDs** - Datastar needs them for patching
+6. **Don't return full pages for Datastar requests** - return fragments
+
+## File Naming Conventions
+
+- Handlers: `handlers/*.go` (e.g., `handlers/items.go`)
+- Templates: `templates/*.templ` (e.g., `templates/items.templ`)
+- Generated: `templates/*_templ.go` (auto-generated, don't edit)
+- Layouts: `templates/layout.templ`
+- Components: `templates/components.templ`
+- Pages: `templates/<name>.templ` (e.g., `templates/home.templ`)
+
+## Testing Patterns
+
+```go
+// handlers/items_test.go
+func TestCreateItem(t *testing.T) {
+    r := setupTestRouter()
+
+    req := httptest.NewRequest("POST", "/items", strings.NewReader(`{"name":"Test"}`))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Accept", "text/event-stream")
+
+    w := httptest.NewRecorder()
+    r.ServeHTTP(w, req)
+
+    if w.Code != 200 {
+        t.Errorf("expected 200, got %d", w.Code)
+    }
+
+    if !strings.Contains(w.Body.String(), "Test") {
+        t.Error("response should contain item name")
+    }
+}
+```
+
+## Debugging Tips
+
+1. **Check Safari Web Inspector** in dev mode for network/console
+2. **Use fmt.Println** in handlers (shows in terminal)
+3. **Check generated `_templ.go` files** if templates aren't working
+4. **Verify element IDs exist** - Datastar patches by ID
+5. **Check browser console** for Datastar errors
+
+## Common Mistakes and Fixes
+
+| Mistake | Fix |
+|---------|-----|
+| Datastar request returns nothing | Check element ID exists on page |
+| Page refresh instead of patch | Ensure handler uses ctx.SSE() |
+| Form not submitting | Use data-on:submit__prevent |
+| Styles not updating | Run `bun run css` or check Tailwind config |
+| Template changes not showing | Run `templ generate` or check air is running |
+| "Not found" in mobile app | Check route is registered in app.go |
+
+## Quick Reference
+
+### Router
+
+```go
+// Standard handlers (return string, error)
+r.GET("/path", handler)
+r.POST("/path", handler)
+r.PUT("/path", handler)
+r.DELETE("/path", handler)
+
+// Datastar SSE handlers (return error)
+r.DSGet("/path", handler)
+r.DSPost("/path", handler)
+r.DSPatch("/path", handler)
+r.DSDelete("/path", handler)
+
+r.Group("/prefix", func(r *router.Router) { ... })
+r.Static("/static", "static")
+```
+
+### Context
+
+```go
+ctx.Param("id")        // URL param
+ctx.Query("key")       // Query string
+ctx.FormValue("name")  // Form field
+ctx.IsDatastar()       // Is Datastar SSE request?
+ctx.ReadSignals(&s)    // Read signals from body
+ctx.Redirect("/path")  // Redirect
+
+// SSE responses
+sse := ctx.SSE()
+sse.PatchTempl(comp)         // Patch from templ
+sse.PatchHTML("<div>")       // Patch raw HTML
+sse.PatchSignals(map)        // Update signals
+sse.Remove("#id")            // Remove element
+sse.Redirect("/path")        // Redirect
+```
+
+### Datastar Attributes
+
+```html
+<!-- Signals -->
+data-signals="{count: 0}"    <!-- Initialize signals -->
+data-bind:name               <!-- Two-way binding -->
+data-text="$count"           <!-- Display signal value -->
+
+<!-- Actions -->
+data-on:click="@get('/url')"     <!-- GET request -->
+data-on:click="@post('/url')"    <!-- POST request -->
+data-on:click="@put('/url')"     <!-- PUT request -->
+data-on:click="@patch('/url')"   <!-- PATCH request -->
+data-on:click="@delete('/url')"  <!-- DELETE request -->
+data-on:submit__prevent="..."    <!-- Prevent form default -->
+
+<!-- Event modifiers -->
+data-on:input__debounce.300ms    <!-- Debounce 300ms -->
+data-on:scroll__throttle.100ms   <!-- Throttle 100ms -->
+data-on:intersect__once          <!-- Trigger once -->
+
+<!-- Display -->
+data-show="$visible"             <!-- Show/hide element -->
+data-class:active="$isActive"    <!-- Conditional class -->
+data-attr:disabled="$loading"    <!-- Dynamic attribute -->
+data-indicator:loading           <!-- Loading indicator -->
+```
+
+### templ Syntax
+
+```go
+templ Name(args) { }           // Define component
+@Component()                   // Use component
+{ variable }                   // Output value
+{ children... }                // Slot for children
+if cond { } else { }           // Conditional
+for _, x := range xs { }       // Loop
+class={ templ.KV("a", bool) }  // Conditional class
+attr?={ bool }                 // Conditional attribute
+```

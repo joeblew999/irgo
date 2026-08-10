@@ -77,6 +77,7 @@ detail; `doctor` reports what your machine can actually do.
 | `project pin` | Choose which irgo this project builds against |
 | `project ci` | Scaffold the GitHub Actions workflows |
 | `project assets` | Regenerate templ + Tailwind (builds do this already) |
+| `project generate` | Run the project's own generators (builds do this already) |
 | `project test` | Run the tests |
 | `project config` | Show or set a setting (signing, stores, version) |
 | `app build <ios|android|desktop|cloudflare|all>` | Build it |
@@ -106,6 +107,39 @@ command needs them: `build android` fetches JDK 17, the SDK and the NDK into
 `tools remove android` — it shows what it will delete, with sizes, and asks
 first. The one exception is Xcode, which only
 Apple can install; `doctor` says so plainly.
+
+## Generated content
+
+This site is an irgo project like any other — `server dev`, `app build`,
+`app deploy` all work the same way, and a plain irgo project needs nothing
+below. What it adds is content generated from source rather than typed, and
+that stays out of the irgo CLI on purpose: highlighting themes and API
+references are this site's concern, not every project's.
+
+```bash
+go tool irgo project generate   # refresh everything below
+go tool irgo project test       # fails if any of it is stale
+```
+
+Builds, deploys and tests run the generators for you, so in practice you never
+type the first line. It is deliberately not part of `project assets`, which
+runs on every save under hot reload.
+
+| Generated | From | Why |
+|---|---|---|
+| `clidoc/cli.json` | `irgo help --json` | The CLI reference cannot describe a command the binary does not have |
+| `apidoc/api.json` | `go/doc` over the framework packages | The hand-written version documented nine methods that never existed |
+| `apidoc/env.json` | `os.Getenv` calls in the source | The old page listed `IRGO_PORT`, which nothing reads |
+| `content/highlighted_gen.go`, `static/css/chroma.css` | chroma | Highlighting at render time put 1 MB of lexers in the Worker |
+
+Each has a test that fails when the file no longer matches its source, so
+forgetting to regenerate is a red build rather than a wrong page. CI runs
+`project test`, which does both.
+
+The code samples on the realtime page are not strings: they live in
+`content/examples/`, are compiled by `go build ./...`, and the pages read the
+marked regions back out. That page previously documented a hub that did not
+exist.
 
 ## Working on irgo itself
 
