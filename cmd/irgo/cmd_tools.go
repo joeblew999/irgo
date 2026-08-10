@@ -123,6 +123,12 @@ func toolInstalledByIrgo(name string) bool {
 // Linux and Windows, so this needs no per-OS branching.
 func ensureGoTool(name string) error {
 	if _, err := exec.LookPath(name); err == nil {
+		// Present is not the same as correct. templ is one binary per machine
+		// but its required version is per project, so building a second
+		// project drifts without anything being installed wrongly.
+		if name == "templ" {
+			return ensureTemplMatchesGoMod()
+		}
 		return nil
 	}
 	// mise first when it can provide the tool: it installs into a directory
@@ -216,6 +222,85 @@ func prependToPATH(dir string) error {
 		return nil
 	}
 	return os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// ensureTemplMatchesGoMod reinstalls templ when the binary on PATH is not the
+// version this project compiles against.
+//
+// The generator and the runtime package have to agree — generated code calls
+// into the library, and a new generator can emit calls an old library does not
+// have. goToolPkg already pins the install to the project's go.mod, but that
+// only ran when templ was missing entirely, so the first project to install it
+// won: every later one with a different version reused that binary and got
+// templ's own warning on every build, forever.
+//
+// One machine, one binary, many projects. So this is checked per build rather
+// than per install.
+func ensureTemplMatchesGoMod() error {
+	want := templVersionFromGoMod()
+	if want == "" {
+		return nil
+	}
+	have := installedTemplVersion()
+	if have == "" || have == "v"+want {
+		return nil
+	}
+
+	// Before installing anything: the right version may already be on disk and
+	// simply losing the PATH lookup to a version manager's copy. Installing
+	// again would not change that, so every build would reinstall and every
+	// build would still run the wrong binary.
+	if dir := gobinDir(); dir != "" {
+		if templVersionAt(filepath.Join(dir, "templ")) == "v"+want {
+			_ = os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			return nil
+		}
+	}
+
+	fmt.Printf("templ %s is installed, but this project uses v%s — reinstalling...\n", have, want)
+	if err := runCommand(goBin(), "install", "github.com/a-h/templ/cmd/templ@v"+want); err != nil {
+		// Not fatal. The generator that is already there usually works, and
+		// failing a build over a version skew is worse than the warning templ
+		// prints about it.
+		fmt.Printf("Note: could not install templ v%s: %v\n", want, err)
+		return nil
+	}
+
+	// `go install` writes to GOBIN, which is not necessarily what `templ`
+	// resolves to: a version manager keeps its own bin directory earlier on
+	// PATH, so the install succeeds, the old binary still runs, and the
+	// reinstall repeats on every build having changed nothing.
+	if dir := gobinDir(); dir != "" {
+		_ = os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	if now := installedTemplVersion(); now != "" && now != "v"+want {
+		fmt.Printf("Note: templ v%s was installed to %s, but %s still resolves\n",
+			want, gobinDir(), now)
+		fmt.Printf("      first on PATH. Generated code may not compile against\n")
+		fmt.Printf("      templ v%s. Put %s earlier on PATH, or remove the other copy.\n",
+			want, gobinDir())
+	}
+	return nil
+}
+
+// installedTemplVersion is what `templ version` reports, or "" if it cannot be
+// asked. Empty means "do not touch it": a templ that cannot answer is not one
+// to start reinstalling on every build.
+func installedTemplVersion() string {
+	return templVersionAt("templ")
+}
+
+// templVersionAt asks a particular templ binary its version.
+func templVersionAt(bin string) string {
+	out, err := exec.Command(bin, "version").Output()
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(string(out))
+	if v == "" || !strings.HasPrefix(v, "v") {
+		return ""
+	}
+	return v
 }
 
 // runCSS rebuilds the Tailwind stylesheet. static/css/output.css is generated
