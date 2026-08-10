@@ -21,6 +21,9 @@ type packageConfig struct {
 	Icon                     string // common.icon (single source icon for all stores)
 	IOSTeam                  string // ios.team
 	IOSExportMethod          string // ios.export_method
+	AndroidCompileSDK        string // android.compile_sdk
+	AndroidTargetSDK         string // android.target_sdk
+	AndroidMinSDK            string // android.min_sdk
 	AndroidKeystore          string // android.keystore
 	AndroidKeystorePw        string // android.keystore_pass
 	AndroidKeyAlias          string // android.key_alias

@@ -27,39 +27,24 @@ type configKey struct {
 	secret  bool
 }
 
-// configKeys is the full set, in the order a person meets them.
+// configKeys is the full set, derived from configRegistry.
+//
+// It used to be a second list written out by hand, and the two disagreed the
+// moment anything was added to one of them: android.compile_sdk appeared in
+// `irgo project config` and resolved to nothing, because display and
+// resolution were reading different tables. A setting is one fact.
 func configKeys() []configKey {
-	return []configKey{
-		{"common.version", "common", "version", "app version (Android versionName, Windows version)", false},
-		{"common.icon", "common", "icon", "single source icon for every store", false},
-
-		{"ios.team", "ios", "team", "Apple Team ID used to sign", false},
-		{"ios.export_method", "ios", "export_method", "app-store | ad-hoc | development", false},
-
-		{"android.keystore", "android", "keystore", "path to the signing keystore", false},
-		{"android.keystore_pass", "android", "keystore_pass", "keystore password", true},
-		{"android.key_alias", "android", "key_alias", "key alias (empty: auto-detect)", false},
-		{"android.key_pass", "android", "key_pass", "key password", true},
-
-		{"windows.publisher", "windows", "publisher", "publisher DN from Partner Center", false},
-		{"windows.cert", "windows", "cert", "code-signing certificate (PFX)", false},
-		{"windows.cert_pass", "windows", "cert_pass", "certificate password", true},
-
-		{"macos.identity", "macos", "identity", "Developer ID Application certificate", false},
-		{"macos.notarize", "macos", "notarize", "notarize on package (true/false)", false},
-		{"macos.apple_id", "macos", "apple_id", "Apple ID for notarization", false},
-		{"macos.team", "macos", "team", "team ID for notarization", false},
-		{"macos.password", "macos", "password", "app-specific password", true},
-		{"macos.dmg", "macos", "dmg", "also produce a .dmg (true/false)", false},
-
-		{"reviews.ios_app_id", "reviews", "ios_app_id", "numeric App Store id (iOS)", false},
-		{"reviews.mac_app_id", "reviews", "mac_app_id", "numeric App Store id (Mac)", false},
-		{"reviews.ios_key_id", "reviews", "ios_key_id", "App Store Connect API key id", false},
-		{"reviews.ios_issuer_id", "reviews", "ios_issuer_id", "App Store Connect issuer id", false},
-		{"reviews.ios_private_key", "reviews", "ios_private_key", "path to the .p8 key", false},
-		{"reviews.android_package", "reviews", "android_package", "Play package name", false},
-		{"reviews.android_service_account", "reviews", "android_service_account", "Play service-account JSON", false},
+	out := make([]configKey, 0, len(configRegistry))
+	for _, cv := range configRegistry {
+		out = append(out, configKey{
+			key:     cv.tomlSection + "." + cv.tomlKey,
+			section: cv.tomlSection,
+			name:    cv.tomlKey,
+			desc:    cv.how,
+			secret:  cv.secret,
+		})
 	}
+	return out
 }
 
 func findConfigKey(name string) (configKey, bool) {
