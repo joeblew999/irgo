@@ -1,0 +1,77 @@
+# This fork's main must stay identical to upstream's.
+#
+# It is the one rule the whole workflow rests on. Every branch meant for a pull
+# request is cut from main, so main carrying extra commits means every such
+# branch carries them too — and a pull request that should have been one change
+# arrives as a hundred and thirty. That is not a hypothetical: this fork is a
+# hundred and thirty commits of work, and the tag its projects consume sits on
+# no branch at all, precisely so main could stay clean.
+#
+# Work goes on branches. What gets consumed is a tag. Nothing is merged here.
+#
+# Enforced in CI rather than by asking people to remember, because a rule that
+# lives in a document is a rule that holds until the first busy afternoon. This
+# fails the moment main diverges, and it fails on a pull request that would
+# diverge it — which is the moment it is cheap to fix.
+#
+# Disabled automatically on the upstream repository, where main is the thing
+# being compared against and the check is meaningless.
+
+name: fork-main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unchanged:
+    name: main still matches upstream
+    if: github.repository != 'stukennedy/irgo'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: comparing to another repository's branch needs the
+          # commits, and a shallow clone has none of them.
+          fetch-depth: 0
+
+      - name: Compare against upstream
+        run: |
+          git remote add upstream https://github.com/stukennedy/irgo.git
+          git fetch --quiet upstream main
+
+          ours=$(git rev-parse origin/main)
+          theirs=$(git rev-parse upstream/main)
+
+          if [ "$ours" = "$theirs" ]; then
+            echo "main matches upstream ($ours)"
+            exit 0
+          fi
+
+          ahead=$(git rev-list --count upstream/main..origin/main)
+          behind=$(git rev-list --count origin/main..upstream/main)
+
+          echo "::error::this fork's main has diverged from upstream"
+          echo
+          echo "  ours   $ours"
+          echo "  theirs $theirs"
+          echo "  ahead by $ahead, behind by $behind"
+          echo
+          echo "main is the base every pull-request branch is cut from, so"
+          echo "anything extra here travels into every one of them."
+          echo
+          echo "If you are trying to land work for your own projects, merge it"
+          echo "into the integration branch and tag that — a tag needs no"
+          echo "branch, and that is how the version your projects already"
+          echo "consume was published."
+          echo
+          echo "If main is merely behind, fast-forward it:"
+          echo "  git fetch upstream && git push origin upstream/main:main"
+          exit 1

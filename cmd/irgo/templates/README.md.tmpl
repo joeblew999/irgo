@@ -11,6 +11,16 @@ Go + [templ](https://templ.guide) + [Datastar](https://data-star.dev).
 
 ## Quickstart
 
+```sh
+mise tasks          # every command for this project, with a line each
+mise run dev        # hot reload
+mise run check      # build and test
+```
+
+Nothing to install first: irgo provisions what a build needs — templ, Tailwind,
+gomobile, a browser for the tests — the first time something asks for it.
+
+
 ```bash
 go tool irgo tools doctor      # what this machine can build, and what needs setup
 go tool irgo server dev         # hot-reload server on http://localhost:8080
@@ -561,6 +571,17 @@ r.DSPost("/register", func(ctx *router.Context) error {
 ```
 
 ## Datastar Attribute Reference
+
+The full reference — every attribute, every action, with examples — is in
+`.claude/skills/datastar/SKILL.md`, which your assistant loads on its own when
+you ask it to write a template. It arrives from the irgo module on every build;
+do not edit it, and do commit it, so a fresh clone has it before anything runs.
+
+`irgo project skills` lists what you have. The table below is the short form.
+
+**The syntax is a colon, not a hyphen.** `data-attr:class`, not
+`data-attr-class`. The hyphen form is silently inert: it parses, it renders, and
+nothing binds — which is why it is worth a line here.
 
 | Attribute | Description | Example |
 |-----------|-------------|---------|
