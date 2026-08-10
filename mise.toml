@@ -11,7 +11,12 @@
 # install` to contribute, and CI does not.
 #
 #   mise install     # get them
-#   mise ls          # see what you have
+#   mise run setup   # protect main from rebases, once per clone
+#   mise tasks       # every task, with what it is for
+#
+# The workflow itself is written down in CONTRIBUTING.md. This file is the
+# executable half of it: if a task here and that document disagree, the task
+# is what actually runs.
 #
 # Prebuilt binaries via ubi, pinned, on macOS, Linux and Windows alike. No
 # Rust toolchain, no build step, nothing checked into the repository that only
@@ -46,6 +51,10 @@
 # command instead of in a wiki. The one invariant that actually matters — that
 # this fork's main never diverges from upstream — is enforced by CI, because
 # that is the only place enforcement works for everyone.
+
+[tasks.help]
+description = "What to run, and where the workflow is written down"
+run = "mise tasks"
 
 [tasks.setup]
 description = "Protect main from rebases, once per clone"
