@@ -31,12 +31,9 @@ jobs:
           go-version-file: go.mod
       # Formatting is checked rather than assumed: three files had been
       # unformatted since the Datastar migration, which nothing surfaced.
-      - name: gofmt
-        run: |
-          unformatted=$(gofmt -l ./cmd ./pkg ./mobile ./desktop)
-          if [ -n "$unformatted" ]; then
-            echo "::error::these files are not gofmt'd:"; echo "$unformatted"; exit 1
-          fi
+      # Formatting is asserted by TestEverythingIsFormatted, so `go test ./...`
+      # covers it and `mise run check` predicts this job instead of being a
+      # weaker version of it.
       - run: go vet ./...
       # The Cloudflare target compiles the framework for GOOS=js GOARCH=wasm,
       # where a different set of files is selected. Building it here is what
@@ -47,18 +44,10 @@ jobs:
       # from this checkout and compiles it. It is a test rather than steps in
       # this file so it runs the same way on a laptop as it does here.
       - run: go test ./...
-
-  website:
-    name: Docs site builds
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-      # No Node: the scripts run vite and wrangler on bun's own runtime.
-      - run: bun install --frozen-lockfile --ignore-scripts
-        working-directory: website
-      - run: bun run build
-        working-directory: website
+      # pkg/browsertest is its own module, so the line above does not reach it.
+      # A nested module that nothing builds is a nested module that rots.
+      - run: go build ./...
+        working-directory: pkg/browsertest
 
   docs-templ:
     name: Docs site (templ) builds and matches the CLI
@@ -101,3 +90,30 @@ jobs:
       # desktop needs webkit2gtk, which ubuntu-latest no longer ships — the
       # demo's matrix pins ubuntu-22.04 for that and covers it properly.
       - run: go run ./cmd/irgo -C examples/todo app build cloudflare
+
+  showcase:
+    name: Morpheus's own showcase still runs on irgo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # No checkout of Morpheus here, and no clone step. The showcase's pages
+      # are imported rather than copied, which needs them exported, which
+      # upstream does not do — they live in internal/. So this example depends
+      # on a fork that moves them out, and the fork keeps upstream's `module`
+      # line, which is exactly what lets go.mod replace across repositories:
+      #
+      #   replace github.com/romshark/morpheus => github.com/joeblew999/morpheus v0.0.0-...
+      #
+      # `go mod download` fetches it like any other dependency, pinned to a
+      # commit. An earlier version of this job cloned the fork to a sibling
+      # directory because the replace pointed at a local path — which meant CI
+      # and a developer followed different instructions to reach the same code.
+      # go generate first: the showcase's stylesheets and bundle are copied out
+      # of the module rather than committed, so a fresh checkout has neither.
+      - run: go generate ./...
+        working-directory: examples/morpheus-showcase
+      - run: go run ./cmd/irgo -C examples/morpheus-showcase project test

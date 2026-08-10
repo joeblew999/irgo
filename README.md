@@ -2,6 +2,17 @@
 
 A hypermedia-driven application framework that uses Go as a runtime kernel with Datastar. Build native iOS, Android, and **desktop** apps using Go, HTML, and Datastar - no JavaScript frameworks required.
 
+## Working on irgo
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the workflow: where to branch from, what
+is enforced versus habit, and how a release reaches a project.
+
+```sh
+mise install       # the branch tools
+mise run setup     # once per clone — protects main, blocks pushes to upstream
+mise tasks         # everything else, with a line each
+```
+
 ## Key Features
 
 - **Go-Powered Apps**: Write your backend logic in Go, compile to native mobile frameworks or desktop apps
@@ -433,10 +444,42 @@ irgo app run android        # Build and run on Android Emulator
 
 # Utilities
 irgo project assets              # Generate templ files
+irgo project skills              # Reference material for agents (builds sync it)
 irgo tools install      # Install required dev tools
 irgo version            # Print version
 irgo help [command]     # Show help
 ```
+
+## Agent Skills
+
+`.claude/skills/` holds the reference an AI assistant loads when it writes
+templates. It is committed, and it ships **inside the irgo module**, so every
+project gets it from the version its `go.mod` names — no download, nothing to
+pin twice, and a project cannot end up on a different version than the
+framework it builds against.
+
+| | |
+|---|---|
+| `datastar` | Every Datastar attribute and action. Vendored from [datapages](https://github.com/romshark/datapages) |
+| a kit's own | Arrive from the kit's module — Morpheus ships three |
+
+```sh
+irgo project skills --sources   # where each one came from
+irgo project skills --check     # compare the vendored ones against upstream
+irgo project skills --update    # take upstream's version (from this checkout)
+```
+
+Skills that ship inside a module cannot go stale — their version is `go.mod`'s.
+Only vendored ones can, which is what `--check` is for; CI runs it weekly.
+Provenance for those lives in [`cmd/irgo/skills.go`](cmd/irgo/skills.go), which
+is both the record a human reads and the one `--check` fetches against, so the
+two cannot disagree.
+
+This exists because of a real failure: `data-attr-class` was written instead of
+`data-attr:class`. It parses, it renders, the markup looks right, and the
+binding silently does nothing. No handler test can see it. The correct syntax
+was already in the project README — which the assistant had not read, because a
+600-line README is not in context and a skill is.
 
 ## Datastar Overview
 
