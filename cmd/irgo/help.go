@@ -154,6 +154,7 @@ var nounSummary = map[string]string{
 	"tools":   "the toolchains on this machine",
 	"server":  "the development server",
 	"ui":      "the component kit, when a project uses one",
+	"secrets": "what this project needs, and where it has to reach",
 }
 
 // renderCommandTable writes the command reference that ships in the generated
