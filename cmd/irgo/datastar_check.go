@@ -54,8 +54,12 @@ func checkDatastarSyntax() error {
 		return nil // not a templ project
 	}
 
+	// have and want are both built from the regexp's own groups. Deriving want
+	// from have by hand does not work: the separator is the FIRST hyphen after
+	// the plugin, not the last, and an argument may contain its own —
+	// data-attr-aria-label wants data-attr:aria-label, not data-attr-aria:label.
 	type finding struct {
-		file, line, text string
+		file, line, have, want string
 	}
 	var found []finding
 
@@ -76,7 +80,8 @@ func checkDatastarSyntax() error {
 				found = append(found, finding{
 					file: fmt.Sprintf("%s:%d", path, i+1),
 					line: strings.TrimSpace(line),
-					text: fmt.Sprintf("data-%s-%s", plugin, arg),
+					have: fmt.Sprintf("data-%s-%s", plugin, arg),
+					want: fmt.Sprintf("data-%s:%s", plugin, arg),
 				})
 			}
 		}
@@ -90,12 +95,8 @@ func checkDatastarSyntax() error {
 	fmt.Println("      They render, and they bind nothing.")
 	fmt.Println()
 	for _, f := range found {
-		want := strings.Replace(f.text, "-", ":", strings.Count(f.text, "-"))
-		// Only the last hyphen separates plugin from argument.
-		i := strings.LastIndex(f.text, "-")
-		want = f.text[:i] + ":" + f.text[i+1:]
 		fmt.Printf("  %s\n", f.file)
-		fmt.Printf("      %s   ->   %s\n", f.text, want)
+		fmt.Printf("      %s   ->   %s\n", f.have, f.want)
 	}
 	fmt.Println()
 	fmt.Println("      The full reference is .claude/skills/datastar/SKILL.md.")
