@@ -103,32 +103,80 @@ func pinLocal(dir string) error {
 	if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
 		return fmt.Errorf("%s is not a Go module — point it at an irgo checkout", abs)
 	}
-	data, err := os.ReadFile(filepath.Join(abs, "go.mod"))
-	if err != nil {
-		return err
-	}
-	if !strings.Contains(string(data), "module "+upstreamModule) {
+	// The strict check, not a substring one: "module github.com/stukennedy/
+	// irgo-tools" contains the irgo path and is not irgo.
+	if !isIrgoCheckout(abs) {
 		return fmt.Errorf("%s is a Go module but not irgo (its go.mod declares a different module)", abs)
 	}
 
-	restore, err := snapshotGoMod()
-	if err != nil {
+	// go.work, not a replace in go.mod.
+	//
+	// go.mod is committed, so a replace pointing at /Users/someone/checkout
+	// travels with the repository: it builds on one machine and nowhere else,
+	// and CI fails on a path that does not exist. That is not a discipline
+	// problem to be solved by remembering to undo it — it is the wrong file.
+	//
+	// go.work is gitignored (it already was, for gomobile), so a local pin
+	// cannot be committed even deliberately, and CI — which has no go.work —
+	// builds the published module without being told to. Go added workspaces
+	// for exactly this.
+	if err := dropCommittedLocalReplace(); err != nil {
 		return err
 	}
-	if err := goModEdit("-replace", upstreamModule+"="+abs); err != nil {
-		return err
+	if _, err := os.Stat("go.work"); err != nil {
+		if _, err := runCommandQuiet(goBin(), "work", "init", "."); err != nil {
+			return fmt.Errorf("creating go.work: %w", err)
+		}
 	}
-	if err := tidy(); err != nil {
-		restore()
-		return err
+	if _, err := runCommandQuiet(goBin(), "work", "use", abs); err != nil {
+		return fmt.Errorf("adding %s to go.work: %w", abs, err)
 	}
+
 	fmt.Printf("Pinned to your checkout: %s\n", abs)
 	fmt.Println("`go tool irgo` now builds that tree — edits take effect immediately.")
+	fmt.Println()
+	fmt.Println("Written to go.work, which is gitignored. go.mod still names the")
+	fmt.Println("published version, so a commit, a teammate and CI are unaffected.")
+	fmt.Println("Undo with: irgo project pin release")
+	return nil
+}
+
+// dropCommittedLocalReplace removes a local-path replace an older irgo wrote
+// into go.mod, so upgrading fixes the repository rather than leaving a pin that
+// only works on one machine.
+func dropCommittedLocalReplace() error {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "replace "+upstreamModule) {
+			continue
+		}
+		i := strings.Index(line, "=>")
+		if i < 0 {
+			continue
+		}
+		target := strings.TrimSpace(line[i+2:])
+		if !strings.HasPrefix(target, ".") && !strings.HasPrefix(target, "/") {
+			continue // a fork or a version, which is a real pin and stays
+		}
+		fmt.Println("  removed a local replace from go.mod — that only ever built here")
+		return goModEdit("-dropreplace", upstreamModule)
+	}
 	return nil
 }
 
 // pinRelease drops any replace, returning to the published module.
 func pinRelease() error {
+	// The workspace first: it wins over go.mod, so dropping the replace while
+	// leaving a `use` in place would report a release pin and keep building
+	// the checkout.
+	if err := dropWorkspaceUse(); err != nil {
+		return err
+	}
+
 	restore, err := snapshotGoMod()
 	if err != nil {
 		return err
@@ -273,9 +321,65 @@ func projectReplacement() string {
 	return ""
 }
 
+// dropWorkspaceUse removes the irgo checkout from go.work, and the file too if
+// nothing else is left using it.
+//
+// Leaving an empty go.work behind is not harmless: it changes module
+// resolution for every command run in this directory, and a workspace with one
+// bare `use .` is a thing to debug later with no reason to exist.
+func dropWorkspaceUse() error {
+	data, err := os.ReadFile("go.work")
+	if err != nil {
+		return nil
+	}
+	var uses []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.TrimPrefix(line, "use ")
+		line = strings.Trim(line, "()\t ")
+		if line == "" || strings.HasPrefix(line, "go ") || line == "use" {
+			continue
+		}
+		uses = append(uses, line)
+	}
+
+	for _, u := range uses {
+		if u == "." {
+			continue
+		}
+		abs := u
+		if !filepath.IsAbs(abs) {
+			abs, _ = filepath.Abs(u)
+		}
+		if isIrgoCheckout(abs) {
+			if _, err := runCommandQuiet(goBin(), "work", "edit", "-dropuse", u); err != nil {
+				return err
+			}
+			fmt.Printf("  removed %s from go.work\n", u)
+		}
+	}
+
+	// Re-read: if only "." remains, the workspace exists for no reason.
+	data, err = os.ReadFile("go.work")
+	if err != nil {
+		return nil
+	}
+	remaining := 0
+	for _, line := range strings.Split(string(data), "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "use ") && strings.TrimSpace(strings.TrimPrefix(t, "use ")) != "." {
+			remaining++
+		}
+	}
+	if remaining == 0 {
+		_ = os.Remove("go.work")
+		_ = os.Remove("go.work.sum")
+	}
+	return nil
+}
 func init() {
 	register(command{
-		noun: "project", verb: "pin", order: 30,
+		noun: "project", verb: "pin", order: 3,
 		summary: "Choose which irgo this project builds against",
 		args:    "[local|release|<version>]",
 		usage: [][2]string{
@@ -285,7 +389,9 @@ func init() {
 			{"<version>", "A published version, e.g. v0.4.0"},
 			{"<owner>/<repo>@<tag>", "A fork"},
 		},
-		notes: "go.mod is the only pin: `go tool irgo` builds whatever it names, so there is\n" +
+		notes: "`local` writes go.work, which is gitignored, so working on the CLI cannot\n" +
+			"leak into a commit and CI keeps building the published module.\n\n" +
+			"go.mod is the pin everything else uses: `go tool irgo` builds whatever it names, so there is\n" +
 			`nothing installed globally to fall out of step. A pin that does not resolve
 leaves go.mod untouched rather than half-written.
 
