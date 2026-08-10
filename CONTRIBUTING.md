@@ -1,13 +1,53 @@
 # Working on irgo
 
+## Where do I work?
+
 ```sh
-mise install     # the tools, pinned and prebuilt
-mise run setup   # protect main, once per clone
-mise tasks       # what you can run, and what each does
+mise run start my-thing
 ```
 
-Everything below is plain git. The tools make the repetitive parts cheap;
-nothing here requires them, and CI uses none of them.
+That is the whole answer. It branches off `integration`, which is this fork's
+trunk — everything the fork has that upstream does not, including these tasks.
+
+A normal day is three commands:
+
+```sh
+mise run start my-thing    # begin
+mise run check             # build and test
+mise run ship              # push
+```
+
+Once per clone, before any of that:
+
+```sh
+mise install       # Go, and the branch tools
+mise run setup     # protects main so you cannot rewrite it by accident
+```
+
+## What the other branches are
+
+You will see a lot of them in a clone. Only one is a place to work:
+
+| | |
+|---|---|
+| `integration` | **this fork's trunk.** Where your work starts from, and what gets tagged for release |
+| `main` | a mirror of upstream irgo. No fork features, not even `mise.toml`. Never written to |
+| `rb/…` | finished work waiting to be offered upstream. Not yours to touch |
+
+Branching from `main` by mistake is the confusing failure: you land on a tree
+with none of the fork's code and no `mise` tasks, because upstream has neither.
+That is what `main` is *for* — it is the clean base for offering one change
+upstream, which is:
+
+```sh
+mise run offer fix/the-thing
+```
+
+Use that only when you mean to send something to upstream irgo. Expect the
+tasks to be missing on such a branch; switch back to `integration` and they
+return.
+
+If you lose track, `mise run where` draws the tree.
 
 ## Small branches, not one big one
 
