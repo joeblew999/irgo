@@ -415,6 +415,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"app build", "app run", "app package", "app deploy",
 		"app install", "app remove", "app reviews",
 		"tools install", "tools remove", "tools doctor",
+		"ui themes",
 		"server dev", "server serve",
 	}
 	have := map[string]bool{}

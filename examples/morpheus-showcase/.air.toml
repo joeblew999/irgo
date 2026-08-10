@@ -1,0 +1,38 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  entrypoint = "./tmp/main"
+  # `go tool irgo` — not a bare `irgo`. A binary on PATH is whatever version
+  # happened to be installed; go tool builds the one go.mod pins, which is the
+  # whole point. Using the PATH copy here meant hot reload ran an older CLI and
+  # died on a command it did not have.
+  cmd = "go tool irgo project assets && go build -o ./tmp/main ."
+  delay = 1000
+  # dist/ holds packaged output: rebuilding on a package would loop.
+  exclude_dir = ["assets", "tmp", "vendor", "ios", "android", "build", "dist"]
+  exclude_file = []
+  exclude_regex = ["_test.go", "_templ.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = ""
+  include_dir = []
+  include_ext = ["go", "templ", "html", "css"]
+  kill_delay = "0s"
+  log = "build-errors.log"
+  send_interrupt = false
+  stop_on_error = true
+  args_bin = ["serve"]
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
