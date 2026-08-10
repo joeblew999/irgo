@@ -103,6 +103,9 @@ func route(noun, verb string, args []string) (error, bool) {
 			return reviewsCommand(args), true
 		}
 
+	case "ui":
+		return runUI(append([]string{verb}, args...)), true
+
 	case "tools":
 		rest := args
 		android := len(rest) > 0 && rest[0] == "android"
