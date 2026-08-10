@@ -1,5 +1,35 @@
 # Irgo Framework - LLM Reference
 
+## Before changing anything, run `mise tasks`
+
+`mise.toml` is the source of truth for how work happens here — every command
+and why, next to the command. CONTRIBUTING.md has what is not a command. The
+summary:
+
+```sh
+mise run start feat/the-thing   # one branch per concern, off integration
+… keep committing to it …
+mise run check                  # exactly what CI runs
+mise run ship
+```
+
+- **One branch per concern, not per remark.** Everything here reaches upstream
+  eventually, so a branch is how a change stays offerable. When something new
+  comes up and it belongs to what you are already doing, stay on the branch.
+  Eight branches were made in one afternoon for one concern — each a single
+  commit, merged minutes later, reviewed by nobody.
+- **Never work on `main`.** It mirrors upstream and has none of the fork's
+  features.
+- **Never push to the upstream remote, and never open a pull request against
+  it.** `mise run setup` disables the push; the pull request is a decision for
+  the repository's owner, not for you.
+- **Use the tasks.** They are not decoration: `mise run check` runs what CI
+  runs, so passing it means passing CI. Reaching for raw git instead is how
+  this workflow was broken three times in one session — by an assistant that
+  had these instructions and did not follow them.
+
+`mise tasks` lists everything with a line each.
+
 This document provides a comprehensive reference for LLMs (Claude, GPT, etc.) working with the Irgo framework.
 
 ## Framework Overview

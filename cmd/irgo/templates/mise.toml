@@ -1,0 +1,76 @@
+# Working on {{PROJECT_NAME}}.
+#
+# There is nothing to install: irgo provisions what a build needs — templ,
+# Tailwind, gomobile, a browser for the tests — the first time something asks
+# for it. These tasks exist so the commands are in one place with a line each,
+# rather than remembered.
+#
+#   mise run dev            the server, with hot reload   <- start here
+#   mise run check          build and test
+#   mise run use <version>  take a released irgo
+#
+# Working on irgo itself at the same time? Link the two once and forget about
+# versions until you are done:
+#
+#   mise run link ../irgo   build against your irgo checkout
+#   mise run unlink         go back to the released version
+#
+# Then the targets, when you want one:
+#
+#   mise run web            a static site that runs in the browser, no server
+#   mise run desktop        a native window
+#   mise run ios            the iOS Simulator
+#   mise run android        the Android emulator
+#   mise run worker         a Cloudflare Worker
+
+[tasks.dev]
+description = "Run the app with hot reload"
+run = "go tool irgo server dev"
+
+[tasks.check]
+# `irgo project test` rather than `go test`, because _templ.go and the
+# stylesheet are generated and gitignored: a plain `go test` in a fresh clone
+# compiles against whatever was last on disk, or nothing at all. This is also
+# what the scaffolded CI runs, so passing here means passing there.
+description = "Regenerate assets, then build and test"
+run = "go tool irgo project test"
+
+[tasks.use]
+# `irgo project pin` rather than editing go.mod: it validates the version
+# resolves before writing, and restores the file if it does not.
+description = "Take a version of irgo, e.g. v0.6.5 or owner/repo@v0.6.5"
+run = "go tool irgo project pin"
+
+[tasks.link]
+# Writes go.work, which is gitignored — so this cannot reach a commit, and CI,
+# which has no go.work, keeps building the released version. Edit either
+# repository and the change is live; there is nothing to tag and nothing to
+# take.
+description = "Build against a local irgo checkout, e.g. ../irgo"
+run = "go tool irgo project pin local"
+
+[tasks.unlink]
+# Drops the workspace and goes back to whatever go.mod pins — including a fork,
+# which is left alone.
+description = "Stop using the local checkout, use the pinned release again"
+run = "go tool irgo project pin release"
+
+[tasks.web]
+description = "Build the browser target, then serve it"
+run = "go tool irgo app run web"
+
+[tasks.desktop]
+description = "Run as a native desktop window"
+run = "go tool irgo app run desktop"
+
+[tasks.ios]
+description = "Build and run on the iOS Simulator"
+run = "go tool irgo app run ios"
+
+[tasks.android]
+description = "Build and run on the Android emulator"
+run = "go tool irgo app run android"
+
+[tasks.worker]
+description = "Build the Cloudflare Worker"
+run = "go tool irgo app build cloudflare"
