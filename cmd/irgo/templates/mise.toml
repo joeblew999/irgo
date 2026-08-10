@@ -28,6 +28,10 @@ description = "Run the app with hot reload"
 run = "go tool irgo server dev"
 
 [tasks.check]
+# `irgo project test` rather than `go test`, because _templ.go and the
+# stylesheet are generated and gitignored: a plain `go test` in a fresh clone
+# compiles against whatever was last on disk, or nothing at all. This is also
+# what the scaffolded CI runs, so passing here means passing there.
 description = "Regenerate assets, then build and test"
 run = "go tool irgo project test"
 

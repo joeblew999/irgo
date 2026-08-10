@@ -107,8 +107,16 @@ description = "Start a branch to send upstream, cut from main"
 run = ["git switch main", "git switch --create"]
 
 [tasks.check]
-description = "Build and test what you have"
-run = "go test ./..."
+# Everything CI runs, in the order it runs it, so passing here means passing
+# there. It used to be `go test ./...` alone, which let formatting and vet
+# failures through — and a check that does not predict CI teaches people to
+# push and wait instead of running it.
+#
+# Formatting is asserted by a test rather than a step here, because turning
+# `gofmt -l` into a failure needs a shell pipeline, and shell pipelines are
+# what stopped this working on Windows the last three times.
+description = "Everything CI runs: vet, tests, and the wasm build"
+run = ["go vet ./...", "go test ./...", "GOOS=js GOARCH=wasm go build ./..."]
 
 [tasks.ship]
 description = "Push the branch you are on"
