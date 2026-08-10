@@ -77,11 +77,16 @@
 #   mise run save           snapshot every branch, before anything risky
 #   mise run restore        put them all back
 #   mise run rebase         move your branches onto an updated main
+#   mise run merge <branch> put finished work on the trunk
+#   mise run tag <version>  name a release
+#   mise run publish        push the trunk and its tags
 #
-# Releasing is not here on purpose. It is: merge the branches you judge ready
-# into integration, tag it, and point your projects at the tag. Which branches
-# are ready is a judgement, and the version number is a decision — a task that
-# made either for you would make it wrong. CONTRIBUTING.md has the sequence.
+# Releasing is those three, in that order, with a check in between:
+#
+#   mise run merge feat/my-thing
+#   mise run check
+#   mise run tag v0.6.5
+#   mise run publish
 #
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
@@ -124,6 +129,23 @@ run = "git-branch-stash pop"
 [tasks.rebase]
 description = "Move your branches onto an updated main"
 run = "git-stack --pull"
+
+[tasks.merge]
+# Switches first, so it does not matter where you were. The branch to merge is
+# the argument; mise appends it to the last command.
+description = "Merge finished work into integration, the trunk"
+run = ["git switch integration", "git merge --no-edit"]
+
+[tasks.tag]
+# Creating and pushing are separate because the version is an argument and it
+# has to land on the tag command, not on a push. Check before you tag: a tag is
+# the one thing that is awkward to take back.
+description = "Name a release — give it a version, e.g. v0.6.5"
+run = "git tag --annotate --message=release"
+
+[tasks.publish]
+description = "Push the trunk and every tag on it"
+run = "git push --follow-tags origin integration"
 
 [tasks.setup]
 # Both, not just main. integration is this fork's trunk and is built by

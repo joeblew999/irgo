@@ -24,28 +24,23 @@ mise install       # Go, and the branch tools
 mise run setup     # protects main so you cannot rewrite it by accident
 ```
 
-## Releasing, and why it is not a task
-
-There is no `mise run release`. There was, briefly, and it was wrong: it ran a
-rebase tool across everything, tried to rewrite `integration` itself, and was
-stopped only by a conflict. Releasing is three judgements a command cannot make
-for you — which branches are ready, what the version number is, and whether the
-result is good.
+## Releasing
 
 ```sh
-git switch integration
-git merge feat/my-thing            # the branches you judge ready
-mise run check                     # before tagging, not after
-git tag -a v0.6.4 -m "what changed"
-git push origin integration v0.6.4
+mise run merge feat/my-thing    # onto integration, the trunk
+mise run check                  # before tagging, not after
+mise run tag v0.6.5
+mise run publish
 ```
 
-Then point a project at it, using irgo rather than editing go.mod by hand:
+Then in the project that uses it:
 
 ```sh
-cd ../your-project
-go tool irgo project pin joeblew999/irgo@v0.6.4
+mise run use joeblew999/irgo@v0.6.5
 ```
+
+Tagging and publishing are separate commands because a tag is the one thing
+that is awkward to take back — the check belongs between them.
 
 ## What the other branches are
 
