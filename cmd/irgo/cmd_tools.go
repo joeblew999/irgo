@@ -58,8 +58,16 @@ const pinAir = "v1.63.0"
 // fnox.toml actually declares a sops provider, not before.
 const pinSops = "v3.12.2"
 
+// pinToki is the i18n generator's version. It writes Go into the project —
+// bundle_gen.go and a catalog per locale — so an unpinned version rewrites
+// generated source on someone else's machine and the diff arrives with no
+// commit that asked for it.
+const pinToki = "v0.8.4"
+
 func goToolPkg(name string) string {
 	switch name {
+	case "toki":
+		return "github.com/romshark/toki@" + pinToki
 	case "templ":
 		// The project's own templ version first: the generator and the runtime
 		// package have to agree, or generated code fails to compile against

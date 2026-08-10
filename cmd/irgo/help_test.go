@@ -440,6 +440,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"server dev",
 		"server serve",
 		"app stop",
+		"i18n init", "i18n add", "i18n list", "i18n edit", "i18n check",
 	}
 	have := map[string]bool{}
 	for k := range allCommands() {
