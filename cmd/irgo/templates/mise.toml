@@ -1,0 +1,52 @@
+# Working on {{PROJECT_NAME}}.
+#
+# There is nothing to install: irgo provisions what a build needs — templ,
+# Tailwind, gomobile, a browser for the tests — the first time something asks
+# for it. These tasks exist so the commands are in one place with a line each,
+# rather than remembered.
+#
+#   mise run dev            the server, with hot reload   <- start here
+#   mise run check          build and test
+#   mise run use <version>  take a new irgo
+#
+# Then the targets, when you want one:
+#
+#   mise run web            a static site that runs in the browser, no server
+#   mise run desktop        a native window
+#   mise run ios            the iOS Simulator
+#   mise run android        the Android emulator
+#   mise run worker         a Cloudflare Worker
+
+[tasks.dev]
+description = "Run the app with hot reload"
+run = "go tool irgo server dev"
+
+[tasks.check]
+description = "Regenerate assets, then build and test"
+run = "go tool irgo project test"
+
+[tasks.use]
+# `irgo project pin` rather than editing go.mod: it validates the version
+# resolves before writing, and restores the file if it does not.
+description = "Take a version of irgo, e.g. v0.6.5 or owner/repo@v0.6.5"
+run = "go tool irgo project pin"
+
+[tasks.web]
+description = "Build the browser target, then serve it"
+run = "go tool irgo app run web"
+
+[tasks.desktop]
+description = "Run as a native desktop window"
+run = "go tool irgo app run desktop"
+
+[tasks.ios]
+description = "Build and run on the iOS Simulator"
+run = "go tool irgo app run ios"
+
+[tasks.android]
+description = "Build and run on the Android emulator"
+run = "go tool irgo app run android"
+
+[tasks.worker]
+description = "Build the Cloudflare Worker"
+run = "go tool irgo app build cloudflare"

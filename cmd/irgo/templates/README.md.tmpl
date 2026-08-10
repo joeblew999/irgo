@@ -11,6 +11,16 @@ Go + [templ](https://templ.guide) + [Datastar](https://data-star.dev).
 
 ## Quickstart
 
+```sh
+mise tasks          # every command for this project, with a line each
+mise run dev        # hot reload
+mise run check      # build and test
+```
+
+Nothing to install first: irgo provisions what a build needs — templ, Tailwind,
+gomobile, a browser for the tests — the first time something asks for it.
+
+
 ```bash
 go tool irgo tools doctor      # what this machine can build, and what needs setup
 go tool irgo server dev         # hot-reload server on http://localhost:8080
