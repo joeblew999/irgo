@@ -270,6 +270,13 @@ func toolLocators() []toolStatus {
 
 	rows := append(goToolStatuses(), nodeStatus())
 
+	// The browser irgo runs browser tests in. Its path is a directory, not a
+	// binary: the layout inside differs per platform, and what matters is
+	// whether the engine is there at all. Only fetched when a test asks for
+	// one, so a project without browser tests never downloads a browser.
+	rows = append(rows, found("chromium", chromiumDir(),
+		"installed when a test needs it", func() error { return ensureBrowsers() }))
+
 	// Tools mise provides, resolved through mise rather than by name.
 	//
 	// sops was in the platform list, so doctor looked it up on PATH, found a
