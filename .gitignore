@@ -67,3 +67,7 @@ build-errors.log
 .env
 .env.local
 .claude/
+
+# Written by `mise run setup` so the tasks survive a switch to a branch cut
+# from main, which does not carry mise.toml. Local, never committed.
+mise.local.toml
