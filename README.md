@@ -438,6 +438,47 @@ irgo version            # Print version
 irgo help [command]     # Show help
 ```
 
+## Translations
+
+Opt-in. A project without it has no bundle and no extra dependency.
+
+```sh
+irgo i18n init          # set up, using the language your source is written in
+irgo i18n add de fr     # languages to translate into
+irgo i18n edit          # a browser UI over the catalogs
+irgo i18n check         # fail if a translation is unfinished — for CI
+```
+
+Text stays in your source, readable, in the language you wrote it in.
+[toki](https://github.com/romshark/toki) extracts it into a catalog per locale:
+
+```go
+reader := i18n.Reader(tokibundle.Match, tokibundle.Default, i18n.Preferred(r)...)
+reader.String(`You have {# new messages}`, unread)
+```
+
+`{# new messages}` carries the plural rules with it. English has two forms,
+Polish has four, Japanese has one — so `if n == 1` in a framework has already
+decided the app is wrong in most of the world.
+
+**Use `i18n.Reader`, not `tokibundle.Match` directly.** The matcher never
+fails: asked for a language you have no catalog for, it returns the first one
+you *do* have and reports its lack of confidence in a second return value.
+Discard that value — as `reader, _ := tokibundle.Match(...)` does — and a
+French visitor to a German-and-English app gets German. Nothing errors, nothing
+logs, and the page renders perfectly in a language nobody chose. It cannot
+happen in development, because the languages you test with are the ones you
+have catalogs for.
+
+`i18n.Preferred` answers the other half — what *this* user wants — which every
+target asks differently: `Accept-Language` on web and Workers, `LC_ALL`/`LANG`
+on desktop, `navigator.languages` in the browser, the OS on mobile.
+
+Regenerating happens on every build, after templ and before the CSS. That
+order is not decoration: toki reads Go, and a templ component is not Go until
+templ has generated it — run it first and it cheerfully reports scanning zero
+files.
+
 ## Datastar Overview
 
 [Datastar](https://data-star.dev) is a lightweight (~11KB) hypermedia framework that powers Irgo's interactivity:
