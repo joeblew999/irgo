@@ -6,11 +6,11 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/stukennedy/irgo/pkg/render"
+	"github.com/stukennedy/irgo/pkg/router"
 	"morpheus-showcase/handlers"
 	"morpheus-showcase/static"
 	"morpheus-showcase/templates"
-	"github.com/stukennedy/irgo/pkg/render"
-	"github.com/stukennedy/irgo/pkg/router"
 )
 
 var Renderer = render.NewTemplRenderer()

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"morpheus-showcase/app"
-	"morpheus-showcase/templates"
 	"github.com/stukennedy/irgo/desktop"
 	"github.com/stukennedy/irgo/pkg/livereload"
+	"morpheus-showcase/app"
+	"morpheus-showcase/templates"
 )
 
 func main() {
