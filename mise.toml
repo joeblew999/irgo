@@ -85,5 +85,9 @@ description = "Rebuild the integration branch from every ready branch"
 run = "git-stack --pull --stack all"
 
 [tasks.pr]
+# Two steps on purpose: switch to main, then branch from where you now are.
+# `git switch --create <name>` alone branches from whatever you had checked
+# out, which is usually the last thing you were working on — and a branch cut
+# from your own work in progress carries all of it into the pull request.
 description = "Start a branch for a pull request, cut from main so it carries only its own change"
-run = "git switch --create"
+run = ["git switch main", "git switch --create"]
