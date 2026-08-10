@@ -73,6 +73,11 @@
 # it until you need it.
 #
 #   mise run offer <name>   start a branch to send upstream, cut from main
+#
+# setup also points upstream's push URL at nothing, so `git push upstream`
+# fails instead of landing commits in someone else's repository. Fetching still
+# works — it is only pushing that is stopped. Offering a change upstream is a
+# pull request from this fork, which that does not prevent and should not.
 #   mise run where          which branch am I on, and what else exists
 #   mise run save           snapshot every branch, before anything risky
 #   mise run restore        put them all back
@@ -160,5 +165,9 @@ run = "git push --follow-tags origin integration"
 # merging; letting a rebase tool rewrite it would replace that history with a
 # replayed copy. A task that ran `git-stack --pull --stack all` here tried
 # exactly that and was only stopped by a conflict.
-description = "Protect main and integration from rebases, once per clone"
-run = ["git-stack --protect main", "git-stack --protect integration"]
+description = "Protect main, integration, and stop pushes to upstream — once per clone"
+run = [
+  "git-stack --protect main",
+  "git-stack --protect integration",
+  "git remote set-url --push upstream DO-NOT-PUSH-TO-UPSTREAM",
+]

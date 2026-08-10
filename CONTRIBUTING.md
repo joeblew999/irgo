@@ -1,5 +1,27 @@
 # Working on irgo
 
+## What is actually enforced
+
+Most of this workflow is convention — the tasks make the right thing shortest
+to type, and nothing stops you typing something else. These are the parts that
+genuinely stop a mistake:
+
+| | how |
+|---|---|
+| this fork's main diverging from upstream | CI fails the push or the pull request |
+| rebasing main or integration | `git-stack` refuses, after `mise run setup` |
+| pushing commits to the upstream repository | `mise run setup` points its push URL at nothing |
+| committing generated files | `TestNoGeneratedFilesAreTracked` |
+| losing a command's registration | `TestTheCommandSetIsWhatWeThinkItIs` |
+| a tool on `@latest` | `TestEveryInstalledToolIsPinned` |
+| a build target with no dispatch | `TestEveryDeclaredBuildTargetIsDispatched` |
+
+Everything else is a habit. `mise run setup` is what turns three of those from
+habit into refusal, so run it once per clone.
+
+What is deliberately **not** prevented: opening a pull request from this fork.
+That is a decision, and it should stay one.
+
 ## Where do I work?
 
 ```sh
