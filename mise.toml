@@ -77,7 +77,7 @@
 #   mise run save           snapshot every branch, before anything risky
 #   mise run restore        put them all back
 #   mise run rebase         move your branches onto an updated main
-#   mise run release        merge everything into integration and tag it
+#   mise run release        merge every ready branch into integration
 #
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
@@ -120,6 +120,12 @@ run = "git-branch-stash pop"
 [tasks.rebase]
 description = "Move your branches onto an updated main"
 run = "git-stack --pull"
+
+[tasks.release]
+# Merges, but deliberately does not tag: a tag is a decision about a version
+# number, and a task that picks one for you picks it wrong.
+description = "Merge every ready branch into integration, ready to tag"
+run = "git-stack --pull --stack all"
 
 [tasks.setup]
 description = "Protect main from rebases, once per clone"
