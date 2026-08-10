@@ -1,0 +1,118 @@
+package templates
+
+import (
+	"strings"
+
+	"docs-templ/apidoc"
+)
+
+// APIReference renders the framework surface from its own source.
+//
+// Nothing here is written by hand, for the same reason the CLI reference is
+// not: the hand-written version documented ctx.Unauthorized, sse.Console,
+// r.StaticFS and a Context field called ResponseWriter, and every one of them
+// read as plausible until you compiled it.
+templ APIReference(pkgs []apidoc.Package) {
+	@DocsPage("API reference") {
+		<h1>API reference</h1>
+		<p class="lede">
+			Generated from the framework's source, so it cannot describe a method
+			that no longer exists. Signatures are as declared, parameter names
+			included.
+		</p>
+		<nav class="cli-toc">
+			<a href="#environment">environment</a>
+			for _, p := range pkgs {
+				<a href={ templ.SafeURL("#" + p.Name) }>{ p.Name }</a>
+			}
+		</nav>
+		@apiEnv()
+		for _, p := range pkgs {
+			<section class="cli-noun" id={ p.Name }>
+				<h2>{ p.ImportPath }</h2>
+				if p.Doc != "" {
+					<p class="cmd-summary">{ p.Doc }</p>
+				}
+				if len(p.Funcs) > 0 {
+					<article class="cmd">
+						<h3>Functions</h3>
+						@apiFuncs(p.Funcs)
+					</article>
+				}
+				for _, t := range p.Types {
+					@apiType(t)
+				}
+			</section>
+		}
+	}
+}
+
+templ apiType(t apidoc.Type) {
+	<article class="cmd" id={ t.Name }>
+		<h3><code>{ t.Name }</code></h3>
+		if t.Doc != "" {
+			<p class="cmd-summary">{ t.Doc }</p>
+		}
+		if t.Decl != "" {
+			<pre class="chroma"><code>
+				@highlight("go", t.Decl)
+			</code></pre>
+		}
+		if len(t.Ctors) > 0 {
+			@apiFuncs(t.Ctors)
+		}
+		if len(t.Methods) > 0 {
+			@apiFuncs(t.Methods)
+		}
+	</article>
+}
+
+// Stacked rather than a two-column table: these signatures run to 90
+// characters, and a table puts the description off the side of the page.
+templ apiFuncs(fns []apidoc.Func) {
+	<dl class="api-funcs">
+		for _, f := range fns {
+			<dt><code>{ f.Signature }</code></dt>
+			if d := apidoc.Summary(f.Doc); d != "" {
+				<dd>{ d }</dd>
+			}
+		}
+	</dl>
+}
+
+// apiEnv lists what irgo reads from the environment.
+//
+// Scanned out of the source rather than typed. The hand-written version
+// documented IRGO_PORT, which nothing has ever read, and omitted the
+// thirty-odd that are.
+templ apiEnv() {
+	<section class="cli-noun" id="environment">
+		<h2>Environment</h2>
+		<p class="cmd-summary">
+			Every variable the framework and CLI read, found by scanning for
+			<code>os.Getenv</code>. Names starting <code>IRGO_</code> are irgo's
+			own; the rest come from the toolchain around it.
+		</p>
+		<article class="cmd">
+			<h3>irgo</h3>
+			@envTable(true)
+			<h3>Read from the toolchain</h3>
+			@envTable(false)
+		</article>
+	</section>
+}
+
+templ envTable(own bool) {
+	<table class="cmd-flags">
+		<tbody>
+			for _, v := range apidoc.Env() {
+				if v.Own() == own {
+					<tr>
+						<td><code>{ v.Name }</code></td>
+						<td>{ strings.Join(v.Used, ", ") }</td>
+					</tr>
+				}
+			}
+		</tbody>
+	</table>
+}

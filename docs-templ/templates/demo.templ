@@ -1,0 +1,355 @@
+package templates
+
+import "fmt"
+
+// The demo page, ported from the TSX site's Demo.tsx.
+//
+// Two things changed in the port, both because this site is now an irgo app
+// rather than a page describing one:
+//
+//   - The counter was a JavaScript closure that incremented a variable and
+//     wrote invented lines into a fake "SSE Event Stream". Here it is a real
+//     Datastar round trip to a real Go handler, and the log shows the events
+//     that actually happened. A page demonstrating SSE by simulating SSE was
+//     the one thing on the old site that could not be ported honestly.
+//   - The morphing shape and the signal bars were driven by setInterval. They
+//     are decoration, and CSS keyframes do the same job without the script.
+
+templ DemoPage() {
+	@SiteLayout(
+		"Interactive Demo - irgo",
+		"Experience server-driven reactivity with irgo and Datastar",
+	) {
+		<div class="demo-bg">
+			<div class="demo-bg__gradient demo-bg__gradient--1"></div>
+			<div class="demo-bg__gradient demo-bg__gradient--2"></div>
+			<div class="demo-bg__gradient demo-bg__gradient--3"></div>
+			<div class="demo-bg__grid"></div>
+		</div>
+		@demoHero()
+		@demoCounter()
+		@demoMorphing()
+		@demoSignals()
+		@demoRealtime()
+		@demoCTA()
+	}
+}
+
+templ demoHero() {
+	<section class="demo-hero">
+		<div class="container">
+			<div class="demo-hero__badge">
+				<span class="demo-hero__badge-dot"></span>
+				Interactive Demo
+			</div>
+			<h1 class="demo-hero__title">
+				<span class="demo-hero__title-line">Server-Driven</span>
+				<span class="demo-hero__title-accent">Reactivity</span>
+			</h1>
+			<p class="demo-hero__subtitle">
+				Watch how irgo + Datastar creates seamless, real-time interactions.
+				<br/>
+				All updates flow from Go handlers via SSE streams.
+			</p>
+			<div class="demo-flow">
+				@dataFlowDiagram()
+			</div>
+		</div>
+	</section>
+}
+
+// demoCounter is the live one. The signals hold the count and the log, so the
+// state belongs to this browser rather than to whichever worker answered.
+templ demoCounter() {
+	<section class="demo-section">
+		<div class="container">
+			<div class="demo-card demo-card--interactive" data-signals="{count: 0, log: []}">
+				<div class="demo-card__glow"></div>
+				<div class="demo-card__content">
+					<div class="demo-card__header">
+						<h2>Live Counter</h2>
+						<span class="demo-card__tag">SSE Response</span>
+					</div>
+					<p class="demo-card__description">
+						Click a button to trigger a Datastar action. The server responds
+						with an SSE stream that morphs the DOM — the log below is the
+						real exchange, not a simulation of one.
+					</p>
+					<div class="counter-demo">
+						<div class="counter-demo__display">
+							@DemoCounterValue(0)
+							<div class="counter-demo__label">Current Count</div>
+						</div>
+						<div class="counter-demo__actions">
+							<button
+								class="counter-demo__btn counter-demo__btn--decrement"
+								aria-label="Decrement"
+								data-on:click="@post('/api/demo/decrement')"
+							>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+									<path d="M5 12h14"/>
+								</svg>
+							</button>
+							<button
+								class="counter-demo__btn counter-demo__btn--increment"
+								aria-label="Increment"
+								data-on:click="@post('/api/demo/increment')"
+							>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+									<path d="M12 5v14M5 12h14"/>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<div class="sse-log">
+						<div class="sse-log__header">
+							<span class="sse-log__indicator"></span>
+							SSE Event Stream
+						</div>
+						@DemoLog(nil)
+					</div>
+				</div>
+			</div>
+			<div class="demo-code-split">
+				<div class="demo-code-panel">
+					<div class="demo-code-panel__label">Go Handler</div>
+					@sample("demo-handler")
+				</div>
+				<div class="demo-code-panel">
+					<div class="demo-code-panel__label">Template</div>
+					@sample("demo-template")
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+// DemoCounterValue is patched in by the handler.
+templ DemoCounterValue(count int) {
+	<div class="counter-demo__value" id="counter-value">
+		<span class="counter-demo__number">{ fmt.Sprintf("%d", count) }</span>
+	</div>
+}
+
+// DemoLog shows the most recent events, newest first.
+templ DemoLog(entries []LogEntry) {
+	<div class="sse-log__content" id="sse-log">
+		if len(entries) == 0 {
+			<div class="sse-log__entry sse-log__entry--info">Waiting for events...</div>
+		}
+		for _, e := range entries {
+			<div class={ "sse-log__entry", "sse-log__entry--" + e.Kind }>
+				<span class="sse-log__time">{ e.Time }</span>
+				{ e.Text }
+			</div>
+		}
+	</div>
+}
+
+// LogEntry is one line of the event stream.
+type LogEntry struct {
+	Kind string // "request" or "sse"
+	Time string
+	Text string
+}
+
+templ demoMorphing() {
+	<section class="demo-section demo-section--dark">
+		<div class="container">
+			<div class="demo-showcase">
+				<div class="demo-showcase__visual">
+					<div class="morph-demo">
+						<svg class="morph-demo__svg" viewBox="0 0 100 100">
+							<defs>
+								<linearGradient id="morphGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+									<stop offset="0%" stop-color="var(--accent-primary)"/>
+									<stop offset="100%" stop-color="#8b5cf6"/>
+								</linearGradient>
+								<filter id="morphGlow">
+									<feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+									<feMerge>
+										<feMergeNode in="coloredBlur"/>
+										<feMergeNode in="SourceGraphic"/>
+									</feMerge>
+								</filter>
+							</defs>
+							<path class="morph-shape" fill="url(#morphGradient)" filter="url(#morphGlow)" opacity="0.9"/>
+						</svg>
+						<div class="morph-demo__label">Shape morphs smoothly</div>
+					</div>
+				</div>
+				<div class="demo-showcase__content">
+					<h2>DOM Morphing</h2>
+					<p>
+						Datastar uses Idiomorph to intelligently update the DOM. Elements
+						morph smoothly instead of being replaced, preserving scroll
+						position, focus, and CSS animations.
+					</p>
+					<div class="demo-feature-list">
+						<div class="demo-feature-item">
+							@icon("check", 20)
+							<span>Preserves element state</span>
+						</div>
+						<div class="demo-feature-item">
+							@icon("check", 20)
+							<span>Smooth CSS transitions</span>
+						</div>
+						<div class="demo-feature-item">
+							@icon("check", 20)
+							<span>No page flicker</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ demoSignals() {
+	<section class="demo-section">
+		<div class="container">
+			<div class="demo-showcase demo-showcase--reverse">
+				<div class="demo-showcase__visual">
+					<div class="signals-demo">
+						<div class="signals-demo__bars">
+							for i := 0; i < 8; i++ {
+								<div class={ "signal-bar", fmt.Sprintf("signal-bar--%d", i) }></div>
+							}
+						</div>
+						<div class="signals-demo__label">
+							<span class="signals-demo__indicator"></span>
+							Signals syncing...
+						</div>
+					</div>
+				</div>
+				<div class="demo-showcase__content">
+					<h2>Reactive Signals</h2>
+					<p>
+						Datastar signals provide client-side reactivity that syncs with
+						server state. Two-way binding keeps your UI and server in perfect
+						harmony.
+					</p>
+					@sample("demo-signals")
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+var realtimeCards = []struct{ Title, Icon, Desc string }{
+	{"Live Dashboard", "chart", "Stream metrics and stats to connected clients"},
+	{"Notifications", "bell", "Push alerts instantly to specific users"},
+	{"Collaborative", "users", "Real-time sync across multiple sessions"},
+	{"Chat", "message", "Build chat rooms with just Go and HTML"},
+}
+
+templ demoRealtime() {
+	<section class="demo-section demo-section--accent">
+		<div class="container">
+			<div class="demo-realtime">
+				<div class="demo-realtime__header">
+					<h2>Real-Time Updates</h2>
+					<p>
+						Server push via SSE hub. Perfect for live dashboards,
+						notifications, and collaborative features.
+					</p>
+				</div>
+				<div class="demo-realtime__grid">
+					for _, c := range realtimeCards {
+						<div class="realtime-card">
+							<div class="realtime-card__icon">
+								@icon(c.Icon, 24)
+							</div>
+							<h3 class="realtime-card__title">{ c.Title }</h3>
+							<p class="realtime-card__description">{ c.Desc }</p>
+							<div class="realtime-card__pulse"></div>
+						</div>
+					}
+				</div>
+				<div class="demo-realtime__code">
+					@sample("demo-realtime")
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ demoCTA() {
+	<section class="demo-cta">
+		<div class="container">
+			<div class="demo-cta__content">
+				<h2>Ready to Build?</h2>
+				<p>
+					Create your first irgo app in under a minute. Full cross-platform
+					support included.
+				</p>
+				<div class="demo-cta__actions">
+					<a href="/docs/getting-started" class="btn btn--primary btn--lg">
+						Get Started
+						<svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M5 12h14M12 5l7 7-7 7"/>
+						</svg>
+					</a>
+					<a href="/docs/examples" class="btn btn--secondary btn--lg">View Examples</a>
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ dataFlowDiagram() {
+	<svg class="demo-flow__svg" viewBox="0 0 800 200" fill="none">
+		<defs>
+			<linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+				<stop offset="0%" stop-color="var(--accent-primary)" stop-opacity="0"/>
+				<stop offset="50%" stop-color="var(--accent-primary)"/>
+				<stop offset="100%" stop-color="var(--accent-primary)" stop-opacity="0"/>
+			</linearGradient>
+			<filter id="flowGlow">
+				<feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+				<feMerge>
+					<feMergeNode in="coloredBlur"/>
+					<feMergeNode in="SourceGraphic"/>
+				</feMerge>
+			</filter>
+		</defs>
+		<path class="demo-flow__line" d="M180 100 L300 100" stroke="url(#flowGradient)" stroke-width="2" stroke-dasharray="8 4"/>
+		<path class="demo-flow__line demo-flow__line--delay-1" d="M380 100 L500 100" stroke="url(#flowGradient)" stroke-width="2" stroke-dasharray="8 4"/>
+		<path class="demo-flow__line demo-flow__line--delay-2" d="M580 100 L700 100" stroke="url(#flowGradient)" stroke-width="2" stroke-dasharray="8 4"/>
+		<circle class="demo-flow__packet" cx="240" cy="100" r="6" fill="var(--accent-primary)" filter="url(#flowGlow)">
+			<animate attributeName="cx" values="180;300;180" dur="2s" repeatCount="indefinite"/>
+			<animate attributeName="opacity" values="0;1;1;0" dur="2s" repeatCount="indefinite"/>
+		</circle>
+		<circle class="demo-flow__packet" cx="440" cy="100" r="6" fill="var(--accent-primary)" filter="url(#flowGlow)">
+			<animate attributeName="cx" values="380;500;380" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+			<animate attributeName="opacity" values="0;1;1;0" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+		</circle>
+		<circle class="demo-flow__packet" cx="640" cy="100" r="6" fill="var(--accent-primary)" filter="url(#flowGlow)">
+			<animate attributeName="cx" values="580;700;580" dur="2s" repeatCount="indefinite" begin="1s"/>
+			<animate attributeName="opacity" values="0;1;1;0" dur="2s" repeatCount="indefinite" begin="1s"/>
+		</circle>
+		<g class="demo-flow__node">
+			<rect x="60" y="60" width="120" height="80" rx="12" fill="var(--bg-tertiary)" stroke="var(--border-default)" stroke-width="1"/>
+			<text x="120" y="95" text-anchor="middle" fill="var(--text-primary)" font-size="14" font-weight="600">User Action</text>
+			<text x="120" y="115" text-anchor="middle" fill="var(--text-tertiary)" font-size="11">data-on:click</text>
+		</g>
+		<g class="demo-flow__node demo-flow__node--delay-1">
+			<rect x="280" y="60" width="120" height="80" rx="12" fill="var(--bg-tertiary)" stroke="var(--accent-primary)" stroke-width="2"/>
+			<text x="340" y="95" text-anchor="middle" fill="var(--accent-primary)" font-size="14" font-weight="600">Go Handler</text>
+			<text x="340" y="115" text-anchor="middle" fill="var(--text-tertiary)" font-size="11">ctx.SSE()</text>
+		</g>
+		<g class="demo-flow__node demo-flow__node--delay-2">
+			<rect x="480" y="60" width="120" height="80" rx="12" fill="var(--bg-tertiary)" stroke="var(--border-default)" stroke-width="1"/>
+			<text x="540" y="95" text-anchor="middle" fill="var(--text-primary)" font-size="14" font-weight="600">SSE Stream</text>
+			<text x="540" y="115" text-anchor="middle" fill="var(--text-tertiary)" font-size="11">text/event-stream</text>
+		</g>
+		<g class="demo-flow__node demo-flow__node--delay-3">
+			<rect x="680" y="60" width="120" height="80" rx="12" fill="var(--bg-tertiary)" stroke="var(--success)" stroke-width="2"/>
+			<text x="740" y="95" text-anchor="middle" fill="var(--success)" font-size="14" font-weight="600">DOM Morph</text>
+			<text x="740" y="115" text-anchor="middle" fill="var(--text-tertiary)" font-size="11">Idiomorph</text>
+		</g>
+		<text x="240" y="165" text-anchor="middle" fill="var(--text-muted)" font-size="10">POST request</text>
+		<text x="440" y="165" text-anchor="middle" fill="var(--text-muted)" font-size="10">HTML response</text>
+		<text x="640" y="165" text-anchor="middle" fill="var(--text-muted)" font-size="10">Patch elements</text>
+	</svg>
+}

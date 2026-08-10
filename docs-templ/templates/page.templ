@@ -11,16 +11,124 @@ templ Prose(p content.Page) {
 	@DocsPage(p.Title) {
 		<h1>{ p.Title }</h1>
 		for _, b := range p.Blocks {
-			switch b.Kind {
-				case content.H2:
-					<h2>{ b.Text }</h2>
-				case content.H3:
-					<h3>{ b.Text }</h3>
-				case content.Code:
-					<pre><code>{ b.Text }</code></pre>
-				default:
-					<p>{ b.Text }</p>
-			}
+			@proseBlock(b)
 		}
 	}
+}
+
+templ proseBlock(b content.Block) {
+	switch b.Kind {
+		case content.KindH2:
+			<h2>{ b.Text }</h2>
+		case content.KindH3:
+			<h3>{ b.Text }</h3>
+		case content.KindCode:
+			@proseCode(b)
+		case content.KindList:
+			@proseList(b)
+		case content.KindTable:
+			@proseTable(b)
+		case content.KindNote:
+			@proseNote(b)
+		default:
+			<p>
+				@proseInline(b.Text)
+			</p>
+	}
+}
+
+// proseInline turns the small inline markup into elements.
+//
+// Every span becomes an element with a text child, so nothing here can emit
+// markup the prose did not ask for. Plain strings are handed to href on
+// purpose: templ sanitises URL attributes, and a javascript: link written into
+// the content by mistake should not survive that.
+templ proseInline(text string) {
+	for _, s := range content.Inline(text) {
+		switch s.Kind {
+			case content.SpanCode:
+				<code>{ s.Text }</code>
+			case content.SpanStrong:
+				<strong>{ s.Text }</strong>
+			case content.SpanLink:
+				<a href={ s.URL }>{ s.Text }</a>
+			default:
+				{ s.Text }
+		}
+	}
+}
+
+// proseCode shows the filename above the sample when there is one. Without it
+// a reader has the code but not where it goes.
+templ proseCode(b content.Block) {
+	if b.File != "" {
+		<figure class="code-sample">
+			<figcaption>{ b.File }</figcaption>
+			<pre class="chroma"><code>
+				@highlight(b.Lang, b.Text)
+			</code></pre>
+		</figure>
+	} else {
+		<pre class="chroma"><code>
+			@highlight(b.Lang, b.Text)
+		</code></pre>
+	}
+}
+
+templ proseList(b content.Block) {
+	if b.Ordered {
+		<ol>
+			for _, item := range b.Items {
+				<li>
+					@proseInline(item)
+				</li>
+			}
+		</ol>
+	} else {
+		<ul>
+			for _, item := range b.Items {
+				<li>
+					@proseInline(item)
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ proseTable(b content.Block) {
+	<div class="table-wrap">
+		<table class="comparison-table">
+			<thead>
+				<tr>
+					for _, h := range b.Head {
+						<th>{ h }</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for _, row := range b.Rows {
+					<tr>
+						for _, cell := range row {
+							<td>
+								@proseInline(cell)
+							</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ proseNote(b content.Block) {
+	<aside class={ "note", "note-" + b.Tone }>
+		if b.Title != "" {
+			<p class="note-title">{ b.Title }</p>
+		}
+		for _, para := range b.Paras {
+			<p>
+				@proseInline(para)
+			</p>
+		}
+	</aside>
 }

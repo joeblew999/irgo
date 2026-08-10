@@ -1,0 +1,165 @@
+package templates
+
+// The marketing chrome, ported from the TSX site's Layout.
+//
+// Separate from the documentation shell on purpose: the two have different
+// stylesheets and different jobs, and the old site's docs pages inherited a
+// design system built for its landing page. Keeping them apart is why the
+// docs pages could be restyled without touching this.
+
+// SiteLayout wraps the landing and demo pages.
+templ SiteLayout(title, description string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+			<meta name="description" content={ description }/>
+			<title>{ title }</title>
+			<link rel="icon" type="image/png" href="/static/img/logo_text.png"/>
+			<link rel="stylesheet" href="/static/css/site.css"/>
+			<link rel="stylesheet" href="/static/css/chroma.css"/>
+			<!-- The irgo bridge (served by the router at /_irgo/bridge.js) must load
+			     before Datastar so it can patch fetch()/WebSocket for native
+			     (iOS/Android) before any requests are made. -->
+			<script src="/_irgo/bridge.js"></script>
+			<script type="module" src="/_irgo/datastar.js"></script>
+		</head>
+		<body data-signals="{menu: false}" data-class:mobile-menu-open="$menu">
+			@siteHeader()
+			<main>
+				{ children... }
+			</main>
+			@siteFooter()
+			if DevMode {
+				@livereloadScript()
+			}
+		</body>
+	</html>
+}
+
+// navLinks is declared once so the desktop and mobile navs cannot drift.
+var navLinks = []struct {
+	Href, Label string
+	Accent      bool
+	External    bool
+}{
+	{Href: "/demo", Label: "Demo", Accent: true},
+	{Href: "/docs", Label: "Docs"},
+	{Href: "/docs/getting-started", Label: "Getting Started"},
+	{Href: "/docs/examples", Label: "Examples"},
+	{Href: "https://github.com/stukennedy/irgo", Label: "GitHub", External: true},
+}
+
+templ siteHeader() {
+	<header class="header">
+		<div class="container header__inner">
+			<a href="/" class="header__logo">
+				<img src="/static/img/logo_text.png" alt="irgo" style="height: 28px;"/>
+			</a>
+			<nav class="nav">
+				for _, l := range navLinks {
+					if l.External {
+						<a href={ templ.SafeURL(l.Href) } class="nav__link" target="_blank" rel="noopener">{ l.Label }</a>
+					} else if l.Accent {
+						<a href={ templ.SafeURL(l.Href) } class="nav__link nav__link--accent">{ l.Label }</a>
+					} else {
+						<a href={ templ.SafeURL(l.Href) } class="nav__link">{ l.Label }</a>
+					}
+				}
+			</nav>
+			<!-- The old site toggled a body class from an inline onclick. This is
+			     the same thing as a signal, which is what the rest of the site
+			     already loads Datastar for. -->
+			<button
+				class="mobile-menu-toggle"
+				aria-label="Toggle menu"
+				data-attr:aria-expanded="$menu"
+				data-on:click="$menu = !$menu"
+			>
+				<span class="mobile-menu-toggle__bar"></span>
+				<span class="mobile-menu-toggle__bar"></span>
+				<span class="mobile-menu-toggle__bar"></span>
+			</button>
+		</div>
+		<nav class="mobile-nav">
+			for _, l := range navLinks {
+				if l.External {
+					<a href={ templ.SafeURL(l.Href) } class="mobile-nav__link" target="_blank" rel="noopener">{ l.Label }</a>
+				} else if l.Accent {
+					<a href={ templ.SafeURL(l.Href) } class="mobile-nav__link mobile-nav__link--accent">{ l.Label }</a>
+				} else {
+					<a href={ templ.SafeURL(l.Href) } class="mobile-nav__link">{ l.Label }</a>
+				}
+			}
+		</nav>
+	</header>
+}
+
+templ siteFooter() {
+	<footer class="footer">
+		<div class="container footer__inner">
+			<div class="footer__brand">
+				<img src="/static/img/logo_text.png" alt="irgo"/>
+				<span class="footer__copyright">MIT License</span>
+			</div>
+			<div class="footer__links">
+				<a href="https://twitter.com/stukennedydev" class="footer__link" target="_blank" rel="noopener">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+					</svg>
+					{ "@stukennedydev" }
+				</a>
+				<a href="mailto:stu@stukennedy.com" class="footer__link">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<rect x="2" y="4" width="20" height="16" rx="2"/>
+						<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+					</svg>
+					stu@stukennedy.com
+				</a>
+				<a href="https://stukennedy.com" class="footer__link" target="_blank" rel="noopener">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="12" cy="12" r="10"/>
+						<path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+					</svg>
+					stukennedy.com
+				</a>
+				<a href="https://github.com/stukennedy/irgo" class="footer__link" target="_blank" rel="noopener">
+					@githubIcon(18)
+					GitHub
+				</a>
+			</div>
+		</div>
+	</footer>
+}
+
+templ githubIcon(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="currentColor">
+		<path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+	</svg>
+}
+
+// siteCode renders a sample in the landing page's window-chrome frame.
+templ siteCode(lang, file, src string) {
+	<div class="code-block">
+		<div class="code-block__header">
+			<div class="code-block__dots">
+				<span class="code-block__dot code-block__dot--red"></span>
+				<span class="code-block__dot code-block__dot--yellow"></span>
+				<span class="code-block__dot code-block__dot--green"></span>
+			</div>
+			if file != "" {
+				<span class="code-block__title">{ file }</span>
+			}
+			<button
+				class="code-block__copy"
+				data-on:click="navigator.clipboard.writeText(evt.target.closest('.code-block').querySelector('code').textContent.trim())"
+			>Copy</button>
+		</div>
+		<div class="code-block__content">
+			<pre class="chroma"><code>
+				@highlight(lang, src)
+			</code></pre>
+		</div>
+	</div>
+}
