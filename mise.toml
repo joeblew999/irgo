@@ -77,7 +77,11 @@
 #   mise run save           snapshot every branch, before anything risky
 #   mise run restore        put them all back
 #   mise run rebase         move your branches onto an updated main
-#   mise run release        merge every ready branch into integration
+#
+# Releasing is not here on purpose. It is: merge the branches you judge ready
+# into integration, tag it, and point your projects at the tag. Which branches
+# are ready is a judgement, and the version number is a decision — a task that
+# made either for you would make it wrong. CONTRIBUTING.md has the sequence.
 #
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
@@ -121,12 +125,10 @@ run = "git-branch-stash pop"
 description = "Move your branches onto an updated main"
 run = "git-stack --pull"
 
-[tasks.release]
-# Merges, but deliberately does not tag: a tag is a decision about a version
-# number, and a task that picks one for you picks it wrong.
-description = "Merge every ready branch into integration, ready to tag"
-run = "git-stack --pull --stack all"
-
 [tasks.setup]
-description = "Protect main from rebases, once per clone"
-run = "git-stack --protect main"
+# Both, not just main. integration is this fork's trunk and is built by
+# merging; letting a rebase tool rewrite it would replace that history with a
+# replayed copy. A task that ran `git-stack --pull --stack all` here tried
+# exactly that and was only stopped by a conflict.
+description = "Protect main and integration from rebases, once per clone"
+run = ["git-stack --protect main", "git-stack --protect integration"]
