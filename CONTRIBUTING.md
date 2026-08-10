@@ -47,6 +47,25 @@ Work that a fork needs but upstream has not taken lives on an `integration`
 branch, and what projects consume is a **tag**. A tag needs no branch, so main
 stays clean.
 
+## Versioning this fork
+
+Plain semver, ahead of upstream, no prerelease suffix:
+
+```
+v0.6.0        this fork
+v0.3.1        upstream's latest
+```
+
+Not `v0.5.0-androidapi21.N`, which is what these tags used to be. Anything after
+a hyphen is a **prerelease**, and a prerelease sorts *below* the version it
+names — so `v0.5.0-androidapi21.5` is older than `v0.5.0`. A fork that is ahead
+of upstream while advertising itself as older is backwards: `go get -u` will
+never choose it, and the day upstream tags `v0.5.0` every such tag silently
+loses.
+
+The module path already says whose fork it is. The tag only has to say which
+version, and be bigger than upstream's.
+
 ## Moving a stack when its base changes
 
 ```sh
