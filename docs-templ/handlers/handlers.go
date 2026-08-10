@@ -19,6 +19,8 @@ import (
 
 // Mount registers all handlers on the router
 func Mount(r *router.Router) {
+	mountDemo(r)
+
 	// Initialize connection
 	r.DSGet("/api/init", func(ctx *router.Context) error {
 		sse := ctx.SSE()
