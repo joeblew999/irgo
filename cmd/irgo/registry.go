@@ -46,7 +46,7 @@ var commands = map[string]command{}
 // A short list rather than a derived one: it is the shape of the CLI's
 // grammar, not a detail of any command, and it changes when the grammar does
 // — which is close to never.
-var nouns = []string{"project", "app", "tools", "ui", "server"}
+var nouns = []string{"project", "app", "tools", "ui", "secrets", "server"}
 
 // register declares a command. Called from init in the file that implements
 // it, so the declaration and the code cannot drift apart or be moved without

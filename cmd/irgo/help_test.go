@@ -160,6 +160,7 @@ func TestEveryFlagIsDocumented(t *testing.T) {
 		"--exists": true, // pkg-config
 		"--yes":    true, // npx
 		"--help":   true, // handled before dispatch
+		"--json":   true, // gh repo view
 	}
 
 	help := captureStdout(t, printUsage)
@@ -265,7 +266,7 @@ func TestDeployBuildsThroughTheBuildPath(t *testing.T) {
 // — cloned from the default branch with no ref. A build that changes without a
 // commit is a build nobody can reproduce.
 func TestEveryInstalledToolIsPinned(t *testing.T) {
-	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
+	for _, tool := range goTools() {
 		pkg := goToolPkg(tool)
 		if pkg == "" {
 			t.Errorf("%s has no install source", tool)
@@ -287,7 +288,7 @@ func TestEveryInstalledToolIsPinned(t *testing.T) {
 // and reported air as drifted because its usage text contains a Go version.
 func TestInstallRecordsThePinnedVersion(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	for _, tool := range []string{"templ", "air", "gomobile", "gobind"} {
+	for _, tool := range goTools() {
 		markToolInstalled(tool)
 		got := installedVersion(tool)
 		if got == "" {
@@ -313,7 +314,10 @@ func TestTestRegeneratesAssets(t *testing.T) {
 	if i < 0 {
 		t.Fatal("runTest not found")
 	}
-	if !strings.Contains(body[i:], "ensureAssets()") {
+	// Either form regenerates; the Generate variant also runs the project's
+	// own generators, which is what a test run wants.
+	if !strings.Contains(body[i:], "ensureAssets()") &&
+		!strings.Contains(body[i:], "ensureAssetsAndGenerate()") {
 		t.Error("project test does not regenerate assets, but its help says it does — " +
 			"a fresh clone cannot compile the templates package")
 	}
@@ -410,13 +414,31 @@ func TestNounVerbsIsStable(t *testing.T) {
 // a command should be.
 func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 	want := []string{
-		"project new", "project clean", "project upgrade", "project pin",
-		"project ci", "project assets", "project skills", "project test", "project config",
-		"app build", "app run", "app package", "app deploy",
-		"app install", "app remove", "app reviews",
-		"tools install", "tools remove", "tools doctor",
+		"project new",
+		"project clean",
+		"project upgrade",
+		"project pin",
+		"project ci",
+		"project assets",
+		"project skills",
+		"project test",
+		"project config",
+		"app build",
+		"app run",
+		"app package",
+		"app deploy",
+		"app install",
+		"app remove",
+		"app reviews",
+		"tools install",
+		"tools remove",
+		"tools doctor",
 		"ui themes",
-		"server dev", "server serve",
+		"secrets list",
+		"secrets status",
+		"secrets push",
+		"server dev",
+		"server serve",
 	}
 	have := map[string]bool{}
 	for k := range allCommands() {
