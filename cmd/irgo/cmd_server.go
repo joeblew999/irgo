@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // runDev starts the development server with hot reload.
@@ -30,7 +31,7 @@ func runDev() error {
 		}
 	}
 
-	fmt.Println("Starting development server (http://localhost:8080)...")
+	fmt.Printf("Starting development server (http://localhost%s)...\n", devPort())
 	return runCommand("air")
 }
 
@@ -82,7 +83,10 @@ func init() {
 	register(command{
 		noun: "server", verb: "dev", order: 0,
 		summary: "Web server with hot reload",
-		usage:   [][2]string{{"", "Serve on :8080 and rebuild on save"}},
+		usage: [][2]string{
+			{"", "Serve on :8080 and rebuild on save"},
+			{"PORT=8081 …", "Serve somewhere else"},
+		},
 		notes: `Rebuilds templ, Tailwind and the Go binary as you save. From an Android
 emulator the same server is http://10.0.2.2:8080, which is what
 irgo app run android --dev connects to.
@@ -95,8 +99,27 @@ func init() {
 	register(command{
 		noun: "server", verb: "serve", order: 10,
 		summary: "Web server without file watching",
-		usage:   [][2]string{{"", "Serve on :8080"}},
+		usage: [][2]string{
+			{"", "Serve on :8080"},
+			{"PORT=8081 …", "Serve somewhere else"},
+		},
 		notes: `Regenerates assets once at startup and then leaves them alone — for checking a
 build, or running the web target.`,
 	})
+}
+
+// devPort is where a project's dev server will listen, as ":8080".
+//
+// Read here only to report it. The project's own main.go owns the decision,
+// and duplicating the default would mean two places to change it — so this
+// mirrors the one rule that matters (PORT wins) and nothing else.
+func devPort() string {
+	p := os.Getenv("PORT")
+	if p == "" {
+		return ":8080"
+	}
+	if !strings.HasPrefix(p, ":") {
+		return ":" + p
+	}
+	return p
 }
