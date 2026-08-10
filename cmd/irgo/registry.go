@@ -36,6 +36,17 @@ type command struct {
 	usage   [][2]string // {form, what it does}
 	flags   [][2]string // {spec, what it does}
 	notes   string      // the reasoning, rendered last
+
+	// run dispatches the command. Optional: the commands that predate this
+	// field are still dispatched by the switch in cmd_route.go, and both work.
+	//
+	// It is the half of self-registration that was missing. registerTarget
+	// already carried a run func, so `app build web` could be added without
+	// touching a file it did not own — but a whole command still needed a case
+	// in that switch, which is the shared file this design exists to stop
+	// people meeting in. Declaring one now touches only the file implementing
+	// it.
+	run func(args []string) error
 }
 
 // commands is keyed "noun verb", filled by register at init.
@@ -46,7 +57,17 @@ var commands = map[string]command{}
 // A short list rather than a derived one: it is the shape of the CLI's
 // grammar, not a detail of any command, and it changes when the grammar does
 // — which is close to never.
-var nouns = []string{"project", "app", "tools", "ui", "server"}
+var nouns = []string{"project", "app", "tools", "ui", "server", "i18n"}
+
+// runRegistered dispatches a command that declared its own run func, reporting
+// whether there was one. The counterpart to runTarget, one level up.
+func runRegistered(noun, verb string, args []string) (error, bool) {
+	c, ok := lookup(noun + " " + verb)
+	if !ok || c.run == nil {
+		return nil, false
+	}
+	return c.run(args), true
+}
 
 // register declares a command. Called from init in the file that implements
 // it, so the declaration and the code cannot drift apart or be moved without
