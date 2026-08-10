@@ -1,8 +1,10 @@
 # Irgo Framework - LLM Reference
 
-## Before changing anything, read CONTRIBUTING.md
+## Before changing anything, run `mise tasks`
 
-It is short, and it is the part that is easy to get wrong. The summary:
+`mise.toml` is the source of truth for how work happens here — every command
+and why, next to the command. CONTRIBUTING.md has what is not a command. The
+summary:
 
 ```sh
 mise run start feat/the-thing   # one branch per concern, off integration

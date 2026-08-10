@@ -52,6 +52,13 @@
 # library but exposes no restore command, so it is worth having on its own.
 "ubi:gitext-rs/git-branch-stash" = "0.12.0"
 
+# This file is the source of truth for how work happens here.
+#
+# Every command, and why it exists, next to the command itself — so it cannot
+# drift from what actually runs. `mise tasks` lists them; the reasoning is in
+# these comments. CONTRIBUTING.md carries only what is not a command: the
+# branches, what is enforced, versioning, and rate.
+#
 # Where do I work?
 #
 #   mise run start feat/the-thing
