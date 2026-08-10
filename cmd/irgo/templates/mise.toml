@@ -7,7 +7,13 @@
 #
 #   mise run dev            the server, with hot reload   <- start here
 #   mise run check          build and test
-#   mise run use <version>  take a new irgo
+#   mise run use <version>  take a released irgo
+#
+# Working on irgo itself at the same time? Link the two once and forget about
+# versions until you are done:
+#
+#   mise run link ../irgo   build against your irgo checkout
+#   mise run unlink         go back to the released version
 #
 # Then the targets, when you want one:
 #
@@ -30,6 +36,20 @@ run = "go tool irgo project test"
 # resolves before writing, and restores the file if it does not.
 description = "Take a version of irgo, e.g. v0.6.5 or owner/repo@v0.6.5"
 run = "go tool irgo project pin"
+
+[tasks.link]
+# Writes go.work, which is gitignored — so this cannot reach a commit, and CI,
+# which has no go.work, keeps building the released version. Edit either
+# repository and the change is live; there is nothing to tag and nothing to
+# take.
+description = "Build against a local irgo checkout, e.g. ../irgo"
+run = "go tool irgo project pin local"
+
+[tasks.unlink]
+# Drops the workspace and goes back to whatever go.mod pins — including a fork,
+# which is left alone.
+description = "Stop using the local checkout, use the pinned release again"
+run = "go tool irgo project pin release"
 
 [tasks.web]
 description = "Build the browser target, then serve it"

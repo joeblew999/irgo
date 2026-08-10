@@ -24,6 +24,23 @@ mise install       # Go, and the branch tools
 mise run setup     # protects main so you cannot rewrite it by accident
 ```
 
+## Working on irgo and an app at the same time
+
+Link them once, and forget about versions until you are done:
+
+```sh
+cd your-app
+mise run link ../irgo      # build against your irgo checkout
+… edit either repository, changes are live …
+mise run unlink            # back to the pinned release
+```
+
+`link` writes `go.work`, which is gitignored — so it cannot reach a commit, and
+CI, which has no `go.work`, keeps building the released version. Nothing to
+tag, nothing to remember, nothing to undo by hand.
+
+Only tag when you actually want to publish. That is the section below.
+
 ## Releasing
 
 ```sh
