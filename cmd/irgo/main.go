@@ -42,7 +42,23 @@ const fallbackVersion = "0.4.0"
 // back to the VCS revision for a local checkout — which is exactly the case
 // `irgo project pin --local` creates, and worth naming so a surprising result is
 // traceable to a working tree rather than a release.
+// cliVersion is the version of the code that is actually running.
+//
+// Not simply bi.Main.Version: that reports the version go.mod *requires*,
+// which a replace directive then overrides. A project requiring v0.4.0 and
+// replacing it with a fork at v0.5.0 got both numbers printed on two lines,
+// which reads as a contradiction rather than as a requirement and its
+// substitute. What matters is the code that runs, so that is what is reported,
+// and where it came from is said plainly beside it.
 func cliVersion() string {
+	if r := projectReplacement(); r != "" {
+		if mod, ver, ok := strings.Cut(r, " "); ok {
+			return strings.TrimSpace(ver) + " (" + strings.TrimSpace(mod) + ")"
+		}
+		// A local path: no version to report, and the path is the useful part.
+		return "local checkout (" + r + ")"
+	}
+
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return fallbackVersion
@@ -108,9 +124,6 @@ func main() {
 	switch noun {
 	case "version", "-v", "--version":
 		fmt.Printf("irgo %s\n", version)
-		if r := projectReplacement(); r != "" {
-			fmt.Printf("  running: %s\n", r)
-		}
 	case "help", "-h", "--help":
 		// `irgo help`, `irgo help app`, `irgo help app run` — the same grammar
 		// as the commands themselves.
