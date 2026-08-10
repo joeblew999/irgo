@@ -14,6 +14,7 @@ templ DocsPage(title string) {
 				<a class="brand" href="/">irgo</a>
 				<nav>
 					<a href="/docs/cli">CLI reference</a>
+						<a href="/docs/api">API reference</a>
 					for _, p := range content.Pages {
 						<a href={ templ.SafeURL("/docs/" + p.Slug) }>{ p.Title }</a>
 					}
