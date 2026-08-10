@@ -149,6 +149,20 @@ var configRegistry = []configValue{
 		field: func(c *packageConfig) *string { return &c.IOSExportMethod }},
 
 	// ---- Android ----------------------------------------------------------
+	// The API levels are the project's decision, not the framework's: what an
+	// app compiles against and how far back it runs is a product choice, and
+	// Play requires targetSdk 36 from August 2026. Unset means the generated
+	// shell's defaults apply, so a project that never thinks about it builds.
+	{tomlSection: "android", tomlKey: "compile_sdk", env: "IRGO_ANDROID_COMPILE_SDK", targets: forAndroid,
+		display: "Compile SDK", how: "API level to compile against. Unset: the shell's default.",
+		field: func(c *packageConfig) *string { return &c.AndroidCompileSDK }},
+	{tomlSection: "android", tomlKey: "target_sdk", env: "IRGO_ANDROID_TARGET_SDK", targets: forAndroid,
+		display: "Target SDK", how: "API level to target. Play requires 36 from August 2026.",
+		field: func(c *packageConfig) *string { return &c.AndroidTargetSDK }},
+	{tomlSection: "android", tomlKey: "min_sdk", env: "IRGO_ANDROID_MIN_SDK", targets: forAndroid,
+		display: "Minimum SDK", how: "Oldest Android this app runs on. Unset: the shell's default.",
+		field: func(c *packageConfig) *string { return &c.AndroidMinSDK }},
+
 	{tomlSection: "android", tomlKey: "keystore", env: "IRGO_ANDROID_KEYSTORE", flag: "--keystore",
 		display: "Signing keystore", url: urlPlayConsole,
 		how:   "Debug keystore works by default (validation only). For release: keytool -genkey (see `irgo app package setup`); keep it safe — it can't change after first upload.",

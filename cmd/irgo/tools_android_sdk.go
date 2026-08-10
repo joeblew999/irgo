@@ -30,11 +30,11 @@ import (
 
 const (
 	pinCmdlineTools = "11076708"
-	pinNDK          = "26.3.11579264"
-	pinBuildTools   = "35.0.0"
-	pinPlatform34   = "platforms;android-34" // example app compileSdk
+	pinNDK          = "29.0.14206865"
+	pinBuildTools   = "36.1.0"
 	pinPlatform35   = "platforms;android-35" // gomobile platform lookup fallback
-	pinSysImg       = "system-images;android-35;google_apis"
+	pinPlatform36   = "platforms;android-36" // example app compileSdk
+	pinSysImg       = "system-images;android-36;google_apis"
 	toolchainMarker = ".irgo-toolchain"
 )
 
@@ -638,8 +638,25 @@ func ensureEmulatorRunning() error {
 	if runtime.GOOS == "windows" {
 		emu += ".exe"
 	}
+	// No emulator? Install one. Telling someone to run a different command
+	// first is the same trap as asking them to install a JDK before an Android
+	// build: irgo downloads the JDK, the Android SDK, a browser for the tests,
+	// and every tool a build needs. A developer running `app run android`
+	// wants to see it running — being told to provision it themselves and try
+	// again is a step irgo exists to remove.
+	//
+	// It is a large download, so it happens on demand rather than with the
+	// rest of the SDK: someone building an AAR for a physical device never
+	// needs it, and should not wait for it.
 	if !isDir(filepath.Dir(emu)) {
-		return fmt.Errorf("emulator not found at %s (run 'irgo tools install android --emulator' first)", emu)
+		fmt.Println("No emulator installed, and no device connected — installing one.")
+		fmt.Println("This is a few hundred megabytes and happens once.")
+		if err := installAndroidTools(true, avdName); err != nil {
+			return fmt.Errorf("installing the emulator: %w", err)
+		}
+		if !isDir(filepath.Dir(emu)) {
+			return fmt.Errorf("emulator still not found at %s after installing it", emu)
+		}
 	}
 	// AVD must exist (created by installEmulator). Check the candidate homes —
 	// avdmanager/emulator can disagree on the AVD home depending on env vars
@@ -834,7 +851,7 @@ func ensureAndroidToolchain(withEmulator bool, avdName string) error {
 		fmt.Println("Accepting Android SDK licenses...")
 		acceptLicenses(sdkm, sdk)
 		fmt.Println("Installing Android SDK components (platform-tools, platforms, build-tools, NDK)...")
-		if err := runSdkmanager(sdkm, sdk, "platform-tools", pinPlatform34, pinPlatform35, "build-tools;"+pinBuildTools, "ndk;"+pinNDK); err != nil {
+		if err := runSdkmanager(sdkm, sdk, "platform-tools", pinPlatform36, pinPlatform35, "build-tools;"+pinBuildTools, "ndk;"+pinNDK); err != nil {
 			return fmt.Errorf("sdkmanager install failed: %w", err)
 		}
 	}

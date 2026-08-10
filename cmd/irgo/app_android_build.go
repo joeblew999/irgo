@@ -184,7 +184,12 @@ func runAndroid(devMode bool) error {
 	// Run ./gradlew relative to cmd.Dir: exec.Command with a path relative to
 	// the ORIGINAL cwd would not resolve once cmd.Dir switches the working
 	// directory to androidProjectPath.
-	cmd := exec.Command("./gradlew", "assembleDebug")
+	// The API levels the project chose, if it chose any. Absent, the shell's
+	// own defaults apply — so a project that never thinks about this still
+	// builds, and one that must ship to Play can say targetSdk = 36 without
+	// editing generated Gradle.
+	args := append([]string{"assembleDebug"}, androidSdkLevelProps()...)
+	cmd := exec.Command("./gradlew", args...)
 	cmd.Dir = androidProjectPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -256,3 +261,31 @@ func runAndroid(devMode bool) error {
 }
 
 // Helper functions
+
+// settingValue reads one setting through the same registry `irgo project
+// config` uses, so there is one answer to what a setting is.
+func settingValue(key string) string {
+	for _, cv := range configRegistry {
+		if cv.tomlSection+"."+cv.tomlKey == key {
+			v, _ := resolveConfigValue(cv)
+			return v
+		}
+	}
+	return ""
+}
+
+// androidSdkLevelProps turns the project's API-level settings into gradle
+// properties. Empty settings are omitted so the shell's defaults stand.
+func androidSdkLevelProps() []string {
+	var out []string
+	for _, m := range []struct{ key, prop string }{
+		{"android.compile_sdk", "irgo.compileSdk"},
+		{"android.target_sdk", "irgo.targetSdk"},
+		{"android.min_sdk", "irgo.minSdk"},
+	} {
+		if v := settingValue(m.key); v != "" {
+			out = append(out, "-P"+m.prop+"="+v)
+		}
+	}
+	return out
+}

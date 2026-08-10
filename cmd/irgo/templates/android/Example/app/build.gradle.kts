@@ -5,12 +5,15 @@ plugins {
 
 android {
     namespace = "com.irgo.example"
-    compileSdk = 34
+    // The API levels are the project's, not the framework's: an app choosing
+    // what it compiles against and how far back it runs is a product decision.
+    // irgo passes them from irgo.package.toml when set; these are the defaults.
+    compileSdk = providers.gradleProperty("irgo.compileSdk").map { it.toInt() }.orNull ?: 35
 
     defaultConfig {
         applicationId = "com.irgo.example"
-        minSdk = 24
-        targetSdk = 34
+        minSdk = providers.gradleProperty("irgo.minSdk").map { it.toInt() }.orNull ?: 24
+        targetSdk = providers.gradleProperty("irgo.targetSdk").map { it.toInt() }.orNull ?: 35
         // Overridable by `irgo app package android --version 1.2.3` (or the
         // irgo.package.toml [common] version) via -Pirgo.* gradle props.
         versionCode = providers.gradleProperty("irgo.versionCode").map { it.toInt() }.orNull ?: 1
