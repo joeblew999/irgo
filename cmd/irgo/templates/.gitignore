@@ -69,3 +69,24 @@ build-errors.log
 # Environment
 .env
 .env.local
+
+# Refreshed from the Go module by `irgo project assets` on every build, when a
+# project depends on the Morpheus component kit. Committing them would be a
+# second copy of someone else's release that goes stale the moment the
+# dependency moves — and the version cannot drift while they come from the
+# module the wrappers were compiled against.
+#
+# Your own stylesheets, including your own themes, live in static/css beside
+# this directory and are never touched.
+static/css/morpheus/
+static/js/morpheus.js
+
+# .claude/settings.local.json is per-machine assistant settings — personal.
+#
+# .claude/skills is deliberately NOT ignored, unlike the other generated
+# output above. Every build refreshes it out of the Go modules you depend on,
+# but an assistant reads it the moment the repository is cloned, which is
+# before any build has run. Ignoring it meant the reference that stops
+# `data-attr-class` being written instead of `data-attr:class` was absent
+# exactly when it was needed.
+.claude/settings.local.json
