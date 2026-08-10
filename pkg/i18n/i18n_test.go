@@ -139,3 +139,47 @@ func TestPreferredUsesBothSources(t *testing.T) {
 		}
 	})
 }
+
+// TestReaderRefusesAGuess pins the failure that has no symptom.
+//
+// x/text's matcher never fails. Asked for a language with no catalog it
+// returns the first supported one and reports language.No beside it — so
+// `reader, _ := Match(...)`, which is what toki's own quick start writes,
+// serves a French visitor German. Nothing errors, nothing logs, and the page
+// renders perfectly in the wrong language.
+func TestReaderRefusesAGuess(t *testing.T) {
+	// Stands in for a generated bundle with de and en catalogs, de first —
+	// which is what makes the matcher hand back German for anything unknown.
+	match := func(prefs ...language.Tag) (string, language.Confidence) {
+		for _, p := range prefs {
+			switch p.String() {
+			case "de":
+				return "de-reader", language.Exact
+			case "en":
+				return "en-reader", language.Exact
+			case "de-AT":
+				return "de-reader", language.High
+			}
+		}
+		return "de-reader", language.No // the first supported catalog
+	}
+	def := func() string { return "en-reader" }
+
+	for _, tc := range []struct {
+		name string
+		ask  []language.Tag
+		want string
+	}{
+		{"exact match is used", []language.Tag{language.German}, "de-reader"},
+		{"a close match is used", []language.Tag{language.MustParse("de-AT")}, "de-reader"},
+		{"no match falls back to the default, not to the first catalog",
+			[]language.Tag{language.French}, "en-reader"},
+		{"no preferences at all", nil, "en-reader"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Reader(match, def, tc.ask...); got != tc.want {
+				t.Errorf("Reader(%v) = %s, want %s", tc.ask, got, tc.want)
+			}
+		})
+	}
+}
