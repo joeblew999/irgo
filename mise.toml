@@ -82,6 +82,11 @@
 #
 #   mise run offer <name>   start a branch to send upstream, cut from main
 #
+# setup copies this file to mise.local.toml, which is gitignored. Branches cut
+# from main do not carry mise.toml — main mirrors upstream, which has not taken
+# it yet — so without the copy the tasks vanish the moment you start work. The
+# local copy is untracked, so it survives every branch switch.
+#
 # setup also points upstream's push URL at nothing, so `git push upstream`
 # fails instead of landing commits in someone else's repository. Fetching still
 # works — it is only pushing that is stopped. Offering a change upstream is a
@@ -109,8 +114,8 @@
 # are. `git switch --create <name>` alone branches from whatever you had
 # checked out, which is usually your last piece of work — and a branch cut from
 # work in progress carries all of it along.
-description = "Begin a piece of work, on a new branch off integration"
-run = ["git switch integration", "git switch --create"]
+description = "Begin a piece of work, on a new branch off main"
+run = ["git switch main", "git switch --create"]
 
 [tasks.offer]
 # For upstream only. main mirrors upstream, so a branch from it carries just
@@ -185,4 +190,5 @@ run = [
   "git-stack --protect main",
   "git-stack --protect integration",
   "git remote set-url --push upstream DO-NOT-PUSH-TO-UPSTREAM",
+  "cp mise.toml mise.local.toml",
 ]

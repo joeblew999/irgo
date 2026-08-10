@@ -26,6 +26,21 @@ never used by anything.
 
 A branch you merge minutes later and nobody reviews is not a unit of work.
 
+## Branches are cut from main, so they can be offered
+
+`mise run start` branches off `main`, which mirrors upstream — so the branch
+carries only its own change and is a pull request whenever you want one.
+Everything here reaches upstream eventually; that is the point.
+
+A branch off `integration` carries the whole fork and never can. If your change
+needs something the fork has and upstream does not, base it on the branch that
+provides that — `git switch --create mine origin/rb/secrets-config` — and it
+stacks, each still offerable in order.
+
+`mise.toml` is not on `main` yet, so `mise run setup` copies it to
+`mise.local.toml`, which is gitignored and therefore survives every branch
+switch. Without that the tasks vanish the moment you start work.
+
 ## Never commit on integration
 
 It is assembled by merging, not authored. A commit made there exists nowhere

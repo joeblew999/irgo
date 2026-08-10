@@ -84,3 +84,8 @@ build-errors.log
 # why. The difference is that a project has no canonical copy of its own.
 examples/*/.claude/
 docs-templ/.claude/
+.claude/
+
+# Written by `mise run setup` so the tasks survive a switch to a branch cut
+# from main, which does not carry mise.toml. Local, never committed.
+mise.local.toml
