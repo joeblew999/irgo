@@ -100,15 +100,43 @@ func runI18nInit(args []string) error {
 	}
 
 	fmt.Printf("Setting up i18n with %s as the source language...\n", locale)
-	if err := runCommand("toki", "generate", "-l", locale); err != nil {
-		return err
+
+	// The first generate writes the bundle and then fails analysing it, and
+	// that is expected rather than broken. bundle_gen.go imports x/text and
+	// go-playground/locales, which the project does not have yet — so toki
+	// emits the file, immediately re-reads it, and reports three packages it
+	// cannot import. The error names the generated file, which reads as toki
+	// having produced something invalid.
+	//
+	// The fix is `go mod tidy` and then a second pass, which is what toki's own
+	// quick start does. Done here because a developer who has to know that has
+	// been handed a broken first command.
+	firstPass := runCommand("toki", "generate", "-l", locale)
+	if err := runCommand(goBin(), "mod", "tidy"); err != nil {
+		return fmt.Errorf("adding the bundle's dependencies: %w", err)
+	}
+	if err := runCommand("toki", "generate"); err != nil {
+		// Only now is a failure real: the dependencies are present, so this is
+		// something else. Report the first pass too, since it came first and
+		// may be the actual cause.
+		if firstPass != nil {
+			return fmt.Errorf("generating the bundle: %w", firstPass)
+		}
+		return fmt.Errorf("generating the bundle: %w", err)
 	}
 
 	fmt.Println()
 	fmt.Println("Done. Write text as a TIK and toki will extract it:")
 	fmt.Println()
-	fmt.Println("    reader, _ := tokibundle.Match(i18n.Preferred(r)...)")
+	fmt.Println("    reader := i18n.Reader(tokibundle.Match, tokibundle.Default,")
+	fmt.Println("                          i18n.Preferred(r)...)")
 	fmt.Println("    reader.String(`You have {# new messages}`, n)")
+	fmt.Println()
+	fmt.Println("  i18n.Reader, not tokibundle.Match directly: the matcher never")
+	fmt.Println("  fails, so asked for a language you have no catalog for it")
+	fmt.Println("  returns the first one you DO have. A French visitor gets")
+	fmt.Println("  German rather than your source language, and only the")
+	fmt.Println("  confidence value says so.")
 	fmt.Println()
 	fmt.Println("  Add a language:      irgo i18n add de")
 	fmt.Println("  Edit translations:   irgo i18n edit")

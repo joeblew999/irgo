@@ -152,3 +152,38 @@ func parsePOSIX(v string) language.Tag {
 func Preferred(r *http.Request) []language.Tag {
 	return append(FromRequest(r), platformPreferred()...)
 }
+
+// Reader picks the localization for these preferences, and the bundle's
+// default when none of them is a real match.
+//
+// The confidence is the whole point, and discarding it is the easy mistake —
+// including in toki's own quick start, which writes:
+//
+//	reader, _ := tokibundle.Match(language.BritishEnglish)
+//
+// That looks idiomatic and is wrong. x/text's matcher never fails: asked for a
+// language it does not have, it returns the first supported one and reports
+// language.No alongside it. So an app with German and English catalogs serves
+// GERMAN to a French speaker — not the source language, not a 404, just
+// confidently the wrong language — and the only signal was the value the
+// underscore threw away.
+//
+// It is invisible in development, because the languages you test with are the
+// ones you have catalogs for. It appears for users whose language you have not
+// translated yet, which is everyone the feature exists to reach.
+//
+// Generic over the reader because the bundle is generated per project: irgo
+// cannot import it, and this has to work against whatever type it declares.
+//
+//	reader := i18n.Reader(tokibundle.Match, tokibundle.Default, i18n.Preferred(r)...)
+func Reader[R any](
+	match func(...language.Tag) (R, language.Confidence),
+	fallback func() R,
+	prefs ...language.Tag,
+) R {
+	r, conf := match(prefs...)
+	if conf == language.No {
+		return fallback()
+	}
+	return r
+}
