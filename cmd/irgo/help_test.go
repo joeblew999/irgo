@@ -411,7 +411,7 @@ func TestNounVerbsIsStable(t *testing.T) {
 func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 	want := []string{
 		"project new", "project clean", "project upgrade", "project pin",
-		"project ci", "project assets", "project test", "project config",
+		"project ci", "project assets", "project skills", "project test", "project config",
 		"app build", "app run", "app package", "app deploy",
 		"app install", "app remove", "app reviews",
 		"tools install", "tools remove", "tools doctor",

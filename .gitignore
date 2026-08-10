@@ -66,4 +66,21 @@ Thumbs.db
 build-errors.log
 .env
 .env.local
-.claude/
+# .claude holds per-machine assistant settings, which are personal.
+#
+# .claude/skills is the exception and is committed. It is the copy every irgo
+# project is served from, so a skill that is not in the repository is a skill
+# nobody gets — including the assistants working on irgo itself.
+.claude/*
+!.claude/skills/
+
+# The examples are separate modules, so every build syncs its own copy of the
+# skills into each of them. Committing those would put the same 74 KB Datastar
+# reference in this repository three times, and the copy that matters here is
+# the one above — this repository's own, which is also what every project is
+# served from.
+#
+# A real project does commit its copy; the scaffolded .gitignore says so and
+# why. The difference is that a project has no canonical copy of its own.
+examples/*/.claude/
+docs-templ/.claude/
