@@ -177,6 +177,17 @@ func pinRelease() error {
 		return err
 	}
 
+	// A replace naming a module and version is a real pin — a fork, usually —
+	// and "release" means stop using the local checkout, not abandon it. A
+	// project pinned to a fork that gained this command would otherwise be
+	// dropped back to upstream, which has none of what it depends on, and the
+	// only symptom would be code that stopped compiling.
+	if pin := forkPin(); pin != "" {
+		fmt.Printf("Using the pinned release again: %s\n", pin)
+		fmt.Println("The local checkout is no longer in the workspace.")
+		return tidy()
+	}
+
 	restore, err := snapshotGoMod()
 	if err != nil {
 		return err
@@ -398,4 +409,31 @@ leaves go.mod untouched rather than half-written.
 A fork keeps the upstream module path, so the proxy cannot serve it:
   go env -w GOPRIVATE='github.com/<owner>/*'`,
 	})
+}
+
+// forkPin is the replace naming a module and version, or "" if there is none.
+//
+// Distinguished from a local-path replace, which is a developer's checkout and
+// is meant to be dropped, and from no replace at all.
+func forkPin() string {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return ""
+	}
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if !strings.HasPrefix(line, "replace "+upstreamModule) {
+			continue
+		}
+		i := strings.Index(line, "=>")
+		if i < 0 {
+			continue
+		}
+		target := strings.TrimSpace(line[i+2:])
+		if strings.HasPrefix(target, ".") || strings.HasPrefix(target, "/") {
+			return "" // a local path, which release is meant to undo
+		}
+		return target
+	}
+	return ""
 }
