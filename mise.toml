@@ -56,9 +56,13 @@ go = "1.25"
 #
 #   mise run start my-thing
 #
-# That is the whole answer. It puts you on a new branch off main, which is
-# where every piece of work begins. You never work on main, and you never work
-# on integration.
+# That is the whole answer. It branches off `integration`, which is this fork's
+# trunk: everything the fork has that upstream does not, including these tasks.
+#
+# Not off `main`. main is a mirror of upstream irgo — it has none of the fork's
+# features and not even this file, so a branch cut from it starts without the
+# tooling and without the code. main exists to be the clean base for offering a
+# change upstream, which is `mise run offer`, and nothing else.
 #
 #   mise run start <name>   begin a piece of work        <- start here
 #   mise run check          build and test it
@@ -68,6 +72,7 @@ go = "1.25"
 # job — releasing, or moving your work when main has moved — and you can ignore
 # it until you need it.
 #
+#   mise run offer <name>   start a branch to send upstream, cut from main
 #   mise run where          which branch am I on, and what else exists
 #   mise run save           snapshot every branch, before anything risky
 #   mise run restore        put them all back
@@ -78,11 +83,18 @@ go = "1.25"
 # chains, nothing that behaves differently on Windows.
 
 [tasks.start]
-# Two steps on purpose: switch to main, then branch from where you now are.
-# `git switch --create <name>` alone branches from whatever you had checked
-# out, which is usually your last piece of work — and a branch cut from work in
-# progress carries all of it along.
-description = "Begin a piece of work, on a new branch off main"
+# Two steps on purpose: switch to the trunk, then branch from where you now
+# are. `git switch --create <name>` alone branches from whatever you had
+# checked out, which is usually your last piece of work — and a branch cut from
+# work in progress carries all of it along.
+description = "Begin a piece of work, on a new branch off integration"
+run = ["git switch integration", "git switch --create"]
+
+[tasks.offer]
+# For upstream only. main mirrors upstream, so a branch from it carries just
+# your change — which is what makes it reviewable there. It also carries none
+# of the fork's tooling, so these tasks will be missing until you switch back.
+description = "Start a branch to send upstream, cut from main"
 run = ["git switch main", "git switch --create"]
 
 [tasks.check]

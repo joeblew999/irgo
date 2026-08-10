@@ -6,11 +6,8 @@
 mise run start my-thing
 ```
 
-That is the whole answer. It puts you on a new branch off `main`, which is
-where every piece of work begins.
-
-**You never work on `main`, and you never work on `integration`.** If you are
-sitting on either of them, you are not meant to be — run `mise run start`.
+That is the whole answer. It branches off `integration`, which is this fork's
+trunk — everything the fork has that upstream does not, including these tasks.
 
 A normal day is three commands:
 
@@ -27,21 +24,30 @@ mise install       # Go, and the branch tools
 mise run setup     # protects main so you cannot rewrite it by accident
 ```
 
-Everything else — `where`, `save`, `restore`, `rebase`, `release` — is for the
-occasional job. `mise tasks` lists them with a line each. Ignore them until you
-need them.
-
 ## What the other branches are
 
-You will see a lot of them. They are not places to work:
+You will see a lot of them in a clone. Only one is a place to work:
 
 | | |
 |---|---|
-| `main` | identical to upstream irgo. Never written to. The base for your branches |
-| `integration` | everything merged, so it can be tagged. Written to at release time, not by hand |
+| `integration` | **this fork's trunk.** Where your work starts from, and what gets tagged for release |
+| `main` | a mirror of upstream irgo. No fork features, not even `mise.toml`. Never written to |
 | `rb/…` | finished work waiting to be offered upstream. Not yours to touch |
 
-If that list ever confuses you, `mise run where` draws it.
+Branching from `main` by mistake is the confusing failure: you land on a tree
+with none of the fork's code and no `mise` tasks, because upstream has neither.
+That is what `main` is *for* — it is the clean base for offering one change
+upstream, which is:
+
+```sh
+mise run offer fix/the-thing
+```
+
+Use that only when you mean to send something to upstream irgo. Expect the
+tasks to be missing on such a branch; switch back to `integration` and they
+return.
+
+If you lose track, `mise run where` draws the tree.
 
 ## Small branches, not one big one
 
