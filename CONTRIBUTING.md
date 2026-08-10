@@ -1,5 +1,27 @@
 # Working on irgo
 
+## If work ends up on integration anyway
+
+`mise run where` shows it — git-stack marks a local commit on a protected
+branch:
+
+```
+origin/integration  docs: one branch per concern…
+⌽ integration       a commit made directly on integration
+```
+
+Move it to a branch and it reads clean again:
+
+```sh
+git branch feat/rescued
+git reset --hard origin/integration
+mise run where          # the commit now sits on feat/rescued (ready)
+```
+
+Detection on your own machine, before CI. There is deliberately no git hook:
+the real fix is that `mise run merge` steps back off integration when it
+finishes, so you are never left standing where a commit should not go.
+
 ## What is actually enforced
 
 Most of this workflow is convention — the tasks make the right thing shortest
