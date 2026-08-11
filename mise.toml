@@ -110,6 +110,29 @@
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
 
+[tasks.branch]
+# Start a piece of work. With more than one maintainer, everything reaches the
+# trunk through a pull request — so `integration` is never a branch anyone
+# commits to directly, and CI has run before a change lands rather than after.
+#
+# Two steps on purpose: switch to the trunk, then branch from where you now
+# are. `git switch --create` alone branches from whatever you had checked out,
+# which is usually your last piece of work, and carries all of it along.
+#
+# These are short-lived: hours or days, one per change, deleted by GitHub when
+# the pull request merges. That is the opposite of the twenty-four long-lived
+# ones that made this repository unworkable — those were workspaces you had to
+# switch between to edit a file. A branch that exists for an afternoon is not
+# the same animal.
+description = "Start a change, on a branch off the trunk"
+run = ["git switch integration", "git pull --quiet --ff-only", "git switch --create"]
+
+[tasks.pr]
+# Push and open the pull request in one step, so the loop has no gap where a
+# branch sits pushed and unreviewed.
+description = "Push the branch you are on and open its pull request"
+run = "git push --set-upstream origin HEAD && gh pr create --base integration --fill"
+
 [tasks.offer]
 # The rare thing, made explicit.
 #

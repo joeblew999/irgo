@@ -13,31 +13,35 @@ mise tasks       # every command, with a line each
 Read `mise.toml` when you want the reasoning. This file has only the things
 that are not commands.
 
-## Work on integration
+## The loop
 
-Commit there. It is the trunk, it is what gets tagged, and it is what projects
-consume — and it is now also where the work happens.
+Three or four people share this trunk, so nothing lands on it directly.
 
-That reverses what this document used to say, so here is the reasoning rather
-than just the instruction. The old rule was that every change be made on a
-branch cut from `main`, so it stayed offerable upstream. It cost more than it
-returned. Twenty-four branches accumulated, every one merged, fifty merge
-commits into `integration` in a single day — and the property it was protecting
-was already gone: `cmd_project_upgrade.go` appeared in 21 of those 24 branches
-and `help_test.go` in 19, not because nineteen changes touched them but because
-each branch inherited everything beneath it. The last one built carried
-nineteen commits. That is a stack, not a set of reviewable pull requests.
+```sh
+mise run branch fix/some-thing   # off the trunk, up to date
+# ...work...
+mise run check                   # before every commit
+git commit
+mise run pr                      # pushes and opens the pull request
+```
 
-Meanwhile the thing it bought is exercised approximately never: this fork does
-not open pull requests upstream without asking, after seven were opened once and
-withdrawn.
+CI runs on the pull request. It merges when it is green and somebody has looked
+at it, and GitHub deletes the branch on merge.
 
-A commit on `integration` is not stranded. `mise run offer` replays it onto a
-branch cut from `main` whenever somebody wants that, and what comes out is
-cleaner than the stacked branch would have been.
+**These branches are short-lived** — hours, or a day. One per change. That is
+deliberately not what this repository had before: twenty-four long-lived
+branches that were *workspaces*, where you had to know which one owned a file
+before you could edit it, kept alive for pull requests nobody opened. A branch
+that exists for an afternoon and is deleted on merge is a different thing
+entirely.
 
-`mise run check` before you commit. No workflow triggers on `integration` — all
-of them are `branches: [main]` — so that check is the only gate there is.
+**Nobody commits to `integration`.** It is protected, and it is the only branch
+here that is not either a change in flight or an offer waiting to go upstream.
+
+`mise run check` before every commit. It is `go vet`, the tests and the wasm
+build — seconds. `mise run verify` when you touch anything platform-shaped,
+because `check` never compiles a native target and that is how a broken one
+ships.
 
 ## Offering something upstream
 
@@ -148,6 +152,8 @@ nothing stops you typing something else. These genuinely stop a mistake:
 | a target that stopped building | `mise run verify` — `check` never compiles a native one |
 | the trunk breaking | CI, which now runs on `integration` — before this, it only ever ran on `main`, which receives no commits |
 | deleting a branch whose work is nowhere else | `git branch -d`, via `mise run done` |
+| a red commit reaching the trunk | branch protection — `integration` requires CI and a pull request |
+| landing without anyone looking | branch protection — a pull request is required to merge |
 | pushing to the upstream repository | `mise run setup` points its push URL at nothing |
 | rebasing `main` or `integration` | git-stack refuses, after `setup` |
 | committing generated files | `TestNoGeneratedFilesAreTracked` |
