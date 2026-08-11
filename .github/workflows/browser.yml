@@ -53,6 +53,13 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         run: go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium
 
+      # *_templ.go is generated and gitignored, so a fresh checkout has no
+      # templates package at all — the tests fail to compile before a browser
+      # is ever opened. ci.yml reaches these examples through `project test`,
+      # which generates first; this job called `go test` directly and never did.
+      - name: Generate assets
+        run: go run ./cmd/irgo -C examples/${{ matrix.example }} project assets
+
       - name: Test
         working-directory: examples/${{ matrix.example }}
         run: go test -v ./...
