@@ -198,11 +198,22 @@ func runCommandQuiet(name string, args ...string) (string, error) {
 // stylesheets, a skill, an example's assets — without a download or a second
 // version to keep in step with go.mod's.
 func moduleDir(mod string) string {
-	out, err := exec.Command(goBin(), "list", "-m", "-f", "{{.Dir}}", mod).Output()
-	if err != nil {
-		return ""
+	dir := listModuleDir(mod)
+	if dir == "" {
+		// Empty means "declared but not downloaded", which is exactly the state
+		// of a fresh clone — `go list` reports the module without a directory
+		// until something fetches it. Callers read that as "not a dependency"
+		// and skip work that the project needs: a UI kit's stylesheets are not
+		// copied, and the pages then 404 for them. The browser reports that as
+		// a MIME error about text/plain, which looks like a server bug and
+		// costs an afternoon.
+		//
+		// So fetch it and ask again, rather than reporting absence for a module
+		// the go.mod plainly requires.
+		if err := exec.Command(goBin(), "mod", "download", mod).Run(); err == nil {
+			dir = listModuleDir(mod)
+		}
 	}
-	dir := strings.TrimSpace(string(out))
 	if dir == "" {
 		return ""
 	}
@@ -210,6 +221,15 @@ func moduleDir(mod string) string {
 		return ""
 	}
 	return dir
+}
+
+// listModuleDir is where the module is unpacked, or "" if it is not there.
+func listModuleDir(mod string) string {
+	out, err := exec.Command(goBin(), "list", "-m", "-f", "{{.Dir}}", mod).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // copyGenerated writes src to dst unless dst already matches.
