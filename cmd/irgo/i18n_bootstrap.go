@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // demoLocale is the second language a new project ships with.
@@ -168,4 +169,46 @@ func readARB(path string) (map[string]any, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// upgradeI18n keeps translations consistent across a framework upgrade.
+//
+// Two different situations, and both are silent without this.
+//
+// A project that HAS translations has just had its framework-owned files
+// replaced, and the bundle is generated from the source those files are part
+// of. Left alone it describes the previous version: a string the upgrade
+// introduced is missing from every catalog, and the app renders it in the
+// source language with all catalogs still reporting 100% complete, because
+// completeness measures what was extracted rather than what exists.
+//
+// A project that has NONE has just been upgraded to a framework whose template
+// ships them. Nothing about that is visible — their own templates are theirs
+// and keep their hardcoded strings, correctly — so it is worth one line saying
+// the capability now exists.
+func upgradeI18n() {
+	if !hasI18n() {
+		fmt.Println()
+		fmt.Println("This project has no translations. New projects now ship with them:")
+		fmt.Println("  irgo i18n init")
+		return
+	}
+
+	fmt.Println()
+	fmt.Println("Updating translations...")
+	if err := regenerateI18n(); err != nil {
+		fmt.Printf("  could not regenerate the bundle: %v\n", err)
+		fmt.Println("  fix it with: irgo i18n init")
+		return
+	}
+
+	// The layout is framework-owned and was just replaced, so a project that
+	// adopted i18n before this shipped gets <html lang> now rather than never.
+	if changed, _ := upgradeLayoutForI18n(); changed > 0 {
+		fmt.Printf("  %d layout(s) now report the rendered language and direction\n", changed)
+	}
+
+	locales := projectLocales()
+	fmt.Printf("  %d locale(s): %s\n", len(locales), strings.Join(locales, ", "))
+	fmt.Println("  Check they are still complete:  irgo i18n check")
 }
