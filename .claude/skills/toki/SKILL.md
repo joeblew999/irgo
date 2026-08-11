@@ -118,14 +118,15 @@ Miss it and that one corner of the page reverts to the source language while
 everything around it stays translated — on a live update, so it is invisible
 in a static page test.
 
-Keep one helper rather than a copy per handler:
+`irgo i18n init` writes `lang/lang.go` for exactly this reason — use it rather
+than calling `tokibundle.Match` anywhere:
 
 ```go
-// lang/lang.go
-func For(r *http.Request) tokibundle.Reader {
-	return i18n.Reader(tokibundle.Match, tokibundle.Default, i18n.Preferred(r)...)
-}
+templates.Page(lang.For(ctx.Request))
 ```
+
+If a project predates it, re-running `irgo i18n init` writes the file without
+touching the bundle.
 
 ### 3. Mobile without `SetLocales`
 
@@ -141,6 +142,8 @@ MobileSetLocales(Locale.preferredLanguages.joined(separator: ","))
 ```
 
 A hand-written shell that omits it serves the source language on every phone.
+Both were verified on a device: Android with `persist.sys.locale=de-DE`, iOS
+with `simctl launch ... -AppleLanguages "(de)"`.
 
 ## Picking the locale
 
@@ -149,6 +152,25 @@ asks differently — `Accept-Language` on web and Workers, `LC_ALL`/`LANG` on
 desktop, `navigator.languages` in the browser, `SetLocales` on mobile. Pass the
 whole ordered list, not just the first: a user asking for `de-CH, de, en` who
 gets English when a `de` catalog exists has been ignored.
+
+## Testing a translation
+
+A test browser reports the locale of the machine running it, so a German
+catalog is never exercised on an English laptop and every assertion passes on
+the source language. Set it explicitly:
+
+```go
+p := browsertest.OpenAs(t, app.NewRouter(), "de-DE")
+p.MustHaveText(".tagline", "Servergesteuerte Hypermedia für Go")
+```
+
+`OpenAs` sets both halves of what a real visitor sends — `navigator.language(s)`
+and `Accept-Language` — which matters because different targets read different
+ones.
+
+Always include a locale you have **no** catalog for and assert the *source*
+language. That is the case that fails silently, and the only one that would
+still pass if `Match` were called directly.
 
 ## Catalogs
 
