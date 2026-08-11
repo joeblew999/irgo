@@ -6,7 +6,15 @@
 // find the edit replaced, and there is nothing here worth owning.
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+
+	"github.com/stukennedy/irgo/pkg/i18n"
+	"golang.org/x/text/language"
+)
 
 // webIndexHTML is the page served when no service worker is controlling yet.
 //
@@ -156,15 +164,56 @@ self.addEventListener('fetch', (event) => {
 
 // webManifest makes it installable, which is the difference between a page
 // that happens to work offline and an app.
+//
+// lang and dir describe this file's own text — the name shown under the icon
+// and in the install prompt — not the app's content. The browser reads them
+// before any of the app has run, so they are the one piece of language
+// metadata that cannot come from a request.
+//
+// Both are the project's source locale, since that is the language the name
+// here is written in. Left out, the install prompt is announced in an unknown
+// language, and a right-to-left name renders backwards in the launcher even
+// when every page inside the app is correct.
 func webManifest(name string) string {
+	lang, dir := sourceLocaleAndDir()
 	return fmt.Sprintf(`{
   "name": %q,
   "short_name": %q,
+  "lang": %q,
+  "dir": %q,
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff"
 }
-`, name, name)
+`, name, name, lang, dir)
+}
+
+// sourceLocaleAndDir is the language the project's own text is written in.
+//
+// From the bundle, so it follows `irgo i18n init de` rather than assuming
+// English, and falls back to English for a project with no translations —
+// which is what the manifest said before this existed.
+func sourceLocaleAndDir() (string, string) {
+	const fallback = "en"
+	if !hasI18n() {
+		return fallback, "ltr"
+	}
+	body, err := os.ReadFile(filepath.Join(tokiBundleDir, "bundle_gen.go"))
+	if err != nil {
+		return fallback, "ltr"
+	}
+	// DefaultLocale is the only record of which catalog is the source. The
+	// .arb files do not say, and a directory listing cannot tell.
+	m := regexp.MustCompile(`DefaultLocale\s*=\s*"([^"]+)"`).FindSubmatch(body)
+	if m == nil {
+		return fallback, "ltr"
+	}
+	loc := string(m[1])
+	t, err := language.Parse(loc)
+	if err != nil {
+		return fallback, "ltr"
+	}
+	return loc, i18n.DirOf(t)
 }
