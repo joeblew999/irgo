@@ -40,6 +40,25 @@ jobs:
       # and only if — some test imports the browser harness. A browser test
       # that silently skips in CI is worse than not having written it.
       - run: go tool irgo project test
+
+      # Translations, only if this project has any. After `project test`, which
+      # has already regenerated the bundle, so this reads current state rather
+      # than doing that work a second time.
+      #
+      # `i18n check` fails when a catalog is incomplete, which is the right
+      # answer before a release and the wrong one during a build — so it is
+      # deliberately not part of `project check`. A half-translated app is a
+      # normal state to work in; shipping one is not.
+      #
+      # The guard is the bundle directory, so a project without translations
+      # runs nothing and needs no toki.
+      - name: Translations complete
+        run: |
+          if [ -d tokibundle ]; then
+            go tool irgo i18n check
+          else
+            echo "no tokibundle/ — this project has no translations"
+          fi
       - run: go build -o build/{{PROJECT_NAME}} .
       - uses: {{UPLOAD_ARTIFACT}}
         with:
