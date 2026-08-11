@@ -12,6 +12,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -91,11 +92,70 @@ func runOfferCheck(args []string) error {
 		return fmt.Errorf("%d problem(s) — fix them before offering", len(problems))
 	}
 
+	if !hasFlag(args, "--run") {
+		fmt.Println()
+		fmt.Println("Merge and contents look right. What this cannot tell you is")
+		fmt.Println("whether their pipeline passes, because theirs is not ours —")
+		fmt.Println("upstream has two workflows and this fork has five. Run it:")
+		fmt.Println()
+		fmt.Printf("  irgo project offer-check %s --run\n", branch)
+		return nil
+	}
+	return runUpstreamCI(base, branch)
+}
+
+// runUpstreamCI builds the merged tree with the steps upstream actually runs.
+//
+// Their ci.yml, not ours: `go vet ./...`, the wasm build, and `go test ./...`.
+// Running our own check here would prove the wrong thing — it is a different
+// pipeline on a repository with different files.
+//
+// In a worktree, so the developer's own checkout is untouched. A gate that
+// makes you stash first is a gate people stop using.
+func runUpstreamCI(base, branch string) error {
+	dir, err := os.MkdirTemp("", "irgo-offer-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	defer exec.Command("git", "worktree", "remove", "--force", dir).Run()
+
 	fmt.Println()
-	fmt.Println("Merge and contents look right. What this cannot tell you is")
-	fmt.Println("whether their CI passes, because theirs is not ours — run it:")
+	fmt.Printf("Building %s merged into %s...\n", branch, base)
+
+	if out, err := exec.Command("git", "worktree", "add", "--detach", dir, base).CombinedOutput(); err != nil {
+		return fmt.Errorf("creating a worktree: %w\n%s", err, out)
+	}
+	merge := exec.Command("git", "merge", "--no-edit", branch)
+	merge.Dir = dir
+	if out, err := merge.CombinedOutput(); err != nil {
+		return fmt.Errorf("merging %s: %w\n%s", branch, err, out)
+	}
+
+	// Exactly upstream's ci.yml test job.
+	steps := [][]string{
+		{"go", "vet", "./..."},
+		{"go", "build", "./..."},
+		{"go", "test", "./..."},
+	}
+	for _, step := range steps {
+		cmd := exec.Command(goBin(), step[1:]...)
+		cmd.Dir = dir
+		if step[0] == "go" && step[1] == "build" {
+			cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+		}
+		label := strings.Join(step, " ")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("  %-28s FAILS\n", label)
+			return fmt.Errorf("%s failed on the merged tree — upstream's CI would "+
+				"go red:\n%s", label, strings.TrimSpace(string(out)))
+		}
+		fmt.Printf("  %-28s OK\n", label)
+	}
+
 	fmt.Println()
-	fmt.Println("  irgo project offer-check --run    (builds the merged tree)")
+	fmt.Println("Upstream's checks pass on the merged tree. Safe to offer —")
+	fmt.Println("after asking the repository owner.")
 	return nil
 }
 
