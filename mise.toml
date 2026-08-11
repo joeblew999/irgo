@@ -113,6 +113,10 @@
 [tasks.offer]
 # The rare thing, made explicit.
 #
+# Cut from upstream/main, the remote-tracking ref, rather than a local mirror of
+# it. A branch called main that only ever copied somebody else's was one more
+# thing to explain to every maintainer and one more thing to keep in sync.
+#
 # Work happens on integration. This is for the moment somebody decides a
 # specific change should go upstream — it cuts from main, which mirrors
 # upstream, and replays only the commits you name. The result carries that
@@ -130,7 +134,7 @@
 #
 #   mise run offer fix/some-bug <sha>...
 description = "Cut a pull-request branch from main with only the commits you name"
-run = "git switch main && git switch --create {{arg(name='branch')}} && git cherry-pick {{arg(name='commits', var=true)}} && git push --set-upstream origin HEAD"
+run = "git fetch --quiet upstream && git switch --detach upstream/main && git switch --create {{arg(name='branch')}} && git cherry-pick {{arg(name='commits', var=true)}} && git push --set-upstream origin HEAD"
 
 [tasks.check]
 # Everything CI runs, in the order it runs it, so passing here means passing

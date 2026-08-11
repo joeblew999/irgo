@@ -64,7 +64,7 @@ A pull request wastes a maintainer's time in three ways, and this refuses all
 three. It **conflicts** — checked with `merge-tree` against `upstream/main`,
 since GitHub builds the merge result and not your branch tip. It **rewrites
 their CI** — upstream has two workflows and this fork has five, so a branch
-carrying `fork-main.yml`, `skills.yml`, `browser.yml`, `mise.toml` or this file
+carrying `skills.yml`, `browser.yml`, `mise.toml` or this file
 is refused by name. Or it **fails their pipeline** — so `--run` merges into a
 throwaway worktree and runs *upstream's* steps, not ours: `go vet`, the wasm
 build, `go test`.
@@ -102,7 +102,6 @@ offered.
 | | |
 |---|---|
 | `integration` | the trunk. Assembled by merging, tagged for release |
-| `main` | mirrors upstream. No fork features, not even `mise.toml`. Never written to |
 | `fix/…`, `feat/…` | a pending offer upstream — not work in progress |
 
 There should be very few of the third kind, and each should be one commit that
@@ -145,7 +144,6 @@ nothing stops you typing something else. These genuinely stop a mistake:
 
 | | how |
 |---|---|
-| `main` diverging from upstream | CI (`fork-main.yml`) — registered at last; see below |
 | a pull request that would conflict, rewrite their CI, or fail it | `irgo project offer-check --run` |
 | a target that stopped building | `mise run verify` — `check` never compiles a native one |
 | the trunk breaking | CI, which now runs on `integration` — before this, it only ever ran on `main`, which receives no commits |
@@ -164,11 +162,16 @@ table used to claim CI caught commits authored on `integration`; it never did,
 and a table that advertises a guard which does not exist is worse than one that
 admits the gap.
 
-`integration` is the default branch. That is not cosmetic: **GitHub registers
-workflows from the default branch**, and while `main` held it, only three of
-this repo's five workflows were known to Actions. `fork-main.yml` — the guard
-this table has always claimed enforced `main` — was not among them, so it had
-never been able to run. Changing the default registered all of them.
+`integration` is the only branch here that is not an offer. There is no local
+`main`: it mirrored upstream and never received a commit, so it was one more
+thing to explain and to keep in sync. Git already tracks upstream's code as
+`upstream/main`, which is what `mise run offer` cuts from.
+
+That also retired `fork-main.yml`, which guarded the mirror. Worth knowing why
+it is no loss: **GitHub registers workflows from the default branch**, and while
+`main` held that, only three of five workflows were known to Actions —
+`fork-main.yml` among the missing. It had never been able to run at all, while
+this document claimed it was enforcing something.
 
 GitHub also deletes a head branch when its pull request merges, which is
 `mise run done` performed by the host.
