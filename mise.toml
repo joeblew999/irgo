@@ -109,20 +109,27 @@
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
 
-[tasks.start]
-# Two steps on purpose: switch to the trunk, then branch from where you now
-# are. `git switch --create <name>` alone branches from whatever you had
-# checked out, which is usually your last piece of work — and a branch cut from
-# work in progress carries all of it along.
-description = "Begin a piece of work, on a new branch off main"
-run = ["git switch main", "git switch --create"]
-
 [tasks.offer]
-# For upstream only. main mirrors upstream, so a branch from it carries just
-# your change — which is what makes it reviewable there. It also carries none
-# of the fork's tooling, so these tasks will be missing until you switch back.
-description = "Start a branch to send upstream, cut from main"
-run = ["git switch main", "git switch --create"]
+# The rare thing, made explicit.
+#
+# Work happens on integration. This is for the moment somebody decides a
+# specific change should go upstream — it cuts from main, which mirrors
+# upstream, and replays only the commits you name. The result carries that
+# change and nothing else, which is what a reviewer needs and what the old
+# stacked branches had stopped being: the last one built here carried nineteen
+# commits.
+#
+# If a cherry-pick conflicts, the change depends on something only the fork has.
+# That is information, not a failure — it means the change was never offerable,
+# and no amount of branching earlier would have made it so.
+#
+# Opening the pull request is still a separate, deliberate act, and still needs
+# the repository owner's agreement. Seven were once opened without it and all
+# seven were withdrawn.
+#
+#   mise run offer fix/some-bug <sha>...
+description = "Cut a pull-request branch from main with only the commits you name"
+run = "git switch main && git switch --create {{arg(name='branch')}} && git cherry-pick {{arg(name='commits', var=true)}} && git push --set-upstream origin HEAD"
 
 [tasks.check]
 # Everything CI runs, in the order it runs it, so passing here means passing
@@ -168,6 +175,23 @@ run = "git-stack --pull"
 # than only in CI.
 description = "Merge the branch you are on into integration, then step off it"
 run = ["git switch integration", "git merge --no-edit -", "git switch -"]
+
+[tasks.done]
+# Ending a branch, which the workflow had no way to do.
+#
+# Twenty-four accumulated because there was a command to start one and none to
+# finish. Every one was merged; none was ever retired.
+#
+# The safety is git's own: `branch -d` — lowercase — refuses to delete anything
+# not merged into the branch you are standing on, and this stands on
+# integration first. Deliberately not `-D`; a refusal here means the work is
+# not yet anywhere else, which is exactly when you want to be stopped.
+#
+# Nothing is lost by retiring a merged branch. `merge` above makes a real merge
+# commit, so the tip stays addressable forever as <merge>^2 and reachable from
+# integration — a branch can be recreated from it byte-for-byte.
+description = "Retire a merged branch, locally and on origin"
+run = "git switch integration && git branch -d {{arg(name='branch')}} && git push --quiet origin --delete {{arg(name='branch')}}"
 
 [tasks.tag]
 # Creating and pushing are separate because the version is an argument and it
