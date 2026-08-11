@@ -423,6 +423,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"project skills",
 		"project test",
 		"project config",
+		"project offer-check",
 		"app build",
 		"app run",
 		"app package",

@@ -143,6 +143,28 @@ run = "git switch main && git switch --create {{arg(name='branch')}} && git cher
 description = "Everything CI runs: vet, tests, and the wasm build"
 run = ["go vet ./...", "go test ./...", "GOOS=js GOARCH=wasm go build ./..."]
 
+[tasks.verify]
+# What `check` cannot tell you: whether this still builds for every target.
+#
+# `check` is vet, test and the wasm build — seconds, and it never compiles a
+# native target. This does, through the CLI, on the machine that has the
+# toolchains warm. From a Mac that is everything except the Linux desktop:
+# Windows cross-compiles via mingw-w64, which irgo installs itself.
+#
+# `tools doctor` runs first so a skip is visible. `app build all` deliberately
+# skips what the host cannot do, and a silent skip reading as a pass is exactly
+# how a broken target ships.
+#
+# Slow on a cold machine: the Android build downloads the SDK and NDK.
+description = "Build every target this host can, after check"
+depends = ["check"]
+run = [
+  "go run ./cmd/irgo tools doctor",
+  "go run ./cmd/irgo app build all",
+  "go run ./cmd/irgo app build web",
+  "go run ./cmd/irgo app build cloudflare",
+]
+
 [tasks.ship]
 description = "Push the branch you are on"
 run = "git push --set-upstream origin HEAD"
