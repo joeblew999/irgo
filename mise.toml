@@ -270,7 +270,6 @@ run = "git push --follow-tags origin integration"
 # exactly that and was only stopped by a conflict.
 description = "Protect main, integration, and stop pushes to upstream — once per clone"
 run = [
-  "git-stack --protect main",
   "git-stack --protect integration",
   "git remote set-url --push upstream DO-NOT-PUSH-TO-UPSTREAM",
   "cp mise.toml mise.local.toml",

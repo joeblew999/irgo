@@ -7,7 +7,7 @@ runs.
 ```sh
 mise install     # every tool this workflow needs, including gh
 gh auth login    # once per machine — mise installs gh, it cannot log you in
-mise run setup   # protects main and integration, blocks pushes to upstream
+mise run setup   # once per clone — protects the trunk, blocks pushes to upstream
 mise tasks       # every command, with a line each
 ```
 
