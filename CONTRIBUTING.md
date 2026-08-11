@@ -13,45 +13,69 @@ mise tasks       # every command, with a line each
 Read `mise.toml` when you want the reasoning. This file has only the things
 that are not commands.
 
-## One branch per concern
+## Work on integration
 
-Not one per idea, question or fix that comes up while you are working. When
-something new arrives and it belongs to what you are already doing, stay on the
-branch.
+Commit there. It is the trunk, it is what gets tagged, and it is what projects
+consume — and it is now also where the work happens.
 
-Eight branches were made in one afternoon here, all for one concern — making
-the workflow work. Each held a single commit, each was merged minutes later,
-each was reviewed by nobody, and eleven tags came with them of which nine were
-never used by anything.
+That reverses what this document used to say, so here is the reasoning rather
+than just the instruction. The old rule was that every change be made on a
+branch cut from `main`, so it stayed offerable upstream. It cost more than it
+returned. Twenty-four branches accumulated, every one merged, fifty merge
+commits into `integration` in a single day — and the property it was protecting
+was already gone: `cmd_project_upgrade.go` appeared in 21 of those 24 branches
+and `help_test.go` in 19, not because nineteen changes touched them but because
+each branch inherited everything beneath it. The last one built carried
+nineteen commits. That is a stack, not a set of reviewable pull requests.
 
-A branch you merge minutes later and nobody reviews is not a unit of work.
+Meanwhile the thing it bought is exercised approximately never: this fork does
+not open pull requests upstream without asking, after seven were opened once and
+withdrawn.
 
-## Branches are cut from main, so they can be offered
+A commit on `integration` is not stranded. `mise run offer` replays it onto a
+branch cut from `main` whenever somebody wants that, and what comes out is
+cleaner than the stacked branch would have been.
 
-`mise run start` branches off `main`, which mirrors upstream — so the branch
-carries only its own change and is a pull request whenever you want one.
-Everything here reaches upstream eventually; that is the point.
+`mise run check` before you commit. No workflow triggers on `integration` — all
+of them are `branches: [main]` — so that check is the only gate there is.
 
-A branch off `integration` carries the whole fork and never can. If your change
-needs something the fork has and upstream does not, base it on the branch that
-provides that — `git switch --create mine origin/rb/secrets-config` — and it
-stacks, each still offerable in order.
+## Offering something upstream
 
-`mise.toml` is not on `main` yet, so `mise run setup` copies it to
-`mise.local.toml`, which is gitignored and therefore survives every branch
-switch. Without that the tasks vanish the moment you start work.
+When a change should go to upstream, and the repository owner has agreed:
 
-## Never commit on integration
+```sh
+mise run offer fix/some-bug <sha>...
+```
 
-It is assembled by merging, not authored. A commit made there exists nowhere
-else — and because a branch cut from `integration` carries the whole fork with
-it, that work cannot be offered upstream without being re-cut by hand. It fails
-silently: everything builds, the tests pass, and nobody finds out until someone
-tries to send the change somewhere. Sixteen commits landed there in one
-afternoon and four pieces of work had to be rescued afterwards.
+It cuts from `main`, replays only the commits you name, and pushes. The branch
+carries that change and nothing else.
 
-`mise run merge` steps back off `integration` so you are not left standing
-there. `mise run where` shows it if one lands anyway.
+If a cherry-pick conflicts, the change depends on something only the fork has.
+That is information, not a failure — it was never offerable, and branching
+earlier would not have made it so.
+
+**Do not open a pull request without asking the repository's owner.** Seven were
+opened once and sat unread for two days while the work moved underneath them;
+all seven were withdrawn.
+
+## Finish a branch when it is done
+
+```sh
+mise run done <branch>
+```
+
+There used to be a command to start a branch and none to end one, which is the
+entire reason twenty-four accumulated.
+
+The safety is git's own: `branch -d`, lowercase, refuses anything not merged
+into the branch you are standing on, and the task stands on `integration`
+first. It is deliberately not `-D` — a refusal means the work exists nowhere
+else, which is exactly when you want to be stopped.
+
+Retiring a merged branch loses nothing. `mise run merge` makes a real merge
+commit, so the tip stays addressable forever as `<merge-commit>^2` and reachable
+from `integration`; a branch can be recreated from it byte-for-byte, and then
+offered.
 
 ## The branches
 
@@ -59,12 +83,12 @@ there. `mise run where` shows it if one lands anyway.
 |---|---|
 | `integration` | the trunk. Assembled by merging, tagged for release |
 | `main` | mirrors upstream. No fork features, not even `mise.toml`. Never written to |
-| `rb/…`, `feat/…` | work, and what eventually becomes a pull request |
+| `fix/…`, `feat/…` | a pending offer upstream — not work in progress |
 
-Everything here is meant to reach upstream eventually. **Do not open a pull
-request without asking the repository's owner** — seven were opened once and
-sat unread for two days while the work moved underneath them; all seven were
-withdrawn.
+There should be very few of the third kind, and each should be one commit that
+applies cleanly to `main`. Six survive from the twenty-four that once existed;
+the rest were fork-internal and were never going anywhere, so they were retired
+once merged.
 
 ## What is enforced, and what is habit
 
@@ -73,8 +97,8 @@ nothing stops you typing something else. These genuinely stop a mistake:
 
 | | how |
 |---|---|
-| `main` diverging from upstream | CI |
-| commits authored on `integration` | CI |
+| `main` diverging from upstream | CI (`fork-main.yml`) |
+| deleting a branch whose work is nowhere else | `git branch -d`, via `mise run done` |
 | pushing to the upstream repository | `mise run setup` points its push URL at nothing |
 | rebasing `main` or `integration` | git-stack refuses, after `setup` |
 | committing generated files | `TestNoGeneratedFilesAreTracked` |
@@ -82,6 +106,12 @@ nothing stops you typing something else. These genuinely stop a mistake:
 | a tool on `@latest` | `TestEveryInstalledToolIsPinned` |
 | a target with no dispatch | `TestEveryDeclaredBuildTargetIsDispatched` |
 | unformatted code | `TestEverythingIsFormatted` |
+
+Nothing runs CI on `integration` — every workflow is `branches: [main]` — so
+`mise run check` before a commit is not a courtesy, it is the only gate. This
+table used to claim CI caught commits authored on `integration`; it never did,
+and a table that advertises a guard which does not exist is worse than one that
+admits the gap.
 
 There is deliberately no git hook. A workflow that stops leaving you in the
 wrong place beats one that refuses you afterwards.
