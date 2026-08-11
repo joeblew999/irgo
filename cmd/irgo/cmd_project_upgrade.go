@@ -174,6 +174,7 @@ func runUpgrade(force, showDiff bool) error {
 
 	migrateDatastar()
 	reportGoDirective()
+	upgradeI18n()
 
 	if len(failed) > 0 {
 		fmt.Println()
