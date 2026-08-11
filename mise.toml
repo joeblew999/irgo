@@ -44,6 +44,15 @@
 #
 # Optional. Everything the workflow needs is plain git — merge, tag, branch.
 # This only makes the repetitive half cheap.
+# GitHub's CLI. `mise run pr` opens the pull request with it, so without this a
+# new maintainer runs `mise install`, gets everything else, and then finds the
+# one command they need every day is missing.
+#
+# mise installs the binary; it cannot log you in. `gh auth login` is a one-time
+# step per machine, and `mise run pr` says so rather than failing with an API
+# error about credentials.
+"github:cli/cli" = "2.65.0"
+
 "ubi:gitext-rs/git-stack" = "0.10.18"
 
 # Snapshots every branch pointer at once, with list/pop/apply to restore.
@@ -137,7 +146,7 @@ run = ["git switch integration", "git pull --quiet --ff-only", "git switch --cre
 # with a git error about separating paths from revisions that says nothing
 # about the actual problem.
 description = "Push the branch you are on and open its pull request"
-run = "git push --set-upstream origin HEAD && gh pr create --repo joeblew999/irgo --base integration --fill"
+run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngit push --set-upstream origin HEAD\ngh pr create --repo joeblew999/irgo --base integration --fill"
 
 [tasks.offer]
 # The rare thing, made explicit.
