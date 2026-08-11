@@ -1,7 +1,6 @@
 package templates
 
 import (
-	"{{MODULE_PATH}}/lang"
 	"{{MODULE_PATH}}/tokibundle"
 
 	"fmt"
@@ -271,12 +270,13 @@ templ PulseStats(count int, latencyMs int) {
 // and a throwaway profile for the service worker. None of them is available
 // while clicking around, and none works on a phone in your hand.
 //
-// lang.Remember turns the click into a cookie, so it survives the next
-// navigation. The list comes from the bundle, so `irgo i18n add fr` puts
-// French here with nothing else to change.
+// i18n.Remember turns the click into a cookie, so it survives the next
+// navigation. The list comes from the bundle rather than from the project's
+// own lang package, so `irgo i18n add fr` puts French here with nothing else
+// to change — and a project whose lang/lang.go predates this still builds.
 templ LanguageSwitcher(current string) {
 	<nav class="lang-switcher" aria-label="Language">
-		for _, l := range lang.Available() {
+		for _, l := range tokibundle.Locales() {
 			if l.String() == current {
 				<span class="lang-current" aria-current="true">{ l.String() }</span>
 			} else {

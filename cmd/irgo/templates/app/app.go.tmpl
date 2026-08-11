@@ -10,6 +10,7 @@ import (
 	"{{MODULE_PATH}}/lang"
 	"{{MODULE_PATH}}/static"
 	"{{MODULE_PATH}}/templates"
+	"github.com/stukennedy/irgo/pkg/i18n"
 	"github.com/stukennedy/irgo/pkg/render"
 	"github.com/stukennedy/irgo/pkg/router"
 )
@@ -31,7 +32,7 @@ func NewRouter() *router.Router {
 		// it for <html lang> and <html dir>.
 		// An explicit ?lang= choice is remembered, so it survives the next
 		// click. Before rendering, because it writes a header.
-		lang.Remember(ctx.Response, ctx.Request)
+		i18n.Remember(ctx.Response, ctx.Request)
 		t := lang.For(ctx.Request)
 		return Renderer.WithContext(lang.Context(ctx.Request, t)).Render(templates.HomePage(t))
 	})
