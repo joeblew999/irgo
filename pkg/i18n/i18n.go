@@ -150,7 +150,12 @@ func parsePOSIX(v string) language.Tag {
 // stated preference. Neither source is sufficient alone, which is exactly why
 // this is a function and not a line in a handler.
 func Preferred(r *http.Request) []language.Tag {
-	return append(FromRequest(r), platformPreferred()...)
+	// An explicit ?lang= or cookie outranks everything: it is the only source
+	// where someone said what they wanted rather than a system reporting a
+	// default on their behalf.
+	out := FromOverride(r)
+	out = append(out, FromRequest(r)...)
+	return append(out, platformPreferred()...)
 }
 
 // Reader picks the localization for these preferences, and the bundle's

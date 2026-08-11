@@ -44,6 +44,7 @@ import (
 	"{{MODULE_PATH}}/tokibundle"
 
 	"github.com/stukennedy/irgo/pkg/i18n"
+	"golang.org/x/text/language"
 )
 
 // For picks the localization for this request.
@@ -60,6 +61,19 @@ import (
 func For(r *http.Request) tokibundle.Reader {
 	return i18n.Reader(tokibundle.Match, tokibundle.Default, i18n.Preferred(r)...)
 }
+
+// Available is every language this app has, for a switcher to offer.
+//
+// Read from the bundle, so adding a locale with ` + "`irgo i18n add`" + ` makes it
+// appear with nothing else to update. A hand-kept list beside it would be a
+// second place to change and the one nobody remembers.
+func Available() []language.Tag { return tokibundle.Locales() }
+
+// Remember persists an explicit ?lang= choice so it survives the next click.
+//
+// Call it before rendering. Without it the parameter lasts one request, and on
+// mobile — where the WebView owns every link — there is no way to get it back.
+func Remember(w http.ResponseWriter, r *http.Request) { i18n.Remember(w, r) }
 
 // Context carries the locale actually rendered, for the layout to read.
 //
@@ -83,12 +97,17 @@ func Context(r *http.Request, t tokibundle.Reader) context.Context {
 // like the handlers and templates `project new` writes — a developer who has
 // added a cookie override or a query parameter to it should not lose that to
 // a second `i18n init`.
-func writeLangHelper() (bool, error) {
-	const dir, file = "lang", "lang/lang.go"
+func writeLangHelper() (bool, error) { return writeLangHelperIn(".") }
+
+// writeLangHelperIn is the same for a project that is not the working
+// directory, which is the case while `project new` is still building one.
+func writeLangHelperIn(root string) (bool, error) {
+	dir := filepath.Join(root, "lang")
+	file := filepath.Join(dir, "lang.go")
 	if pathExists(file) {
 		return false, nil
 	}
-	modulePath, err := getModulePath()
+	modulePath, err := modulePathIn(root)
 	if err != nil {
 		// Not fatal: the bundle is already generated and useful. The developer
 		// writes the three lines themselves, which is where they were before.

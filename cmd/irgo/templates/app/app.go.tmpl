@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"{{MODULE_PATH}}/handlers"
+	"{{MODULE_PATH}}/lang"
 	"{{MODULE_PATH}}/static"
 	"{{MODULE_PATH}}/templates"
 	"github.com/stukennedy/irgo/pkg/render"
@@ -25,7 +26,14 @@ func NewRouter() *router.Router {
 
 	// Home page
 	r.GET("/", func(ctx *router.Context) (string, error) {
-		return Renderer.Render(templates.HomePage())
+		// Negotiated once per request. lang.Context puts the locale that was
+		// actually matched into the context, which is where the layout reads
+		// it for <html lang> and <html dir>.
+		// An explicit ?lang= choice is remembered, so it survives the next
+		// click. Before rendering, because it writes a header.
+		lang.Remember(ctx.Response, ctx.Request)
+		t := lang.For(ctx.Request)
+		return Renderer.WithContext(lang.Context(ctx.Request, t)).Render(templates.HomePage(t))
 	})
 
 	// Mount handlers
