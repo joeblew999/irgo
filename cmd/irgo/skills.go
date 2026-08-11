@@ -186,6 +186,24 @@ var vendoredSkills = []skillSource{{
 		"would put its whole graph in every project that builds an irgo app.",
 }}
 
+// Not every skill is vendored. .claude/skills/toki is irgo's own, and there is
+// no entry for it here on purpose.
+//
+// The obvious thing to take was romshark/tik's SPECIFICATION.md — 459 lines of
+// normative TIK grammar, exactly what an agent needs. That repository carries
+// no license at all, so copying it into irgo would put an unlicensed document
+// into every project irgo scaffolds. The datastar skill is MIT, which is why
+// that one could be taken.
+//
+// The irgo-authored skill links the specification rather than reproducing it,
+// and covers what the specification cannot: that templ must run before toki,
+// that the confidence from a locale match must not be discarded, and that a
+// mobile shell without SetLocales serves the source language. Those are irgo's
+// own failure modes and belong to irgo either way.
+//
+// If tik ever gets a license, vendoring the grammar alongside this is worth
+// revisiting — the two answer different questions.
+
 // rawURL is where the file is fetched from to check it.
 func (s skillSource) rawURL() string {
 	repo := strings.TrimPrefix(s.repo, "https://github.com/")
