@@ -33,6 +33,14 @@ func route(noun, verb string, args []string) (error, bool) {
 		return nil, true
 	}
 
+	// A command that declared its own run func dispatches itself, so adding one
+	// no longer means editing this switch. Ahead of the switch rather than
+	// after it because register panics on a duplicate key, so the two can never
+	// both claim the same noun-verb pair and the order cannot mask a conflict.
+	if err, handled := runRegistered(noun, verb, args); handled {
+		return err, true
+	}
+
 	switch noun {
 
 	case "project":

@@ -36,6 +36,23 @@ jobs:
       # disappears at the next upgrade, so say so now rather than then.
       - run: go tool irgo project upgrade --check
       - run: go tool irgo project assets
+
+      # Translations, only if this project has any. `i18n check` fails when a
+      # catalog is incomplete, which is the right answer before a release and
+      # the wrong one during a build — so it is deliberately not part of
+      # `project check`. A half-translated app is a normal state to work in;
+      # shipping one is not.
+      #
+      # The guard is the bundle directory, so a project without translations
+      # runs nothing and needs no toki.
+      - name: Translations complete
+        run: |
+          if [ -d tokibundle ]; then
+            go tool irgo i18n check
+          else
+            echo "no tokibundle/ — this project has no translations"
+          fi
+
       - run: go test ./...
       - run: go build -o build/{{PROJECT_NAME}} .
       - uses: {{UPLOAD_ARTIFACT}}

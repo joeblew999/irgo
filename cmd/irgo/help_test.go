@@ -416,6 +416,7 @@ func TestTheCommandSetIsWhatWeThinkItIs(t *testing.T) {
 		"app install", "app remove", "app reviews",
 		"tools install", "tools remove", "tools doctor",
 		"server dev", "server serve",
+		"i18n init", "i18n add", "i18n list", "i18n edit", "i18n check",
 	}
 	have := map[string]bool{}
 	for k := range allCommands() {

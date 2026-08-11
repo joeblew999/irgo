@@ -66,6 +66,20 @@ object IrgoBridge {
     }
 
     /**
+     * Tell Go which languages this device is set to, in the user's own order,
+     * as a comma-separated BCP 47 list.
+     *
+     * Go cannot ask. A gomobile process inherits no shell environment, so
+     * LC_ALL and LANG are unset, and the requests reaching the bridge come
+     * from shouldInterceptRequest, whose header map does not include
+     * Accept-Language. Without this an app with a complete German catalog
+     * serves German speakers the source language.
+     */
+    fun setLocales(tags: String) {
+        Irgo.setLocales(tags)
+    }
+
+    /**
      * Remove all cookies, including persisted ones. Useful for logout.
      */
     fun clearCookies() {

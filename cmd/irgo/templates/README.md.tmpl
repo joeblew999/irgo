@@ -148,7 +148,9 @@ import (
 
 // Full page load
 r.GET("/", func(ctx *router.Context) (string, error) {
-    return renderer.Render(templates.HomePage())
+    t := lang.For(ctx.Request)
+    rctx := i18n.WithTag(ctx.Request.Context(), t.Locale())
+    return renderer.WithContext(rctx).Render(templates.HomePage(t))
 })
 ```
 

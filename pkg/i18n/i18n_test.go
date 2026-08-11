@@ -1,0 +1,261 @@
+package i18n
+
+import (
+	"net/http"
+	"testing"
+
+	"golang.org/x/text/language"
+)
+
+func TestFromRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name, header string
+		want         []string
+	}{
+		{"single", "de", []string{"de"}},
+		{"ordered by q", "de-CH,de;q=0.9,en;q=0.5", []string{"de-CH", "de", "en"}},
+		{"q reorders", "en;q=0.5,de;q=0.9", []string{"de", "en"}},
+		{"absent", "", nil},
+		// Attacker-controlled on every request. The answer is "no preference",
+		// not a panic and not a 500.
+		{"nonsense", "!!!!", nil},
+		// x/text is all-or-nothing on the whole header, so these exercise the
+		// per-entry salvage rather than the library.
+		{"garbage after valid", "de,!!!", []string{"de"}},
+		{"garbage before valid", "!!!,de", []string{"de"}},
+		{"salvage keeps q order", "en;q=0.3,!!!,de;q=0.9", []string{"de", "en"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _ := http.NewRequest("GET", "/", nil)
+			if tc.header != "" {
+				r.Header.Set("Accept-Language", tc.header)
+			}
+			got := FromRequest(r)
+			if len(got) < len(tc.want) {
+				t.Fatalf("Accept-Language %q: got %v, want at least %v", tc.header, got, tc.want)
+			}
+			for i, w := range tc.want {
+				if got[i].String() != w {
+					t.Errorf("Accept-Language %q: position %d is %s, want %s",
+						tc.header, i, got[i], w)
+				}
+			}
+		})
+	}
+}
+
+// TestFromRequestNilIsNotAPanic — desktop and mobile call the same handlers
+// through paths that do not always carry a request.
+func TestFromRequestNilIsNotAPanic(t *testing.T) {
+	if got := FromRequest(nil); got != nil {
+		t.Errorf("FromRequest(nil) = %v, want nil", got)
+	}
+}
+
+func TestFromEnv(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want []string
+	}{
+		// The POSIX shapes. Underscore and encoding suffix both have to go, or
+		// a correctly configured desktop silently falls back to the source
+		// language — the failure this function exists to prevent.
+		{"plain", map[string]string{"LANG": "de"}, []string{"de"}},
+		{"region", map[string]string{"LANG": "de_AT"}, []string{"de-AT"}},
+		{"encoding", map[string]string{"LANG": "de_AT.UTF-8"}, []string{"de-AT"}},
+		{"modifier", map[string]string{"LANG": "de_DE.UTF-8@euro"}, []string{"de-DE"}},
+
+		// LC_ALL wins over everything, LC_MESSAGES over LANG. That is the
+		// standard's order, not a preference.
+		{"LC_ALL wins", map[string]string{
+			"LC_ALL": "fr_FR.UTF-8", "LC_MESSAGES": "de_DE", "LANG": "en_US",
+		}, []string{"fr-FR"}},
+		{"LC_MESSAGES over LANG", map[string]string{
+			"LC_MESSAGES": "de_DE", "LANG": "en_US",
+		}, []string{"de-DE"}},
+
+		// C and POSIX mean "no locale". Parsing them yields a tag that looks
+		// real and matches no catalog.
+		{"C is not a language", map[string]string{"LANG": "C"}, nil},
+		{"POSIX is not a language", map[string]string{"LANG": "POSIX"}, nil},
+		{"unset", map[string]string{}, nil},
+
+		// The GNU extension: the one place a desktop expresses a ranked list.
+		{"LANGUAGE list", map[string]string{"LANGUAGE": "de:en:fr"},
+			[]string{"de", "en", "fr"}},
+		{"LANG then LANGUAGE", map[string]string{"LANG": "de_AT", "LANGUAGE": "de:en"},
+			[]string{"de-AT", "de", "en"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, k := range []string{"LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"} {
+				t.Setenv(k, tc.env[k])
+			}
+			got := FromEnv()
+			if len(got) != len(tc.want) {
+				t.Fatalf("env %v: got %v, want %v", tc.env, got, tc.want)
+			}
+			for i, w := range tc.want {
+				if got[i].String() != w {
+					t.Errorf("env %v: position %d is %s, want %s", tc.env, i, got[i], w)
+				}
+			}
+		})
+	}
+}
+
+// TestPreferredUsesBothSources pins the reason Preferred exists.
+//
+// A desktop irgo app serves its own UI to a local webview, and that webview
+// may send no Accept-Language at all. Request-only would give an English UI on
+// a German desktop; environment-only would ignore a real browser user. Neither
+// source alone is enough.
+func TestPreferredUsesBothSources(t *testing.T) {
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+	t.Setenv("LC_MESSAGES", "")
+	t.Setenv("LANG", "")
+	t.Setenv("LANGUAGE", "")
+
+	t.Run("no header falls back to the machine", func(t *testing.T) {
+		r, _ := http.NewRequest("GET", "/", nil)
+		got := Preferred(r)
+		if len(got) == 0 || got[0] != language.MustParse("de-DE") {
+			t.Errorf("got %v, want de-DE first", got)
+		}
+	})
+
+	t.Run("a header outranks the machine", func(t *testing.T) {
+		r, _ := http.NewRequest("GET", "/", nil)
+		r.Header.Set("Accept-Language", "fr")
+		got := Preferred(r)
+		if len(got) == 0 || got[0].String() != "fr" {
+			t.Errorf("got %v, want fr first", got)
+		}
+		// ...but the machine's locale is still in the list, so a French
+		// speaker on a German desktop with no fr catalog gets German rather
+		// than the source language.
+		if len(got) < 2 {
+			t.Errorf("got %v, want the environment retained as a fallback", got)
+		}
+	})
+}
+
+// TestReaderRefusesAGuess pins the failure that has no symptom.
+//
+// x/text's matcher never fails. Asked for a language with no catalog it
+// returns the first supported one and reports language.No beside it — so
+// `reader, _ := Match(...)`, which is what toki's own quick start writes,
+// serves a French visitor German. Nothing errors, nothing logs, and the page
+// renders perfectly in the wrong language.
+func TestReaderRefusesAGuess(t *testing.T) {
+	// Stands in for a generated bundle with de and en catalogs, de first —
+	// which is what makes the matcher hand back German for anything unknown.
+	match := func(prefs ...language.Tag) (string, language.Confidence) {
+		for _, p := range prefs {
+			switch p.String() {
+			case "de":
+				return "de-reader", language.Exact
+			case "en":
+				return "en-reader", language.Exact
+			case "de-AT":
+				return "de-reader", language.High
+			}
+		}
+		return "de-reader", language.No // the first supported catalog
+	}
+	def := func() string { return "en-reader" }
+
+	for _, tc := range []struct {
+		name string
+		ask  []language.Tag
+		want string
+	}{
+		{"exact match is used", []language.Tag{language.German}, "de-reader"},
+		{"a close match is used", []language.Tag{language.MustParse("de-AT")}, "de-reader"},
+		{"no match falls back to the default, not to the first catalog",
+			[]language.Tag{language.French}, "en-reader"},
+		{"no preferences at all", nil, "en-reader"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Reader(match, def, tc.ask...); got != tc.want {
+				t.Errorf("Reader(%v) = %s, want %s", tc.ask, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSetPreferredTags covers what the native shells actually send.
+//
+// Both platforms produce a comma-separated BCP 47 list — iOS from
+// Locale.preferredLanguages, Android from LocaleList.toLanguageTags — so this
+// is the exact string shape, including the ones a device can legitimately
+// produce that x/text will not accept.
+func TestSetPreferredTags(t *testing.T) {
+	t.Cleanup(func() { SetPreferred() })
+
+	for _, tc := range []struct {
+		name, list string
+		want       []string
+	}{
+		{"ios single", "en-US", []string{"en-US"}},
+		{"ios ordered", "de-AT,de,en", []string{"de-AT", "de", "en"}},
+		{"android with spaces", "de-DE, en-GB", []string{"de-DE", "en-GB"}},
+		// A device with no locale set writes und, which parses into a tag that
+		// looks real and matches no catalog.
+		{"und is dropped", "und", nil},
+		{"und among real ones", "und,de", []string{"de"}},
+		// A tag Go cannot read is not a reason to have no languages at all.
+		{"garbage is skipped", "!!!,de", []string{"de"}},
+		{"empty", "", nil},
+		{"only separators", ",,,", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			SetPreferredTags(tc.list)
+			got := Declared()
+			if len(got) != len(tc.want) {
+				t.Fatalf("SetPreferredTags(%q) -> %v, want %v", tc.list, got, tc.want)
+			}
+			for i, w := range tc.want {
+				if got[i].String() != w {
+					t.Errorf("position %d is %s, want %s", i, got[i], w)
+				}
+			}
+		})
+	}
+}
+
+// TestDeclaredOutranksTheEnvironment is the mobile case.
+//
+// A phone has no LC_ALL, so this is usually the only source. But the same
+// binary built for desktop has an environment and no declaration, and one
+// package has to be right on both.
+func TestDeclaredOutranksTheEnvironment(t *testing.T) {
+	t.Cleanup(func() { SetPreferred() })
+	t.Setenv("LC_ALL", "en_US.UTF-8")
+	t.Setenv("LC_MESSAGES", "")
+	t.Setenv("LANG", "")
+	t.Setenv("LANGUAGE", "")
+
+	SetPreferredTags("de-AT,de")
+	got := Preferred(nil)
+	if len(got) == 0 || got[0].String() != "de-AT" {
+		t.Fatalf("Preferred = %v, want de-AT first", got)
+	}
+	// The environment is kept behind it: a desktop build of the same app has
+	// no declaration, and a host that declares one should not erase the rest.
+	var sawEnv bool
+	for _, tag := range got {
+		if tag.String() == "en-US" {
+			sawEnv = true
+		}
+	}
+	if !sawEnv {
+		t.Errorf("Preferred = %v, want the environment retained after the declaration", got)
+	}
+
+	// Clearing it puts the environment back in charge.
+	SetPreferred()
+	if got := Preferred(nil); len(got) == 0 || got[0].String() != "en-US" {
+		t.Errorf("after clearing, Preferred = %v, want en-US first", got)
+	}
+}

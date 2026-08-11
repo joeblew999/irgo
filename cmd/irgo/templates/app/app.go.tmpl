@@ -7,8 +7,10 @@ import (
 	"net/http"
 
 	"{{MODULE_PATH}}/handlers"
+	"{{MODULE_PATH}}/lang"
 	"{{MODULE_PATH}}/static"
 	"{{MODULE_PATH}}/templates"
+	"github.com/stukennedy/irgo/pkg/i18n"
 	"github.com/stukennedy/irgo/pkg/render"
 	"github.com/stukennedy/irgo/pkg/router"
 )
@@ -25,7 +27,22 @@ func NewRouter() *router.Router {
 
 	// Home page
 	r.GET("/", func(ctx *router.Context) (string, error) {
-		return Renderer.Render(templates.HomePage())
+		// The locale that was actually MATCHED goes into the context, which is
+		// where the layout reads it for <html lang> and <html dir>. Not the one
+		// requested: a visitor who asked for French and got English must be
+		// told English, or a screen reader pronounces English with French
+		// phonetics.
+		//
+		// Built from the framework rather than from the project's lang package,
+		// so this template compiles against a lang/lang.go of any age. That
+		// package is seeded once and then owned by the project; anything the
+		// template calls has to upgrade with the template.
+		// An explicit ?lang= choice is remembered, so it survives the next
+		// click. Before rendering, because it writes a header.
+		i18n.Remember(ctx.Response, ctx.Request)
+		t := lang.For(ctx.Request)
+		rctx := i18n.WithTag(ctx.Request.Context(), t.Locale())
+		return Renderer.WithContext(rctx).Render(templates.HomePage(t))
 	})
 
 	// Mount handlers
