@@ -47,9 +47,10 @@
 "ubi:gitext-rs/git-stack" = "0.10.18"
 
 # Snapshots every branch pointer at once, with list/pop/apply to restore.
-# The safety net before rebasing a stack: `git stash` saves uncommitted work,
-# this saves where all your branches were pointing. git-stack uses it as a
-# library but exposes no restore command, so it is worth having on its own.
+# A git-stack dependency, not a tool anyone runs here. It records where every
+# branch pointed before a rebase; git-stack uses it as a library. The `save`
+# and `restore` tasks that wrapped it are gone — they existed to park work when
+# switching between two dozen branches, and work happens on the trunk now.
 "ubi:gitext-rs/git-branch-stash" = "0.12.0"
 
 # This file is the source of truth for how work happens here.
@@ -173,13 +174,7 @@ run = "git push --set-upstream origin HEAD"
 description = "Which branch you are on, and what else exists"
 run = "git-stack"
 
-[tasks.save]
-description = "Snapshot where every branch points, before anything risky"
-run = "git-branch-stash push"
 
-[tasks.restore]
-description = "Put every branch back where the last snapshot had it"
-run = "git-branch-stash pop"
 
 [tasks.rebase]
 description = "Move your branches onto an updated main"

@@ -117,7 +117,7 @@ nothing stops you typing something else. These genuinely stop a mistake:
 
 | | how |
 |---|---|
-| `main` diverging from upstream | CI (`fork-main.yml`) |
+| `main` diverging from upstream | CI (`fork-main.yml`) — registered at last; see below |
 | a pull request that would conflict, rewrite their CI, or fail it | `irgo project offer-check --run` |
 | a target that stopped building | `mise run verify` — `check` never compiles a native one |
 | the trunk breaking | CI, which now runs on `integration` — before this, it only ever ran on `main`, which receives no commits |
@@ -135,6 +135,15 @@ Nothing runs CI on `integration` — every workflow is `branches: [main]` — so
 table used to claim CI caught commits authored on `integration`; it never did,
 and a table that advertises a guard which does not exist is worse than one that
 admits the gap.
+
+`integration` is the default branch. That is not cosmetic: **GitHub registers
+workflows from the default branch**, and while `main` held it, only three of
+this repo's five workflows were known to Actions. `fork-main.yml` — the guard
+this table has always claimed enforced `main` — was not among them, so it had
+never been able to run. Changing the default registered all of them.
+
+GitHub also deletes a head branch when its pull request merges, which is
+`mise run done` performed by the host.
 
 There is deliberately no git hook. A workflow that stops leaving you in the
 wrong place beats one that refuses you afterwards.
