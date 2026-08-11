@@ -3,6 +3,7 @@ module morpheus-showcase
 go 1.26.5
 
 require (
+	github.com/a-h/templ v0.3.1020
 	github.com/romshark/morpheus v0.0.0-00010101000000-000000000000
 	github.com/stukennedy/irgo v0.4.0
 	github.com/syumai/workers v0.33.0
@@ -10,7 +11,6 @@ require (
 
 require (
 	github.com/CAFxX/httpcompression v0.0.9 // indirect
-	github.com/a-h/templ v0.3.1020 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/go-chi/chi/v5 v5.2.4 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect

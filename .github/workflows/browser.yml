@@ -37,10 +37,12 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          # From go.mod, not a literal. A version pinned here drifts from the
-          # one the module actually requires, and the failure is a compile
-          # error about something unrelated.
-          go-version-file: go.mod
+          # The EXAMPLE's go.mod, not the repository root's. These examples
+          # depend on github.com/romshark/morpheus, which requires Go 1.26.5,
+          # while irgo requires 1.25.0 on purpose — demanding a newer Go of
+          # every irgo user was tried once and backed out. Resolving from the
+          # root here installed 1.25.0 and the module would not build.
+          go-version-file: examples/${{ matrix.example }}/go.mod
           cache: true
 
       # --with-deps installs the system libraries a browser needs on Linux
