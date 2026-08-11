@@ -13,7 +13,10 @@ name: browser
 
 on:
   push:
-    branches: [main]
+    # integration is where this fork's work actually lands; main only
+    # mirrors upstream and never receives a commit. Without it here, nothing
+    # this fork writes was ever tested by CI on push.
+    branches: [main, integration]
   pull_request:
 
 jobs:
