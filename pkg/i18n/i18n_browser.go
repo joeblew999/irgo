@@ -20,7 +20,17 @@ import (
 
 // platformPreferred is navigator.languages here. There are no environment
 // variables in a browser, so the POSIX path would always return nothing.
-func platformPreferred() []language.Tag { return FromBrowser() }
+//
+// A host declaration still wins if one was made. Nothing in a browser build
+// makes one today, but the API is the same package on every target and an
+// override that silently did nothing on one of them would be worse than not
+// having it.
+func platformPreferred() []language.Tag {
+	if d := Declared(); len(d) > 0 {
+		return append(d, FromBrowser()...)
+	}
+	return FromBrowser()
+}
 
 // FromBrowser reads navigator.languages, in the order the user ranked them.
 func FromBrowser() []language.Tag {
