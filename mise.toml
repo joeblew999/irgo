@@ -130,8 +130,14 @@ run = ["git switch integration", "git pull --quiet --ff-only", "git switch --cre
 [tasks.pr]
 # Push and open the pull request in one step, so the loop has no gap where a
 # branch sits pushed and unreviewed.
+#
+# --repo is not optional. This repository has an upstream remote, and gh
+# resolves to that by default — so without it the pull request is aimed at
+# stukennedy/irgo, where the integration branch does not exist, and it fails
+# with a git error about separating paths from revisions that says nothing
+# about the actual problem.
 description = "Push the branch you are on and open its pull request"
-run = "git push --set-upstream origin HEAD && gh pr create --base integration --fill"
+run = "git push --set-upstream origin HEAD && gh pr create --repo joeblew999/irgo --base integration --fill"
 
 [tasks.offer]
 # The rare thing, made explicit.
