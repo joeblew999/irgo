@@ -5,7 +5,8 @@ exists, next to the command itself, where it cannot drift from what actually
 runs.
 
 ```sh
-mise install     # the branch tools
+mise install     # every tool this workflow needs, including gh
+gh auth login    # once per machine — mise installs gh, it cannot log you in
 mise run setup   # protects main and integration, blocks pushes to upstream
 mise tasks       # every command, with a line each
 ```
