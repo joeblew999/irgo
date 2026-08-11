@@ -15,6 +15,8 @@ mise run branch fix/some-thing   # start, off the trunk, up to date
 mise run check                   # before EVERY commit — seconds
 git commit
 mise run pr                      # push and open the pull request
+mise run status                  # what CI is doing
+mise run land                    # merge when green, delete the branch, back to trunk
 ```
 
 CI runs on the pull request. It merges when green, and the branch is deleted
