@@ -249,6 +249,28 @@ func regenerateI18n() error {
 	if !hasI18n() {
 		return nil
 	}
+
+	// A bundle directory with no bundle_gen.go in it is the state a project
+	// reaches by gitignoring the generated files, and toki cannot recover from
+	// it: the default locale is recorded in bundle_gen.go and nowhere else, so
+	// `toki generate` refuses to start and asks for -l — an error that names a
+	// flag rather than the problem. It also analyses Go source, which no longer
+	// compiles once the package the app imports has gone.
+	//
+	// Worth its own message because the instinct is exactly wrong here. The
+	// bundle looks generated, and irgo does gitignore generated code elsewhere
+	// — but templ rebuilds *_templ.go from .templ files, needing nothing to
+	// compile first, and this cannot.
+	if !pathExists(filepath.Join(tokiBundleDir, "bundle_gen.go")) {
+		return fmt.Errorf("%s/ has catalogs but no bundle_gen.go\n\n"+
+			"  It holds the default locale, so toki cannot regenerate without\n"+
+			"  it — commit the whole of %s/, including the generated files.\n"+
+			"  Unlike *_templ.go, this is not rebuildable from what is left.\n\n"+
+			"  To recreate it now, naming the language your source is written in:\n"+
+			"    irgo i18n init <locale>",
+			tokiBundleDir, tokiBundleDir)
+	}
+
 	if err := ensureGoTool("toki"); err != nil {
 		return err
 	}
