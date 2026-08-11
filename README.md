@@ -13,6 +13,12 @@ mise run wf:setup     # once per clone — protects main, blocks pushes to upstr
 mise tasks         # everything else, with a line each
 ```
 
+## Shipping to China
+
+[CHINA.md](CHINA.md) — the filing sequence that gates every mainland
+deployment, the one blocked import a generated project still ships with, and
+why 10% of Chinese phones cannot run the Android build at all.
+
 ## Key Features
 
 - **Go-Powered Apps**: Write your backend logic in Go, compile to native mobile frameworks or desktop apps
