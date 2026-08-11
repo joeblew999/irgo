@@ -1,13 +1,11 @@
 package templates
 
-import "github.com/stukennedy/irgo/pkg/i18n"
-
 // DevMode controls whether live reload is enabled (set by dev server)
 var DevMode bool
 
 templ Layout(title string) {
 	<!DOCTYPE html>
-	<html lang={ i18n.Lang(ctx) } dir={ i18n.Dir(ctx) }>
+	<html lang="en">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
@@ -108,7 +106,7 @@ templ Page(title string) {
 // FullscreenPage provides a layout for immersive full-screen experiences
 templ FullscreenPage(title string) {
 	<!DOCTYPE html>
-	<html lang={ i18n.Lang(ctx) } dir={ i18n.Dir(ctx) }>
+	<html lang="en">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>

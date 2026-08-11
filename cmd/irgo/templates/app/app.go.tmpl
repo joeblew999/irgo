@@ -7,10 +7,8 @@ import (
 	"net/http"
 
 	"{{MODULE_PATH}}/handlers"
-	"{{MODULE_PATH}}/lang"
 	"{{MODULE_PATH}}/static"
 	"{{MODULE_PATH}}/templates"
-	"github.com/stukennedy/irgo/pkg/i18n"
 	"github.com/stukennedy/irgo/pkg/render"
 	"github.com/stukennedy/irgo/pkg/router"
 )
@@ -37,12 +35,7 @@ func NewRouter() *router.Router {
 		// so this template compiles against a lang/lang.go of any age. That
 		// package is seeded once and then owned by the project; anything the
 		// template calls has to upgrade with the template.
-		// An explicit ?lang= choice is remembered, so it survives the next
-		// click. Before rendering, because it writes a header.
-		i18n.Remember(ctx.Response, ctx.Request)
-		t := lang.For(ctx.Request)
-		rctx := i18n.WithTag(ctx.Request.Context(), t.Locale())
-		return Renderer.WithContext(rctx).Render(templates.HomePage(t))
+		return Renderer.Render(templates.HomePage())
 	})
 
 	// Mount handlers

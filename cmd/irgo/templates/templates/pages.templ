@@ -1,13 +1,12 @@
 package templates
 
 import (
-	"{{MODULE_PATH}}/tokibundle"
 
 	"fmt"
 	"math"
 )
 
-templ HomePage(t tokibundle.Reader) {
+templ HomePage() {
 	@FullscreenPage("Irgo + Datastar") {
 		<div
 			class="constellation-container"
@@ -47,29 +46,30 @@ templ HomePage(t tokibundle.Reader) {
 						<span class="title-divider">×</span>
 						<span class="title-accent">Datastar</span>
 					</h1>
-					<p class="tagline">{ t.String(`Server-driven hypermedia for Go`) }</p>
+					<p class="tagline">Server-driven hypermedia for Go</p>
 				</header>
 
 				<div class="stats-panel glass-panel">
 					<div class="stat">
-						<span class="stat-label">{ t.String(`Connection`) }</span>
+						<span class="stat-label">Connection</span>
 						<span id="connection-status" class="stat-value">
-							@ConnectionStatus(t, false)
+							@ConnectionStatus(false)
 						</span>
 					</div>
 					<div class="stat">
-						<span class="stat-label">{ t.String(`Pulses`) }</span>
+						<span class="stat-label">Pulses</span>
 						<span id="pulse-count" class="stat-value mono">0</span>
 					</div>
 					<div class="stat">
-						<span class="stat-label">{ t.String(`Latency`) }</span>
+						<span class="stat-label">Latency</span>
 						<span id="latency" class="stat-value mono">0ms</span>
 					</div>
 				</div>
 
 				<div class="info-panel glass-panel">
 					<p class="info-text">
-						{ t.String(`Move your cursor to see server-driven reactivity. Every visual change flows through Go handlers via SSE.`) }
+						<strong>Move your cursor</strong> to see server-driven reactivity.
+						Every visual change flows through Go handlers via SSE.
 					</p>
 					<div class="tech-badges">
 						<span class="badge">Go</span>
@@ -77,7 +77,6 @@ templ HomePage(t tokibundle.Reader) {
 						<span class="badge">Templ</span>
 						<span class="badge">Datastar</span>
 					</div>
-					@LanguageSwitcher(t.Locale().String())
 				</div>
 
 				<nav class="action-buttons">
@@ -100,13 +99,13 @@ templ HomePage(t tokibundle.Reader) {
 }
 
 // ConnectionStatus renders the connection status indicator (server-controlled)
-templ ConnectionStatus(t tokibundle.Reader, connected bool) {
+templ ConnectionStatus(connected bool) {
 	<span id="connection-status" class={ "stat-value", templ.KV("connected", connected) }>
 		<span class={ "status-dot", templ.KV("active", connected) }></span>
 		if connected {
-			<span>{ t.String(`Live`) }</span>
+			<span>Live</span>
 		} else {
-			<span>{ t.String(`Connecting...`) }</span>
+			<span>Connecting...</span>
 		}
 	</span>
 }
@@ -261,29 +260,3 @@ templ PulseStats(count int, latencyMs int) {
 	<span id="latency" class="stat-value mono">{ fmt.Sprintf("%dms", latencyMs) }</span>
 }
 
-// LanguageSwitcher is how anyone — a visitor or the developer — changes the
-// language, on every target irgo builds for.
-//
-// A link with ?lang=, because that is the one mechanism all six targets share.
-// The platform ways are all different and mostly hostile: adb setprop and a
-// runtime restart on Android, simctl launch arguments on iOS, a browser flag
-// and a throwaway profile for the service worker. None of them is available
-// while clicking around, and none works on a phone in your hand.
-//
-// i18n.Remember turns the click into a cookie, so it survives the next
-// navigation. The list comes from the bundle rather than from the project's
-// own lang package, so `irgo i18n add fr` puts French here with nothing else
-// to change — and a project whose lang/lang.go predates this still builds.
-templ LanguageSwitcher(current string) {
-	<nav class="lang-switcher" aria-label="Language">
-		for _, l := range tokibundle.Locales() {
-			if l.String() == current {
-				<span class="lang-current" aria-current="true">{ l.String() }</span>
-			} else {
-				<a class="lang-link" href={ templ.SafeURL("?lang=" + l.String()) } hreflang={ l.String() }>
-					{ l.String() }
-				</a>
-			}
-		}
-	</nav>
-}

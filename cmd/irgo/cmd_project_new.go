@@ -500,32 +500,19 @@ func newProject(name string) error {
 			fmt.Printf("Warning: go mod tidy failed: %v\n", err)
 		}
 
-		// Translations, which the scaffolded templates are already written for.
+		// Translations are NOT set up here, deliberately.
 		//
-		// Every target irgo builds for serves an audience it cannot know at
-		// build time: one Worker answers the world, one binary goes to the app
-		// store for every country, and a cached PWA has no network left to fetch
-		// a language it did not ship with. So there is no target where being
-		// monolingual is the safe default — and the cost measured across
-		// thirteen locales was 3.6 KB gzipped each, against a Go runtime that is
-		// 98% of the same binary.
-		fmt.Println("Setting up translations...")
-		if err := bootstrapI18n(projectDir, "en"); err != nil {
-			// Fatal, not a warning. The scaffolded templates import
-			// <module>/tokibundle and <module>/lang, so a project whose
-			// bootstrap failed does not compile — and a warning let that ship
-			// as a success. It reached CI exactly that way: the bootstrap ran
-			// `go mod tidy` against an irgo version that did not resolve, gave
-			// up, and handed over a project referencing packages nobody
-			// created.
-			//
-			// Better to say what went wrong while the developer is still
-			// looking at the command they just ran.
-			return fmt.Errorf("setting up translations: %w\n\n"+
-				"  The project templates use them, so it cannot build without\n"+
-				"  this step. Fix the cause above and run:\n"+
-				"    irgo i18n init", err)
-		}
+		// toki requires Go 1.26.5 and irgo's go.mod declares 1.25.0, so
+		// bootstrapping it from `project new` demands a newer Go than this
+		// framework asks of anyone — and silently, at the moment somebody is
+		// creating their first project. CI proved it: `installing toki: exit
+		// status 1` on a runner using the version go.mod names.
+		//
+		// This project has already refused that trade once, in the commit that
+		// stopped demanding Go 1.26.5.
+		//
+		// `irgo i18n init` does the whole job on demand — bundle, lang/lang.go,
+		// <html lang> and dir — for projects whose Go is new enough.
 	}
 
 	fmt.Println()
