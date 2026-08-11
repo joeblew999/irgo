@@ -101,7 +101,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          # Its own go.mod, not the repository root's. Morpheus requires Go
+          # 1.26.5 and irgo requires 1.25.0 — deliberately, since demanding a
+          # newer Go of every irgo user was tried once and backed out. So this
+          # job installs what the showcase's module actually needs, and the
+          # rest of CI keeps testing against the version irgo promises.
+          go-version-file: examples/morpheus-showcase/go.mod
 
       # No checkout of Morpheus here, and no clone step. The showcase's pages
       # are imported rather than copied, which needs them exported, which

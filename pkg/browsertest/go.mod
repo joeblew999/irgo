@@ -1,6 +1,6 @@
 module github.com/stukennedy/irgo/pkg/browsertest
 
-go 1.26.5
+go 1.25.0
 
 require github.com/mxschmitt/playwright-go v0.6100.0
 
