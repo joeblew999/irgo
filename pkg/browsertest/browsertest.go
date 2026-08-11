@@ -45,6 +45,32 @@ type Page struct {
 // reasons nobody connects to a test.
 func Open(t *testing.T, handler http.Handler) *Page {
 	t.Helper()
+	return open(t, handler, "")
+}
+
+// OpenAs is Open with the browser set to a locale.
+//
+// It sets what a real visitor from that locale sends: navigator.language and
+// navigator.languages inside the page, and the Accept-Language header on every
+// request the browser makes. Both, because an irgo app can read either — a
+// server-rendered page negotiates from the header, and the browser/wasm build
+// runs in a service worker where there is no header to read and navigator is
+// the only source.
+//
+// A translation bug is invisible to any test that does not do this. The
+// language a test browser reports is the language of the machine running it,
+// so a German catalog is never exercised on an English laptop and every
+// assertion passes on the source language.
+//
+//	p := browsertest.OpenAs(t, app.NewRouter(), "de-DE")
+//	p.MustHaveText(".tagline", "Servergesteuerte Hypermedia für Go")
+func OpenAs(t *testing.T, handler http.Handler, locale string) *Page {
+	t.Helper()
+	return open(t, handler, locale)
+}
+
+func open(t *testing.T, handler http.Handler, locale string) *Page {
+	t.Helper()
 
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -63,7 +89,20 @@ func Open(t *testing.T, handler http.Handler) *Page {
 	}
 	t.Cleanup(func() { browser.Close() })
 
-	page, err := browser.NewPage()
+	// A context rather than browser.NewPage(), because locale is a context
+	// property: it has to be set before the page exists, and cannot be changed
+	// afterwards without discarding it.
+	var opts playwright.BrowserNewContextOptions
+	if locale != "" {
+		opts.Locale = playwright.String(locale)
+	}
+	ctx, err := browser.NewContext(opts)
+	if err != nil {
+		t.Fatalf("opening a browser context: %v", err)
+	}
+	t.Cleanup(func() { ctx.Close() })
+
+	page, err := ctx.NewPage()
 	if err != nil {
 		t.Fatalf("opening a page: %v", err)
 	}
