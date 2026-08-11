@@ -7,7 +7,7 @@ runs.
 ```sh
 mise install     # every tool this workflow needs, including gh
 gh auth login    # once per machine — mise installs gh, it cannot log you in
-mise run setup   # once per clone — protects the trunk, blocks pushes to upstream
+mise run wf:setup   # once per clone — protects the trunk, blocks pushes to upstream
 mise tasks       # every command, with a line each
 ```
 
@@ -19,13 +19,13 @@ that are not commands.
 Three or four people share this trunk, so nothing lands on it directly.
 
 ```sh
-mise run branch fix/some-thing   # off the trunk, up to date
+mise run wf:branch fix/some-thing   # off the trunk, up to date
 # ...work...
 mise run check                   # before every commit
 git commit
-mise run pr                      # pushes and opens the pull request
-mise run status                  # what CI is doing, if you want to watch
-mise run land                    # merges when green, deletes the branch, puts
+mise run wf:pr                      # pushes and opens the pull request
+mise run wf:status                  # what CI is doing, if you want to watch
+mise run wf:land                    # merges when green, deletes the branch, puts
                                  # you back on the trunk
 ```
 
@@ -64,7 +64,7 @@ ships.
 When a change should go to upstream, and the repository owner has agreed:
 
 ```sh
-mise run offer fix/some-bug <sha>...
+mise run wf:offer fix/some-bug <sha>...
 ```
 
 It cuts from `main`, replays only the commits you name, and pushes. The branch
@@ -101,7 +101,7 @@ worth reading.
 ## Finish a branch when it is done
 
 ```sh
-mise run done <branch>
+mise run wf:done <branch>
 ```
 
 There used to be a command to start a branch and none to end one, which is the
@@ -112,7 +112,7 @@ into the branch you are standing on, and the task stands on `integration`
 first. It is deliberately not `-D` — a refusal means the work exists nowhere
 else, which is exactly when you want to be stopped.
 
-Retiring a merged branch loses nothing. `mise run merge` makes a real merge
+Retiring a merged branch loses nothing. `mise run wf:merge` makes a real merge
 commit, so the tip stays addressable forever as `<merge-commit>^2` and reachable
 from `integration`; a branch can be recreated from it byte-for-byte, and then
 offered.
@@ -167,10 +167,10 @@ nothing stops you typing something else. These genuinely stop a mistake:
 | a pull request that would conflict, rewrite their CI, or fail it | `irgo project offer-check --run` |
 | a target that stopped building | `mise run verify` — `check` never compiles a native one |
 | the trunk breaking | CI, which now runs on `integration` — before this, it only ever ran on `main`, which receives no commits |
-| deleting a branch whose work is nowhere else | `git branch -d`, via `mise run done` |
+| deleting a branch whose work is nowhere else | `git branch -d`, via `mise run wf:done` |
 | a red commit reaching the trunk | branch protection — `integration` requires CI and a pull request |
 | landing without anyone looking | branch protection — a pull request is required to merge |
-| pushing to the upstream repository | `mise run setup` points its push URL at nothing |
+| pushing to the upstream repository | `mise run wf:setup` points its push URL at nothing |
 | rebasing `main` or `integration` | git-stack refuses, after `setup` |
 | committing generated files | `TestNoGeneratedFilesAreTracked` |
 | losing a command's registration | `TestTheCommandSetIsWhatWeThinkItIs` |
@@ -187,7 +187,7 @@ admits the gap.
 `integration` is the only branch here that is not an offer. There is no local
 `main`: it mirrored upstream and never received a commit, so it was one more
 thing to explain and to keep in sync. Git already tracks upstream's code as
-`upstream/main`, which is what `mise run offer` cuts from.
+`upstream/main`, which is what `mise run wf:offer` cuts from.
 
 That also retired `fork-main.yml`, which guarded the mirror. Worth knowing why
 it is no loss: **GitHub registers workflows from the default branch**, and while
@@ -196,7 +196,7 @@ it is no loss: **GitHub registers workflows from the default branch**, and while
 this document claimed it was enforcing something.
 
 GitHub also deletes a head branch when its pull request merges, which is
-`mise run done` performed by the host.
+`mise run wf:done` performed by the host.
 
 There is deliberately no git hook. A workflow that stops leaving you in the
 wrong place beats one that refuses you afterwards.

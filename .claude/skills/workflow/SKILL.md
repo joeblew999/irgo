@@ -10,13 +10,13 @@ the file they live in explains why each exists. They encode decisions this
 project has already made and paid for; typing the git underneath skips those.
 
 ```sh
-mise run branch fix/some-thing   # start, off the trunk, up to date
+mise run wf:branch fix/some-thing   # start, off the trunk, up to date
 # ...work...
 mise run check                   # before EVERY commit — seconds
 git commit
-mise run pr                      # push and open the pull request
-mise run status                  # what CI is doing
-mise run land                    # merge when green, delete the branch, back to trunk
+mise run wf:pr                      # push and open the pull request
+mise run wf:status                  # what CI is doing
+mise run wf:land                    # merge when green, delete the branch, back to trunk
 ```
 
 CI runs on the pull request. It merges when green, and the branch is deleted
@@ -61,7 +61,7 @@ running something, not by reading it.
 Only when the repository owner has agreed. Then:
 
 ```sh
-mise run offer fix/some-thing <commit>...
+mise run wf:offer fix/some-thing <commit>...
 irgo project offer-check fix/some-thing --run
 ```
 

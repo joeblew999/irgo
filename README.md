@@ -9,7 +9,7 @@ is enforced versus habit, and how a release reaches a project.
 
 ```sh
 mise install       # the branch tools
-mise run setup     # once per clone — protects main, blocks pushes to upstream
+mise run wf:setup     # once per clone — protects main, blocks pushes to upstream
 mise tasks         # everything else, with a line each
 ```
 

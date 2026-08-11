@@ -119,7 +119,7 @@
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
 
-[tasks.branch]
+[tasks."wf:branch"]
 # Start a piece of work. With more than one maintainer, everything reaches the
 # trunk through a pull request — so `integration` is never a branch anyone
 # commits to directly, and CI has run before a change lands rather than after.
@@ -136,7 +136,7 @@
 description = "Start a change, on a branch off the trunk"
 run = ["git switch integration", "git pull --quiet --ff-only", "git switch --create"]
 
-[tasks.pr]
+[tasks."wf:pr"]
 # Push and open the pull request in one step, so the loop has no gap where a
 # branch sits pushed and unreviewed.
 #
@@ -148,7 +148,7 @@ run = ["git switch integration", "git pull --quiet --ff-only", "git switch --cre
 description = "Push the branch you are on and open its pull request"
 run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngit push --set-upstream origin HEAD\ngh pr create --repo joeblew999/irgo --base integration --fill"
 
-[tasks.land]
+[tasks."wf:land"]
 # The other half of `pr`. Without this the loop stops at "opened", and everyone
 # finishes by hand in the web interface or with raw gh commands — which is how
 # the workflow ends up being something people describe rather than run.
@@ -167,13 +167,13 @@ run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: g
 description = "Merge the pull request for this branch once CI passes, and clean up"
 run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngh pr merge \"$(git branch --show-current)\" --repo joeblew999/irgo --squash --delete-branch --auto\ngit switch integration\ngit pull --quiet --ff-only"
 
-[tasks.status]
+[tasks."wf:status"]
 # What is happening to the pull request you just opened, without leaving the
 # terminal or guessing how long Windows takes.
 description = "Show the checks on this branch's pull request"
 run = "gh pr checks \"$(git branch --show-current)\" --repo joeblew999/irgo"
 
-[tasks.offer]
+[tasks."wf:offer"]
 # The rare thing, made explicit.
 #
 # Cut from upstream/main, the remote-tracking ref, rather than a local mirror of
@@ -199,6 +199,12 @@ run = "gh pr checks \"$(git branch --show-current)\" --repo joeblew999/irgo"
 description = "Cut a pull-request branch from main with only the commits you name"
 run = "git fetch --quiet upstream && git switch --detach upstream/main && git switch --create {{arg(name='branch')}} && git cherry-pick {{arg(name='commits', var=true)}} && git push --set-upstream origin HEAD"
 
+# check and verify are deliberately not namespaced. They are about the code —
+# does it compile, do the tests pass, does every target still build — and you
+# run them constantly. Everything under wf: is about moving work around: making
+# a branch, opening a pull request, landing it, tagging a release. That is a
+# different job, it is not part of the irgo CLI, and the prefix keeps the two
+# from being read as one set.
 [tasks.check]
 # Everything CI runs, in the order it runs it, so passing here means passing
 # there. It used to be `go test ./...` alone, which let formatting and vet
@@ -233,21 +239,21 @@ run = [
   "go run ./cmd/irgo app build cloudflare",
 ]
 
-[tasks.ship]
+[tasks."wf:ship"]
 description = "Push the branch you are on"
 run = "git push --set-upstream origin HEAD"
 
-[tasks.where]
+[tasks."wf:where"]
 description = "Which branch you are on, and what else exists"
 run = "git-stack"
 
 
 
-[tasks.rebase]
+[tasks."wf:rebase"]
 description = "Move your branches onto an updated main"
 run = "git-stack --pull"
 
-[tasks.merge]
+[tasks."wf:merge"]
 # Switches to integration, merges the branch you were on, then steps back off.
 #
 # Standing on integration is how the next commit lands there, and a commit on
@@ -260,7 +266,7 @@ run = "git-stack --pull"
 description = "Merge the branch you are on into integration, then step off it"
 run = ["git switch integration", "git merge --no-edit -", "git switch -"]
 
-[tasks.done]
+[tasks."wf:done"]
 # Ending a branch, which the workflow had no way to do.
 #
 # Twenty-four accumulated because there was a command to start one and none to
@@ -277,18 +283,18 @@ run = ["git switch integration", "git merge --no-edit -", "git switch -"]
 description = "Retire a merged branch, locally and on origin"
 run = "git switch integration && git branch -d {{arg(name='branch')}} && git push --quiet origin --delete {{arg(name='branch')}}"
 
-[tasks.tag]
+[tasks."wf:tag"]
 # Creating and pushing are separate because the version is an argument and it
 # has to land on the tag command, not on a push. Check before you tag: a tag is
 # the one thing that is awkward to take back.
 description = "Name a release — give it a version, e.g. v0.6.5"
 run = "git tag --annotate --message=release"
 
-[tasks.publish]
+[tasks."wf:publish"]
 description = "Push the trunk and every tag on it"
 run = "git push --follow-tags origin integration"
 
-[tasks.setup]
+[tasks."wf:setup"]
 # Both, not just main. integration is this fork's trunk and is built by
 # merging; letting a rebase tool rewrite it would replace that history with a
 # replayed copy. A task that ran `git-stack --pull --stack all` here tried
