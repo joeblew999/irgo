@@ -74,3 +74,28 @@ run = "go tool irgo app run android"
 [tasks.worker]
 description = "Build the Cloudflare Worker"
 run = "go tool irgo app build cloudflare"
+
+[tasks.stop]
+# irgo leaves the emulator running between runs on purpose: booting takes
+# minutes, and running the app twice should not cost that twice. This is the
+# other end. One left going during development here used 760% CPU for days,
+# headless and invisible, while every run reported success.
+description = "Stop the Android emulator"
+run = "go tool irgo app stop android"
+
+[tasks.i18n]
+# Which languages this app speaks. Read from the catalogs on disk, so there is
+# only ever one answer.
+#
+# To see a language without touching your OS or your emulator, append ?lang=de
+# to any URL — it works on every target, including inside the WebView on a
+# phone, and it is remembered in a cookie.
+description = "Show the languages this app has"
+run = "go tool irgo i18n list"
+
+[tasks.i18n-check]
+# For CI, before a release. Deliberately not part of `check`: a half-translated
+# app is a normal state to work in for days, and failing every local build over
+# it teaches people to stop running the check that catches everything else.
+description = "Fail if any translation is incomplete"
+run = "go tool irgo i18n check"
