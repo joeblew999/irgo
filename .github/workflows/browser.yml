@@ -55,13 +55,14 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         run: go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium
 
-      # *_templ.go is generated and gitignored, so a fresh checkout has no
-      # templates package at all — the tests fail to compile before a browser
-      # is ever opened. ci.yml reaches these examples through `project test`,
-      # which generates first; this job called `go test` directly and never did.
-      - name: Generate assets
-        run: go run ./cmd/irgo -C examples/${{ matrix.example }} project assets
-
+      # `project test`, not `go test`. A fresh checkout has none of the
+      # generated assets — *_templ.go, the Tailwind output, and a UI kit's
+      # stylesheets are all gitignored — so `go test` first fails to compile,
+      # and then, once templates exist, serves 404s for the kit CSS. The
+      # browser reports that as a MIME error, which reads like a server bug and
+      # is not one.
+      #
+      # `project test` is the pipeline that produces all of it, in order, and
+      # is what ci.yml already uses to reach these same examples.
       - name: Test
-        working-directory: examples/${{ matrix.example }}
-        run: go test -v ./...
+        run: go run ./cmd/irgo -C examples/${{ matrix.example }} project test
