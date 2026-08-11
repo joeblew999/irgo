@@ -24,10 +24,15 @@ mise run branch fix/some-thing   # off the trunk, up to date
 mise run check                   # before every commit
 git commit
 mise run pr                      # pushes and opens the pull request
+mise run status                  # what CI is doing, if you want to watch
+mise run land                    # merges when green, deletes the branch, puts
+                                 # you back on the trunk
 ```
 
-CI runs on the pull request. It merges when it is green and somebody has looked
-at it, and GitHub deletes the branch on merge.
+`land` uses GitHub's auto-merge, so it returns straight away and the merge
+happens the moment the checks pass — a slow Windows runner does not hold your
+terminal. It cannot land a red pull request: the trunk requires all five
+checks, of everyone.
 
 **These branches are short-lived** — hours, or a day. One per change. That is
 deliberately not what this repository had before: twenty-four long-lived

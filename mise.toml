@@ -148,6 +148,26 @@ run = ["git switch integration", "git pull --quiet --ff-only", "git switch --cre
 description = "Push the branch you are on and open its pull request"
 run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngit push --set-upstream origin HEAD\ngh pr create --repo joeblew999/irgo --base integration --fill"
 
+[tasks.land]
+# The other half of `pr`. Without this the loop stops at "opened", and everyone
+# finishes by hand in the web interface or with raw gh commands — which is how
+# the workflow ends up being something people describe rather than run.
+#
+# --auto rather than waiting in a shell: GitHub merges it the moment the checks
+# pass, so a slow Windows runner does not hold a terminal open. The branch is
+# deleted with it.
+#
+# It cannot merge a red pull request even with this — the trunk requires all
+# five checks, for everyone including whoever owns the repository.
+description = "Merge the pull request for this branch once CI passes, and clean up"
+run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngh pr merge --repo joeblew999/irgo --squash --delete-branch --auto\ngit switch integration\ngit pull --quiet --ff-only"
+
+[tasks.status]
+# What is happening to the pull request you just opened, without leaving the
+# terminal or guessing how long Windows takes.
+description = "Show the checks on this branch's pull request"
+run = "gh pr checks --repo joeblew999/irgo"
+
 [tasks.offer]
 # The rare thing, made explicit.
 #
