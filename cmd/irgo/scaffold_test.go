@@ -35,6 +35,15 @@ func TestScaffoldedProjectBuilds(t *testing.T) {
 
 	work := t.TempDir()
 	irgo := filepath.Join(work, "irgo")
+	runEnv := func(dir, name string, env []string, args ...string) {
+		t.Helper()
+		cmd := exec.Command(name, args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), env...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s %s failed: %v\n%s", name, strings.Join(args, " "), err, out)
+		}
+	}
 	run := func(dir, name string, args ...string) {
 		t.Helper()
 		cmd := exec.Command(name, args...)
@@ -50,7 +59,15 @@ func TestScaffoldedProjectBuilds(t *testing.T) {
 	if err := os.MkdirAll(proj, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	run(proj, irgo, "project", "new", "myapp")
+	// IRGO_REPLACE before `project new`, not a `go mod edit` after it.
+	//
+	// The scaffold pins a published irgo version, and `project new` now sets up
+	// translations — which runs `go mod tidy` inside the new project. Without
+	// the replace already in place that resolves against a tag which may not
+	// exist, the bootstrap gives up, and the scaffolded templates then import a
+	// tokibundle nobody created. The project builds here and not on a runner,
+	// which is exactly how this reached CI.
+	runEnv(proj, irgo, []string{"IRGO_REPLACE=" + repoRoot}, "project", "new", "myapp")
 
 	app := filepath.Join(proj, "myapp")
 	// Build against this checkout rather than a published release, so the test

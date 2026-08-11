@@ -511,8 +511,20 @@ func newProject(name string) error {
 		// 98% of the same binary.
 		fmt.Println("Setting up translations...")
 		if err := bootstrapI18n(projectDir, "en"); err != nil {
-			fmt.Printf("Warning: translations not set up: %v\n", err)
-			fmt.Println("  Finish later with: irgo i18n init")
+			// Fatal, not a warning. The scaffolded templates import
+			// <module>/tokibundle and <module>/lang, so a project whose
+			// bootstrap failed does not compile — and a warning let that ship
+			// as a success. It reached CI exactly that way: the bootstrap ran
+			// `go mod tidy` against an irgo version that did not resolve, gave
+			// up, and handed over a project referencing packages nobody
+			// created.
+			//
+			// Better to say what went wrong while the developer is still
+			// looking at the command they just ran.
+			return fmt.Errorf("setting up translations: %w\n\n"+
+				"  The project templates use them, so it cannot build without\n"+
+				"  this step. Fix the cause above and run:\n"+
+				"    irgo i18n init", err)
 		}
 	}
 
