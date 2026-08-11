@@ -145,6 +145,12 @@ func runI18nInit(args []string) error {
 		return fmt.Errorf("writing lang/lang.go: %w", err)
 	}
 
+	// <html lang> must say which language the page is actually in. Left at the
+	// scaffolded "en", a German page tells a screen reader to pronounce German
+	// with English phonetics, and an Arabic one renders backwards for want of
+	// a dir attribute.
+	changedLayouts, skippedLayouts := upgradeLayoutForI18n()
+
 	fmt.Println()
 	fmt.Println("Done. Write text as a TIK and toki will extract it:")
 	fmt.Println()
@@ -154,6 +160,18 @@ func runI18nInit(args []string) error {
 	fmt.Println("  language. `if n == 1` is right in about half of them.")
 
 	reportLangHelper(created)
+
+	if changedLayouts > 0 {
+		fmt.Println()
+		fmt.Printf("Updated %d layout(s): <html> now reports the rendered language\n", changedLayouts)
+		fmt.Println("  and its writing direction, which assistive technology relies on.")
+	}
+	for _, p := range skippedLayouts {
+		fmt.Println()
+		fmt.Printf("Note: %s has an <html> tag irgo did not recognise, so it was\n", p)
+		fmt.Println("      left alone. Set the language yourself:")
+		fmt.Println("        <html lang={ i18n.Lang(ctx) } dir={ i18n.Dir(ctx) }>")
+	}
 
 	fmt.Println()
 	fmt.Println("  Add a language:      irgo i18n add de")

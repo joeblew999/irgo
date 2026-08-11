@@ -20,9 +20,13 @@ func runCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func getModulePath() (string, error) {
+func getModulePath() (string, error) { return modulePathIn(".") }
+
+// modulePathIn reads the module path of a project that is not necessarily the
+// working directory — `project new` is still assembling one when it asks.
+func modulePathIn(root string) (string, error) {
 	// Try to read from go.mod
-	data, err := os.ReadFile("go.mod")
+	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return "", err
 	}

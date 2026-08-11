@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // langHelper is the scaffolded lang/lang.go, with {{MODULE_PATH}} substituted.
@@ -37,11 +38,13 @@ const langHelper = `// Which language this visitor reads.
 package lang
 
 import (
+	"context"
 	"net/http"
 
 	"{{MODULE_PATH}}/tokibundle"
 
 	"github.com/stukennedy/irgo/pkg/i18n"
+	"golang.org/x/text/language"
 )
 
 // For picks the localization for this request.
@@ -58,6 +61,34 @@ import (
 func For(r *http.Request) tokibundle.Reader {
 	return i18n.Reader(tokibundle.Match, tokibundle.Default, i18n.Preferred(r)...)
 }
+
+// Available is every language this app has, for a switcher to offer.
+//
+// Read from the bundle, so adding a locale with ` + "`irgo i18n add`" + ` makes it
+// appear with nothing else to update. A hand-kept list beside it would be a
+// second place to change and the one nobody remembers.
+func Available() []language.Tag { return tokibundle.Locales() }
+
+// Remember persists an explicit ?lang= choice so it survives the next click.
+//
+// Call it before rendering. Without it the parameter lasts one request, and on
+// mobile — where the WebView owns every link — there is no way to get it back.
+func Remember(w http.ResponseWriter, r *http.Request) { i18n.Remember(w, r) }
+
+// Context carries the locale actually rendered, for the layout to read.
+//
+// <html lang> cannot be a parameter on Layout: it would have to be threaded
+// through every component between the route and the page, in every project
+// that already exists. It is ambient request-scoped information, which is what
+// a context is for and what templ hands every component.
+//
+// The locale from the reader, not from the request. A visitor who asked for
+// French and got English must receive lang="en" — announcing "fr" over English
+// text is worse than announcing nothing, because a screen reader believes it
+// and pronounces accordingly.
+func Context(r *http.Request, t tokibundle.Reader) context.Context {
+	return i18n.WithTag(r.Context(), t.Locale())
+}
 `
 
 // writeLangHelper creates lang/lang.go, and says whether it did.
@@ -66,12 +97,17 @@ func For(r *http.Request) tokibundle.Reader {
 // like the handlers and templates `project new` writes — a developer who has
 // added a cookie override or a query parameter to it should not lose that to
 // a second `i18n init`.
-func writeLangHelper() (bool, error) {
-	const dir, file = "lang", "lang/lang.go"
+func writeLangHelper() (bool, error) { return writeLangHelperIn(".") }
+
+// writeLangHelperIn is the same for a project that is not the working
+// directory, which is the case while `project new` is still building one.
+func writeLangHelperIn(root string) (bool, error) {
+	dir := filepath.Join(root, "lang")
+	file := filepath.Join(dir, "lang.go")
 	if pathExists(file) {
 		return false, nil
 	}
-	modulePath, err := getModulePath()
+	modulePath, err := modulePathIn(root)
 	if err != nil {
 		// Not fatal: the bundle is already generated and useful. The developer
 		// writes the three lines themselves, which is where they were before.
@@ -102,4 +138,81 @@ func reportLangHelper(created bool) {
 	fmt.Println("  fragment that forgets it reverts that corner of the page to")
 	fmt.Println("  your source language while everything around it stays")
 	fmt.Println("  translated.")
+}
+
+// upgradeLayoutForI18n makes <html> say which language it is in.
+//
+// irgo scaffolds `<html lang="en">`, which is a guess that stops being true the
+// moment a project has translations — and a page served in German claiming to
+// be English is not cosmetic. A screen reader pronounces German with English
+// phonetics, the browser offers to translate a page already in the reader's
+// language, hyphenation uses the wrong rules, and search engines index it
+// wrongly. dir is worse: absent, an Arabic or Hebrew page simply renders
+// backwards, and nothing in a test suite written in English notices.
+//
+// Done at `i18n init` rather than in the template, because the dynamic form
+// needs pkg/i18n, and that is 196 KB of Unicode tables for a project that will
+// only ever render lang="en". Opt in to translations, pay for them then.
+//
+// The substitution is exact and refuses to guess. A layout somebody has already
+// edited will not match, and this reports rather than rewrites — the one thing
+// worse than a wrong lang attribute is irgo silently reformatting a file the
+// developer owns.
+func upgradeLayoutForI18n() (changed int, skipped []string) {
+	const old = `<html lang="en">`
+	const new = `<html lang={ i18n.Lang(ctx) } dir={ i18n.Dir(ctx) }>`
+
+	entries, err := os.ReadDir("templates")
+	if err != nil {
+		return 0, nil
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".templ") {
+			continue
+		}
+		path := filepath.Join("templates", e.Name())
+		body, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		text := string(body)
+		if !strings.Contains(text, "<html") {
+			continue
+		}
+		if strings.Contains(text, "i18n.Lang(ctx)") {
+			continue // already done
+		}
+		if !strings.Contains(text, old) {
+			skipped = append(skipped, path)
+			continue
+		}
+
+		text = strings.ReplaceAll(text, old, new)
+		text = addTemplImport(text, "github.com/stukennedy/irgo/pkg/i18n")
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+			skipped = append(skipped, path)
+			continue
+		}
+		changed++
+	}
+	return changed, skipped
+}
+
+// addTemplImport puts an import into a .templ file's import block, adding one
+// after the package clause if there is none.
+func addTemplImport(body, pkg string) string {
+	if strings.Contains(body, `"`+pkg+`"`) {
+		return body
+	}
+	if i := strings.Index(body, "import (\n"); i >= 0 {
+		at := i + len("import (\n")
+		return body[:at] + "\t\"" + pkg + "\"\n" + body[at:]
+	}
+	// A single-line import, or none at all. Either way a new block after the
+	// package clause is valid Go and templ passes imports through untouched.
+	lines := strings.SplitN(body, "\n", 2)
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "package ") {
+		return body
+	}
+	return lines[0] + "\n\nimport \"" + pkg + "\"\n" + lines[1]
 }

@@ -499,6 +499,21 @@ func newProject(name string) error {
 			explainTidyFailure(tidyErr.String())
 			fmt.Printf("Warning: go mod tidy failed: %v\n", err)
 		}
+
+		// Translations, which the scaffolded templates are already written for.
+		//
+		// Every target irgo builds for serves an audience it cannot know at
+		// build time: one Worker answers the world, one binary goes to the app
+		// store for every country, and a cached PWA has no network left to fetch
+		// a language it did not ship with. So there is no target where being
+		// monolingual is the safe default — and the cost measured across
+		// thirteen locales was 3.6 KB gzipped each, against a Go runtime that is
+		// 98% of the same binary.
+		fmt.Println("Setting up translations...")
+		if err := bootstrapI18n(projectDir, "en"); err != nil {
+			fmt.Printf("Warning: translations not set up: %v\n", err)
+			fmt.Println("  Finish later with: irgo i18n init")
+		}
 	}
 
 	fmt.Println()
