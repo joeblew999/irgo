@@ -54,9 +54,29 @@ If a cherry-pick conflicts, the change depends on something only the fork has.
 That is information, not a failure — it was never offerable, and branching
 earlier would not have made it so.
 
+Then check it, before anyone else has to:
+
+```sh
+irgo project offer-check fix/some-bug --run
+```
+
+A pull request wastes a maintainer's time in three ways, and this refuses all
+three. It **conflicts** — checked with `merge-tree` against `upstream/main`,
+since GitHub builds the merge result and not your branch tip. It **rewrites
+their CI** — upstream has two workflows and this fork has five, so a branch
+carrying `fork-main.yml`, `skills.yml`, `browser.yml`, `mise.toml` or this file
+is refused by name. Or it **fails their pipeline** — so `--run` merges into a
+throwaway worktree and runs *upstream's* steps, not ours: `go vet`, the wasm
+build, `go test`.
+
+Proven both ways: all six current candidates pass, and a branch with a
+deliberate compile error is refused naming the symbol.
+
 **Do not open a pull request without asking the repository's owner.** Seven were
-opened once and sat unread for two days while the work moved underneath them;
-all seven were withdrawn.
+opened once and withdrawn. Worth knowing, though: upstream does merge pull
+requests — `#6`, `#13` and `#15` are theirs — and one of ours was **ported by
+hand** rather than merged. They read what arrives, so what arrives should be
+worth reading.
 
 ## Finish a branch when it is done
 
@@ -98,6 +118,9 @@ nothing stops you typing something else. These genuinely stop a mistake:
 | | how |
 |---|---|
 | `main` diverging from upstream | CI (`fork-main.yml`) |
+| a pull request that would conflict, rewrite their CI, or fail it | `irgo project offer-check --run` |
+| a target that stopped building | `mise run verify` — `check` never compiles a native one |
+| the trunk breaking | CI, which now runs on `integration` — before this, it only ever ran on `main`, which receives no commits |
 | deleting a branch whose work is nowhere else | `git branch -d`, via `mise run done` |
 | pushing to the upstream repository | `mise run setup` points its push URL at nothing |
 | rebasing `main` or `integration` | git-stack refuses, after `setup` |
