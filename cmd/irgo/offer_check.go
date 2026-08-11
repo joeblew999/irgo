@@ -80,7 +80,21 @@ func runOfferCheck(args []string) error {
 		fmt.Println("  no fork-only files        OK")
 	}
 
-	// 3. Is it a reviewable size? Not a failure — a reviewer's patience is not
+	// 3. Does it carry commits nobody meant to publish?
+	//
+	// Twice in one session a `probe:` commit reached the trunk — once because a
+	// `git switch` aborted and the rest of the && chain ran anyway, leaving the
+	// file committed to the branch I was standing on. They are harmless there
+	// and would be embarrassing in someone else's repository.
+	if junk := junkCommits(base, branch); len(junk) > 0 {
+		problems = append(problems, "carries commits that were never meant to ship:\n      "+
+			strings.Join(junk, "\n      ")+
+			"\n      Drop them, or build the branch from the commits you mean.")
+	} else {
+		fmt.Println("  no stray commits         OK")
+	}
+
+	// 4. Is it a reviewable size? Not a failure — a reviewer's patience is not
 	//    a pass/fail condition — but worth saying before it is sent.
 	fmt.Printf("  %d file(s), %d commit(s)\n", len(files), countCommits(base, branch))
 
@@ -157,6 +171,34 @@ func runUpstreamCI(base, branch string) error {
 	fmt.Println("Upstream's checks pass on the merged tree. Safe to offer —")
 	fmt.Println("after asking the repository owner.")
 	return nil
+}
+
+// junkPrefixes are subjects that mean "this was scaffolding for something
+// else". Matched on the subject rather than content, because that is what the
+// author already told you when they wrote it.
+var junkPrefixes = []string{"probe:", "wip:", "tmp:", "temp:", "fixup!", "squash!"}
+
+// junkCommits lists commits on the branch that were never meant to publish.
+func junkCommits(base, branch string) []string {
+	out, err := exec.Command("git", "log", "--no-merges", "--format=%h %s", base+".."+branch).Output()
+	if err != nil {
+		return nil
+	}
+	var junk []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		_, subject, found := strings.Cut(line, " ")
+		if !found {
+			continue
+		}
+		lower := strings.ToLower(subject)
+		for _, p := range junkPrefixes {
+			if strings.HasPrefix(lower, p) {
+				junk = append(junk, line)
+				break
+			}
+		}
+	}
+	return junk
 }
 
 func changedFiles(base, branch string) ([]string, error) {
