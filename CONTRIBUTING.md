@@ -110,6 +110,34 @@ applies cleanly to `main`. Six survive from the twenty-four that once existed;
 the rest were fork-internal and were never going anywhere, so they were retired
 once merged.
 
+## What is waiting to be offered
+
+Eleven branches, each gated green by `irgo project offer-check --run` against
+upstream's own CI on the merged tree. They are offers, not workspaces — work
+happens on `integration`.
+
+`refactor/self-registering` goes first. Four of the others need `hooks.go` from
+it and are branched on top; that was discovered rather than assumed, when
+`fix/datastar` failed on `main` with `undefined: registerAssetStep`.
+
+| | |
+|---|---|
+| `refactor/self-registering` | commands, targets and build steps declare themselves. **Land first** |
+| `fix/scaffolding`, `fix/toolchain`, `fix/datastar`, `feat/android-toolchain`, `feat/agent-skills` | stacked on it |
+| `fix/scaffold-formatting`, `fix/upgrade-preserves-gitignore`, `fix/mobile-clone-durable`, `feat/tailwind-sees-dependency-components`, `pr1/datastar-sourcemap` | independent, any order |
+
+**One needs framing rather than just sending.** `feat/android-toolchain`
+overlaps upstream's `c147158`, which pinned `-androidapi 21` to make the Android
+pipeline work on the toolchains of the day — the same pin those old
+`v0.4.0-androidapi21.N` tags were named after. This does not duplicate that fix;
+it moves past it, to NDK r29 and API 36, because Play's floor has risen since.
+Say so in the pull request. Arriving as an unexplained revert of somebody's
+recent work is how a good change gets refused.
+
+Every other overlap is incidental — `c147158` touched 26 files under
+`cmd/irgo`, so almost anything does. Overlap is not conflict, and the gate
+proves the difference by building the merged tree.
+
 ## What is enforced, and what is habit
 
 Most of this is habit. The tasks make the right thing shortest to type, and
