@@ -182,6 +182,15 @@ open class IrgoWebViewController: UIViewController {
             MobileSetStateDir(stateDir.path)
         }
 
+        // The languages this device is set to, in the user's own order.
+        //
+        // Go cannot ask for them: a gomobile process inherits no shell
+        // environment, so LC_ALL and LANG are unset, and the WebView's
+        // requests to the custom scheme do not carry Accept-Language either.
+        // Without this an app with a complete German catalog serves German
+        // speakers the source language, with nothing to say why.
+        MobileSetLocales(Locale.preferredLanguages.joined(separator: ","))
+
         // Native capability plugins (device, haptics, clipboard, share,
         // browser, storage, notifications), reachable from JS and from Go.
         IrgoNative.shared.registerBuiltins()

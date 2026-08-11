@@ -183,3 +183,79 @@ func TestReaderRefusesAGuess(t *testing.T) {
 		})
 	}
 }
+
+// TestSetPreferredTags covers what the native shells actually send.
+//
+// Both platforms produce a comma-separated BCP 47 list — iOS from
+// Locale.preferredLanguages, Android from LocaleList.toLanguageTags — so this
+// is the exact string shape, including the ones a device can legitimately
+// produce that x/text will not accept.
+func TestSetPreferredTags(t *testing.T) {
+	t.Cleanup(func() { SetPreferred() })
+
+	for _, tc := range []struct {
+		name, list string
+		want       []string
+	}{
+		{"ios single", "en-US", []string{"en-US"}},
+		{"ios ordered", "de-AT,de,en", []string{"de-AT", "de", "en"}},
+		{"android with spaces", "de-DE, en-GB", []string{"de-DE", "en-GB"}},
+		// A device with no locale set writes und, which parses into a tag that
+		// looks real and matches no catalog.
+		{"und is dropped", "und", nil},
+		{"und among real ones", "und,de", []string{"de"}},
+		// A tag Go cannot read is not a reason to have no languages at all.
+		{"garbage is skipped", "!!!,de", []string{"de"}},
+		{"empty", "", nil},
+		{"only separators", ",,,", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			SetPreferredTags(tc.list)
+			got := Declared()
+			if len(got) != len(tc.want) {
+				t.Fatalf("SetPreferredTags(%q) -> %v, want %v", tc.list, got, tc.want)
+			}
+			for i, w := range tc.want {
+				if got[i].String() != w {
+					t.Errorf("position %d is %s, want %s", i, got[i], w)
+				}
+			}
+		})
+	}
+}
+
+// TestDeclaredOutranksTheEnvironment is the mobile case.
+//
+// A phone has no LC_ALL, so this is usually the only source. But the same
+// binary built for desktop has an environment and no declaration, and one
+// package has to be right on both.
+func TestDeclaredOutranksTheEnvironment(t *testing.T) {
+	t.Cleanup(func() { SetPreferred() })
+	t.Setenv("LC_ALL", "en_US.UTF-8")
+	t.Setenv("LC_MESSAGES", "")
+	t.Setenv("LANG", "")
+	t.Setenv("LANGUAGE", "")
+
+	SetPreferredTags("de-AT,de")
+	got := Preferred(nil)
+	if len(got) == 0 || got[0].String() != "de-AT" {
+		t.Fatalf("Preferred = %v, want de-AT first", got)
+	}
+	// The environment is kept behind it: a desktop build of the same app has
+	// no declaration, and a host that declares one should not erase the rest.
+	var sawEnv bool
+	for _, tag := range got {
+		if tag.String() == "en-US" {
+			sawEnv = true
+		}
+	}
+	if !sawEnv {
+		t.Errorf("Preferred = %v, want the environment retained after the declaration", got)
+	}
+
+	// Clearing it puts the environment back in charge.
+	SetPreferred()
+	if got := Preferred(nil); len(got) == 0 || got[0].String() != "en-US" {
+		t.Errorf("after clearing, Preferred = %v, want en-US first", got)
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stukennedy/irgo/pkg/adapter"
 	"github.com/stukennedy/irgo/pkg/core"
+	"github.com/stukennedy/irgo/pkg/i18n"
 	"github.com/stukennedy/irgo/pkg/websocket"
 )
 
@@ -77,6 +78,26 @@ func SetStateDir(dir string) {
 	b := ensureBridgeLocked()
 	bridgeMu.Unlock()
 	b.jar.setFile(cookieFilePath(dir))
+}
+
+// SetLocales tells Go which languages this device is set to, in order, as a
+// comma-separated BCP 47 list: "de-AT,de,en".
+//
+// Native code should call this at startup, next to SetStateDir:
+//   - iOS:     Locale.preferredLanguages.joined(separator: ",")
+//   - Android: resources.configuration.locales.toLanguageTags()
+//
+// Nothing else can supply it. A gomobile process inherits no shell
+// environment, so LC_ALL and LANG are unset, and the WebView requests the
+// bridge receives do not reliably carry Accept-Language either — Android's
+// shouldInterceptRequest exposes a subset of headers that does not include it.
+// Without this call an app with a complete German catalog serves German
+// speakers the source language on a phone, with nothing anywhere to say why.
+//
+// Safe to skip. An app that is not translated does not need it, and one that
+// omits it behaves exactly as before.
+func SetLocales(list string) {
+	i18n.SetPreferredTags(list)
 }
 
 // ClearCookies removes all cookies, including persisted ones.

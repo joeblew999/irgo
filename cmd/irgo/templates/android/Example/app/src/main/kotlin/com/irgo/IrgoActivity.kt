@@ -77,6 +77,10 @@ open class IrgoActivity : AppCompatActivity() {
             // Persist bridge state (cookie jar) so sessions survive restarts
             IrgoBridge.setStateDir(filesDir.absolutePath)
 
+            // The languages this device is set to, which Go has no way to read.
+            // LocaleList is API 24 and minSdk is 24, so no version branch.
+            IrgoBridge.setLocales(resources.configuration.locales.toLanguageTags())
+
             // Route Go-side native.Call(...) into the plugin registry
             IrgoNative.installGoInvoker()
 

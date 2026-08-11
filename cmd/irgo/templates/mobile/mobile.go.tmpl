@@ -108,6 +108,16 @@ func HandleRequestStream(method, url, headers string, body []byte, callback Stre
 // app-private writable directory.
 func SetStateDir(dir string) { irgomobile.SetStateDir(dir) }
 
+// SetLocales tells Go which languages the device is set to, in the user's own
+// order, as a comma-separated BCP 47 list ("de-AT,de,en"). Native code calls
+// this at startup, next to SetStateDir.
+//
+// Nothing else can supply it: a gomobile process inherits no shell
+// environment, so LANG is unset, and the WebView requests reaching the bridge
+// do not carry Accept-Language. Without it a translated app serves its source
+// language on a phone.
+func SetLocales(list string) { irgomobile.SetLocales(list) }
+
 // ClearCookies removes all cookies (e.g. for logout).
 func ClearCookies() { irgomobile.ClearCookies() }
 
