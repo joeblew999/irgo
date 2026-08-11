@@ -86,6 +86,21 @@ func runI18nInit(args []string) error {
 	}
 	if hasI18n() {
 		fmt.Printf("This project already has i18n (%s/).\n", tokiBundleDir)
+
+		// Not simply a no-op. A project set up before irgo scaffolded the
+		// helper has the bundle and not the file, and re-running init is
+		// exactly what someone in that position would try. Writing it here is
+		// the difference between that working and it saying "already done"
+		// about the half they have.
+		created, err := writeLangHelper()
+		if err != nil {
+			return fmt.Errorf("writing lang/lang.go: %w", err)
+		}
+		if created {
+			reportLangHelper(true)
+		}
+
+		fmt.Println()
 		fmt.Println("  Add a language:  irgo i18n add <locale>")
 		return nil
 	}
@@ -125,18 +140,21 @@ func runI18nInit(args []string) error {
 		return fmt.Errorf("generating the bundle: %w", err)
 	}
 
+	created, err := writeLangHelper()
+	if err != nil {
+		return fmt.Errorf("writing lang/lang.go: %w", err)
+	}
+
 	fmt.Println()
 	fmt.Println("Done. Write text as a TIK and toki will extract it:")
 	fmt.Println()
-	fmt.Println("    reader := i18n.Reader(tokibundle.Match, tokibundle.Default,")
-	fmt.Println("                          i18n.Preferred(r)...)")
-	fmt.Println("    reader.String(`You have {# new messages}`, n)")
+	fmt.Println("    t.String(`You have {# new messages}`, n)")
 	fmt.Println()
-	fmt.Println("  i18n.Reader, not tokibundle.Match directly: the matcher never")
-	fmt.Println("  fails, so asked for a language you have no catalog for it")
-	fmt.Println("  returns the first one you DO have. A French visitor gets")
-	fmt.Println("  German rather than your source language, and only the")
-	fmt.Println("  confidence value says so.")
+	fmt.Println("  The braces carry the plural rules, so this is right in every")
+	fmt.Println("  language. `if n == 1` is right in about half of them.")
+
+	reportLangHelper(created)
+
 	fmt.Println()
 	fmt.Println("  Add a language:      irgo i18n add de")
 	fmt.Println("  Edit translations:   irgo i18n edit")
