@@ -35,8 +35,18 @@ before you could edit it, kept alive for pull requests nobody opened. A branch
 that exists for an afternoon and is deleted on merge is a different thing
 entirely.
 
-**Nobody commits to `integration`.** It is protected, and it is the only branch
-here that is not either a change in flight or an offer waiting to go upstream.
+**Nobody commits to `integration`, including whoever owns the repository.** It
+is protected and the rule applies to everyone — `enforce_admins` is on.
+
+That is not caution for its own sake. While the owner was exempt, three commits
+reached the trunk unreviewed in a single afternoon, each because a command
+earlier in a shell chain failed and the rest ran anyway. GitHub reported
+"Bypassed rule violations" and let them through. A rule that binds three people
+out of four is a rule you cannot reason about.
+
+If CI ever wedges and something must land, turn protection off, push, turn it
+back on. Two minutes, deliberate, and visible in the settings log — which is
+the point.
 
 `mise run check` before every commit. It is `go vet`, the tests and the wasm
 build — seconds. `mise run verify` when you touch anything platform-shaped,
