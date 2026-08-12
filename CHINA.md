@@ -82,7 +82,7 @@ paperwork.
 | Android artifact is `.aab` | [`cmd/irgo/app_android_package.go:123`](cmd/irgo/app_android_package.go) | Play's format; the Chinese stores want a universal signed APK | **Open** — no `assembleRelease` path in the CLI |
 | No Go target for HarmonyOS NEXT | the mobile bridge compiles the kernel in | ~10% of Chinese phones cannot run the mobile build at all | **Decision, not a fix** — see above |
 | Datastar from a CDN | [`pkg/datastarjs`](pkg/datastarjs), served at `/_irgo/datastar.js` | `cdn.jsdelivr.net` is unreliable-to-blocked inside the firewall | **Done** — and `TestNoUnpinnedDatastarCDN` keeps it done |
-| Google push (FCM) | nothing in the tree | Nothing to strip — and also no push on any platform today | **N/A** — if push is ever needed in China it is per-vendor (Huawei, Xiaomi, OPPO, vivo), never FCM |
+| Push notifications | nothing in the tree | No push on any platform today. In China it is five Android vendors — Huawei, Honor, Xiaomi, OPPO, vivo — never FCM, and NEXT is a sixth we cannot reach | **Designed, not built** — [PUSH.md](PUSH.md). Gated on the SCC and the store listings, so it is a post-launch feature by construction |
 
 ## Phase 1 — Legal sponsorship and the domain
 
@@ -255,6 +255,12 @@ Questions for the partner, in the order the answers unblock work:
 5. Do they hold, or can they sponsor, the SCC application? It gates every
    Android store and it is the slowest item after the filing itself.
 6. Which device farm do they already use, so we test where they can watch.
+7. **Is push in scope, and who holds the vendor accounts?** The Chinese push
+   channels sit behind the same sponsoring entity as everything above, and
+   OPPO and vivo reportedly want a store listing before they issue
+   credentials — which puts push behind the SCC. If it is a launch
+   requirement rather than a later one, the vendor accounts belong in the
+   Phase 1 document list. [PUSH.md](PUSH.md) has the detail.
 
 ## Sources
 
