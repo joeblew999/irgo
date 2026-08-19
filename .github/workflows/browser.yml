@@ -19,9 +19,35 @@ on:
     branches: [integration]
   pull_request:
 
+# Without this, superseded runs keep going. ci.yml has had it from the start;
+# this file never did, so pushing twice to a branch left the first run's three
+# jobs occupying runners for work nobody was waiting on any more. Two were
+# found still running against commits that had been replaced half an hour
+# earlier, while the run that mattered queued behind them.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   browser:
     name: ${{ matrix.example }} on ${{ matrix.os }}
+
+    # A hang here is not hypothetical. `playwright install --with-deps chromium`
+    # stalls on ubuntu-latest often enough that in one afternoon it succeeded
+    # once in four attempts, and a step with no limit inherits GitHub's default
+    # of six hours. That is six hours of a held runner, and — because the trunk
+    # requires this check — six hours in which no pull request can merge, from
+    # a job that was never going to finish.
+    #
+    # Fifteen minutes is roughly three times the slowest healthy run: when the
+    # install works, ubuntu takes 2m33s, macOS 49s, and Windows 5m21s, which is
+    # the real ceiling. So this cannot fire on a merely slow run; it fires on a
+    # stuck one, and turns "blocked indefinitely" into a red check you can
+    # re-run.
+    #
+    # It treats the symptom on purpose. Why apt stalls inside that installer is
+    # worth knowing, but not at the cost of leaving merges blocked until it is.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
