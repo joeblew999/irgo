@@ -1,0 +1,120 @@
+# How a tag becomes six downloadable binaries.
+#
+# What ships is the CLI, not the framework. The framework is a Go module and
+# `go get` already delivers it; what nobody could get without a Go toolchain
+# was `irgo` itself — so trying irgo out started with installing Go, and the
+# first command in every set of instructions was about something else.
+#
+# The whole matrix is cross-compiled from one Linux runner, because the CLI is
+# pure Go: it shells out to the toolchains that need CGO — templ, tailwind,
+# gomobile, the webview build — rather than linking them. `cmd_project_new.go`
+# embeds the templates, so the binary is the whole product with nothing beside
+# it to install.
+#
+#   mise run dist      build the matrix locally, publish nothing
+#   mise run release   tag, push, and let CI do this
+#
+# Run `mise run dist` after touching this file. A release config is only ever
+# exercised on the day it matters otherwise, which is the worst day to find out
+# it was wrong.
+
+version: 2
+
+project_name: irgo
+
+builds:
+  - id: irgo
+    main: ./cmd/irgo
+    binary: irgo
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    # Deliberately not goreleaser's default ldflags, which append
+    # `-X main.version={{.Version}}`.
+    #
+    # That would be dead weight here and misleading to read: `version` in
+    # main.go is `var version = cliVersion()`, so package initialisation runs
+    # after the linker and overwrites whatever was stamped in. The number would
+    # be set, then silently discarded.
+    #
+    # It is not needed. Go 1.24 and later record the VCS tag of a clean
+    # checkout in the build info, and cliVersion() reads it from there — a
+    # binary built at v0.20.0 reports `irgo v0.20.0` with no stamping at all.
+    # That is the same mechanism `go install ...@v0.20.0` already used, which
+    # is what keeps the two install routes from reporting different things.
+    #
+    # This is why `release.yml` checks out with fetch-depth 0 and why `dist`
+    # warns on a dirty tree: both are what makes that build info truthful.
+    ldflags:
+      - -s -w
+
+archives:
+  - id: irgo
+    # os and arch in the filename, lowercase, nothing else between them.
+    # `mise use -g ubi:joeblew999/irgo` picks the asset by finding those two
+    # tokens, and it has to find exactly one candidate per platform.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  # Sorted by the commit subject's prefix, so the notes group themselves the
+  # way the commits were already written rather than needing a second, parallel
+  # description of the same change that can disagree with it.
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Everything else
+      order: 99
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  # A release is announced by hand. The tag exists the moment CI has built it,
+  # but what it is for is not something the pipeline knows, and a draft is
+  # easier to add a sentence to than a published release is to correct.
+  draft: true
+  name_template: "irgo {{ .Tag }}"
+  # No `go install` line here, deliberately. This module keeps upstream's path
+  # — `module github.com/stukennedy/irgo` — which is what lets a project depend
+  # on the fork with a `replace`. The cost is that `go install
+  # github.com/joeblew999/irgo/cmd/irgo@latest` cannot work:
+  #
+  #   module declares its path as: github.com/stukennedy/irgo
+  #           but was required as: github.com/joeblew999/irgo
+  #
+  # and the stukennedy path installs upstream's CLI, which is a different and
+  # much older program. So these archives are not a convenience alongside `go
+  # install` — for this fork's CLI they are the only one-step route there is.
+  footer: |
+    ## Install
+
+    ```sh
+    mise use -g ubi:joeblew999/irgo
+    ```
+
+    Or download the archive for your platform below; it holds a single
+    self-contained `irgo`, with the project templates compiled in.
+
+    Then `irgo project new myapp`.

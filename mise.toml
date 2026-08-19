@@ -55,6 +55,16 @@
 
 "ubi:gitext-rs/git-stack" = "0.10.18"
 
+# Cross-compiles the CLI for six platforms, archives it, and creates the
+# GitHub release. `.goreleaser.yaml` is the whole configuration.
+#
+# This one is not optional the way git-stack is, and it is the only tool here
+# that CI installs — `release.yml` runs `mise run dist:publish`, so the release
+# built on a tag is built by the same command a maintainer can run on a laptop.
+# Pinned for the same reason as everything else: a release is the one build
+# where "whatever version was latest that day" is not an acceptable answer.
+"ubi:goreleaser/goreleaser" = "2.17.1"
+
 # Snapshots every branch pointer at once, with list/pop/apply to restore.
 # A git-stack dependency, not a tool anyone runs here. It records where every
 # branch pointed before a rebase; git-stack uses it as a library. The `save`
@@ -109,12 +119,19 @@
 #   mise run tag <version>  name a release
 #   mise run publish        push the trunk and its tags
 #
-# Releasing is those three, in that order, with a check in between:
+# Releasing is one command, from the trunk, once the change has landed:
 #
-#   mise run merge feat/my-thing
-#   mise run check
-#   mise run tag v0.6.5
-#   mise run publish
+#   mise run wf:release v0.20.1
+#
+# It runs check, tags, and pushes the tag; `release.yml` then cross-compiles
+# the CLI for six platforms and attaches the archives to a draft release. That
+# is what makes irgo obtainable by someone who does not already have Go — which
+# it was not, for the whole of this fork's life, and which matters more here
+# than for most projects because `go install` cannot fetch this CLI at all:
+# the module keeps upstream's path, so the fork is reachable only as a binary
+# or a clone. `.goreleaser.yaml` has the detail.
+#
+#   mise run dist    build all six locally, upload nothing  <- after editing that file
 #
 # Each task is a single invocation of a real tool: no shell pipelines, no &&
 # chains, nothing that behaves differently on Windows.
@@ -239,6 +256,39 @@ run = [
   "go run ./cmd/irgo app build cloudflare",
 ]
 
+[tasks.dist]
+# The release build, without the release.
+#
+# Trying irgo used to start with installing Go, because the CLI was only ever
+# distributed as source. That is a real barrier for the thing whose whole
+# pitch is that it provisions your toolchain for you — the first instruction
+# contradicted the second.
+#
+# `check` and `verify` ask whether the code works. This asks whether it still
+# *ships*: six platforms, archived, checksummed, exactly as a tag would produce
+# them, into `dist/`. Nothing is uploaded and no tag is needed.
+#
+# Run it after touching `.goreleaser.yaml`. Otherwise that file is only ever
+# exercised on the day a release is being cut, which is the worst possible day
+# to discover it was wrong — and the failure arrives after the tag exists,
+# which is the one thing that is awkward to take back.
+#
+# Seconds, not minutes: the CLI is pure Go, so all six cross-compile on any
+# host with no toolchain beyond Go itself.
+description = "Build the release binaries for every platform, into dist/ — uploads nothing"
+run = "goreleaser release --snapshot --clean --skip=publish"
+
+[tasks."dist:publish"]
+# What `release.yml` runs when a tag is pushed. Listed here rather than written
+# into the workflow so that the released binaries are built by a command that
+# can be read, and if necessary run, from a laptop.
+#
+# Not something to run by hand: it needs GITHUB_TOKEN and it creates a release.
+# `mise run wf:release v0.20.1` is the human end of this — it tags, and CI
+# arrives here on its own.
+description = "Build and upload a release — CI runs this on a tag; use wf:release instead"
+run = "goreleaser release --clean"
+
 [tasks."wf:ship"]
 description = "Push the branch you are on"
 run = "git push --set-upstream origin HEAD"
@@ -293,6 +343,36 @@ run = "git tag --annotate --message=release"
 [tasks."wf:publish"]
 description = "Push the trunk and every tag on it"
 run = "git push --follow-tags origin integration"
+
+[tasks."wf:release"]
+# Cutting a release, in one command, from the trunk.
+#
+# `check` first and as a dependency rather than a step, so the tag cannot be
+# created by a run where the tests failed — a tag is the one thing here that is
+# awkward to take back, and the binaries CI builds from it are the artifact
+# strangers download.
+#
+# Only the tag is pushed, not the branch. `wf:publish` pushes integration with
+# its tags, which is right when the trunk has moved; here it has not — the
+# commit being tagged is already on origin, having arrived through a pull
+# request. Pushing just the tag is the smaller act and the one that triggers
+# `release.yml`.
+#
+# What CI then does is `dist:publish`: six platforms, archived and checksummed,
+# attached to a **draft** release. Drafts are deliberate — the tag says which
+# commit, and a person still says what it is for. Publish it from the releases
+# page when the notes read the way you want.
+#
+#   mise run wf:release v0.20.1
+#
+# Plain semver, ahead of upstream, no prerelease suffix; CONTRIBUTING.md says
+# why the hyphenated tags this repository used to cut were actively harmful.
+description = "Tag a release and let CI build the binaries — e.g. v0.20.1"
+depends = ["check"]
+run = [
+  "git tag --annotate --message=release {{arg(name='version')}}",
+  "git push origin {{arg(name='version')}}",
+]
 
 [tasks."wf:setup"]
 # Both, not just main. integration is this fork's trunk and is built by
