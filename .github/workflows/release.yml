@@ -18,9 +18,14 @@ on:
   push:
     tags: ["v*"]
   # Builds the matrix and uploads nothing — see the two steps below. This is
-  # how `.goreleaser.yaml` gets exercised without cutting a tag, and it is the
-  # only honest way to change a release pipeline: the alternative is finding
-  # out it was broken at the point where the tag already exists.
+  # how the six builds and the archive names get checked without cutting a
+  # tag, which is the only honest way to change a release pipeline: the
+  # alternative is finding out it was broken at the point where the tag already
+  # exists.
+  #
+  # It does not cover the release notes. Snapshot mode disables the changelog
+  # pipe, so that part is rehearsed locally against an unpushed tag instead —
+  # `.goreleaser.yaml` has the command under `changelog`.
   workflow_dispatch:
 
 concurrency:

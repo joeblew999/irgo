@@ -73,7 +73,31 @@ changelog:
   # Sorted by the commit subject's prefix, so the notes group themselves the
   # way the commits were already written rather than needing a second, parallel
   # description of the same change that can disagree with it.
-  use: github
+  #
+  # Read from local git, not GitHub's compare API. Both can produce these
+  # notes, and `use: github` is the more usual choice, but it makes this the
+  # one step that cannot be rehearsed: it asks GitHub to compare two tags, so
+  # it only works once the tag is pushed, and a dry run against an unpushed tag
+  # fails with a bare
+  #
+  #   GET .../compare/v0.20.0...v0.99.0: 404 Not Found
+  #
+  # which says nothing about what is actually wrong. `use: git` reads the same
+  # history out of the checkout, so it works against a tag that exists only on
+  # your machine — which means the notes can be seen before the tag is pushed,
+  # at the point where getting them wrong is still free:
+  #
+  #   git tag -a v0.20.1 -m release      # local; push nothing yet
+  #   goreleaser release --clean --skip=publish
+  #
+  # `mise run dist` does not cover this. Snapshot mode disables the changelog
+  # pipe entirely — "pipe skipped: disabled during snapshot mode" — so the
+  # rehearsal proves the six builds and the archive names, and the command
+  # above is what proves the notes.
+  #
+  # Reading from git needs the full history, which is what fetch-depth 0 in
+  # release.yml is for — the same line the version stamping needs.
+  use: git
   sort: asc
   groups:
     - title: Features
