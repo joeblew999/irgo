@@ -280,8 +280,75 @@ run = ["git switch integration", "git merge --no-edit -", "git switch -"]
 # Nothing is lost by retiring a merged branch. `merge` above makes a real merge
 # commit, so the tip stays addressable forever as <merge>^2 and reachable from
 # integration — a branch can be recreated from it byte-for-byte.
+#
+# The remote delete is allowed to fail, and that is the whole point of the
+# rewrite. `wf:land` merges with --delete-branch, so by the time you retire a
+# branch GitHub has usually removed it already, and asking again gets
+#
+#   error: unable to delete 'x': remote ref does not exist
+#
+# which is a non-zero exit on precisely the branches this task exists to clean
+# up. Six had piled up locally, every one merged, every one refusing to retire
+# in a way that looked like the task was broken rather than the work being
+# finished. The local delete had actually succeeded each time — the error came
+# after it — so the reflex to stop and investigate was earned but wrong.
+#
+# A branch that never had a pull request still has a remote to remove, so the
+# push stays. It just no longer treats "already gone" as a failure.
 description = "Retire a merged branch, locally and on origin"
-run = "git switch integration && git branch -d {{arg(name='branch')}} && git push --quiet origin --delete {{arg(name='branch')}}"
+run = [
+  "git switch integration",
+  "git branch -d {{arg(name='branch')}}",
+  "git push --quiet origin --delete {{arg(name='branch')}} || echo 'remote branch already gone — GitHub deletes it when the pull request merges'",
+]
+
+[tasks."wf:preview"]
+# Running everything that is in flight, at once.
+#
+# Branches are how work stays separable, and the cost of that is nobody ever
+# sees the combination until it is already the trunk. Each one passes CI
+# against integration on its own; what none of them tells you is whether the
+# app still works with all of them in it. That question had no command, so it
+# had no answer.
+#
+#   mise run wf:preview docs/china fix/datastar fix/scaffolding
+#   cd ../irgo-preview && go run ./cmd/irgo app run desktop
+#
+# A worktree rather than a branch, for three reasons. Your own checkout does
+# not move, so this is not something you have to undo before carrying on.
+# The worktree is detached, so there is no branch here to accidentally push.
+# And it is a real directory, so the combined tree can actually be built and
+# run rather than merely merged and inspected.
+#
+# A sibling of the repository, not a directory inside it, and that is not a
+# matter of taste. go.work here says `use ( . )`, and a worktree below the root
+# still finds that file by walking up — so `.` resolves to the checkout you
+# came from and the preview is in no module at all:
+#
+#   pattern ./...: directory prefix . does not contain modules listed in
+#   go.work or their selected dependencies
+#
+# Every go command inside it fails that way, which defeats the entire purpose:
+# the point of a worktree over a branch was being able to build and run the
+# combination. Outside the root it carries its own merged go.work and behaves
+# like any other checkout.
+#
+# One `git merge` with several branches after it is an octopus merge: one
+# commit, all of them, in a single invocation. It refuses the whole thing if
+# any pair conflicts, which is the honest answer — a preview assembled by
+# resolving conflicts is a preview of something nobody has.
+#
+# Throw it away with `wf:preview:drop`. Nothing depends on it.
+description = "Merge the branches you name into a throwaway worktree, to run them together"
+run = [
+  "git worktree remove --force ../irgo-preview || true",
+  "git worktree add --detach ../irgo-preview integration",
+  "git -C ../irgo-preview merge --no-edit {{arg(name='branches', var=true)}}",
+]
+
+[tasks."wf:preview:drop"]
+description = "Delete the preview worktree"
+run = "git worktree remove --force ../irgo-preview"
 
 [tasks."wf:tag"]
 # Creating and pushing are separate because the version is an argument and it
