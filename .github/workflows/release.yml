@@ -54,7 +54,16 @@ jobs:
 
       # Installs what [tools] pins — here, goreleaser at the version this
       # commit names, not whatever is newest on the day of the release.
+      #
+      # The token is not optional. Every tool in [tools] comes from a GitHub
+      # release, and unauthenticated API calls from Actions runners are rate
+      # limited against a pool shared with every other runner — so this step
+      # fails intermittently, on somebody else's traffic, without it. That is
+      # an unpleasant failure anywhere and a particularly unpleasant one here,
+      # where the tag already exists by the time the workflow runs.
       - uses: jdx/mise-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # A release is the one build nobody gets to fix afterwards: the tag is
       # public and the binaries are downloaded. `ci.yml` has already run on the
