@@ -194,8 +194,11 @@ run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: g
 # waits for a human who has already moved on. It happened three times in a row
 # before the pattern was visible.
 #
-# Failure is tolerated because "already up to date" is the normal case, and is
-# not a problem worth stopping for.
+# Failure is tolerated, though not for the reason you would guess: gh handles
+# an already-current branch itself, printing "✓ PR branch already up-to-date"
+# and exiting zero. The fallback is for when there is nothing to update at all
+# — no pull request open for this branch yet — which should not stop the merge
+# being armed.
 #
 # This closes the common case, not every case: a pull request that goes stale
 # *after* this runs still needs refreshing, and nothing local can do that.
