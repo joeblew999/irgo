@@ -157,23 +157,28 @@ run = ["git switch integration", "git pull --quiet --ff-only", "git switch --cre
 # Push and open the pull request in one step, so the loop has no gap where a
 # branch sits pushed and unreviewed.
 #
-# --repo is not optional. This repository has an upstream remote, and gh
-# resolves to that by default — so without it the pull request is aimed at
-# stukennedy/irgo, where the integration branch does not exist, and it fails
-# with a git error about separating paths from revisions that says nothing
-# about the actual problem.
+# No --repo, and that is what makes this file portable.
+#
+# It used to say `--repo joeblew999/irgo`, because a clone with an upstream
+# remote has gh resolving there by default: without it the pull request was
+# aimed at stukennedy/irgo, where integration does not exist, and failed with a
+# git error about separating paths from revisions that named nothing real.
+#
+# But a fork copying this file then drove *this* repository rather than its
+# own, which is the opposite of what a shared workflow is for. `wf:setup` now
+# runs `gh repo set-default`, which records the answer in .git/config — per
+# clone, where fork-specific facts belong, rather than in a tracked file where
+# only one fork's answer can ever be right.
 description = "Push the branch you are on and open its pull request"
-run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngit push --set-upstream origin HEAD\ngh pr create --repo joeblew999/irgo --base integration --fill"
+run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngit push --set-upstream origin HEAD\ngh pr create --base integration --fill"
 
 [tasks."wf:land"]
 # The other half of `pr`. Without this the loop stops at "opened", and everyone
 # finishes by hand in the web interface or with raw gh commands — which is how
 # the workflow ends up being something people describe rather than run.
 #
-# The branch is named explicitly. gh infers it when --repo is absent, but
-# without --repo it resolves to the upstream remote and asks about somebody
-# else's repository; with --repo it refuses to infer at all. Both halves of that
-# were found by running it.
+# The branch is still named explicitly. gh will infer it, but naming it costs
+# nothing and says plainly which pull request is being armed.
 #
 # --auto rather than waiting in a shell: GitHub merges it the moment the checks
 # pass, so a slow Windows runner does not hold a terminal open. The branch is
@@ -181,14 +186,32 @@ run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: g
 #
 # It cannot merge a red pull request even with this — the trunk requires all
 # five checks, for everyone including whoever owns the repository.
+#
+# The update-branch line is the half that was missing, and it cost an afternoon
+# to notice. integration requires branches to be up to date, and enabling
+# auto-merge does *not* refresh one that has fallen behind — so the moment any
+# other pull request lands, this one sits at BLOCKED with every check green and
+# waits for a human who has already moved on. It happened three times in a row
+# before the pattern was visible.
+#
+# Failure is tolerated, though not for the reason you would guess: gh handles
+# an already-current branch itself, printing "✓ PR branch already up-to-date"
+# and exiting zero. The fallback is for when there is nothing to update at all
+# — no pull request open for this branch yet — which should not stop the merge
+# being armed.
+#
+# This closes the common case, not every case: a pull request that goes stale
+# *after* this runs still needs refreshing, and nothing local can do that.
+# Turning on "Always suggest updating pull request branches" in the repository
+# settings is the other half, and it is a setting rather than a command.
 description = "Merge the pull request for this branch once CI passes, and clean up"
-run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngh pr merge \"$(git branch --show-current)\" --repo joeblew999/irgo --squash --delete-branch --auto\ngit switch integration\ngit pull --quiet --ff-only"
+run = "gh auth status >/dev/null 2>&1 || { echo 'Not logged in to GitHub. Run: gh auth login'; exit 1; }\ngh pr update-branch \"$(git branch --show-current)\" || echo 'branch already up to date with the trunk'\ngh pr merge \"$(git branch --show-current)\" --squash --delete-branch --auto\ngit switch integration\ngit pull --quiet --ff-only"
 
 [tasks."wf:status"]
 # What is happening to the pull request you just opened, without leaving the
 # terminal or guessing how long Windows takes.
 description = "Show the checks on this branch's pull request"
-run = "gh pr checks \"$(git branch --show-current)\" --repo joeblew999/irgo"
+run = "gh pr checks \"$(git branch --show-current)\""
 
 [tasks."wf:offer"]
 # The rare thing, made explicit.
@@ -214,7 +237,11 @@ run = "gh pr checks \"$(git branch --show-current)\" --repo joeblew999/irgo"
 #
 #   mise run offer fix/some-bug <sha>...
 description = "Cut a pull-request branch from main with only the commits you name"
-run = "git fetch --quiet upstream && git switch --detach upstream/main && git switch --create {{arg(name='branch')}} && git cherry-pick {{arg(name='commits', var=true)}} && git push --set-upstream origin HEAD"
+usage = """
+arg "<branch>" help="name for the pull-request branch"
+arg "<commits>" var=#true help="the commits to replay onto it"
+"""
+run = "git fetch --quiet upstream && git switch --detach upstream/main && git switch --create \"$usage_branch\" && git cherry-pick $usage_commits && git push --set-upstream origin HEAD"
 
 # check and verify are deliberately not namespaced. They are about the code —
 # does it compile, do the tests pass, does every target still build — and you
@@ -346,10 +373,11 @@ run = ["git switch integration", "git merge --no-edit -", "git switch -"]
 # A branch that never had a pull request still has a remote to remove, so the
 # push stays. It just no longer treats "already gone" as a failure.
 description = "Retire a merged branch, locally and on origin"
+usage = 'arg "<branch>" help="the merged branch to retire"'
 run = [
   "git switch integration",
-  "git branch -d {{arg(name='branch')}}",
-  "git push --quiet origin --delete {{arg(name='branch')}} || echo 'remote branch already gone — GitHub deletes it when the pull request merges'",
+  "git branch -d \"$usage_branch\"",
+  "git push --quiet origin --delete \"$usage_branch\" || echo 'remote branch already gone — GitHub deletes it when the pull request merges'",
 ]
 
 [tasks."wf:preview"]
@@ -390,10 +418,11 @@ run = [
 #
 # Throw it away with `wf:preview:drop`. Nothing depends on it.
 description = "Merge the branches you name into a throwaway worktree, to run them together"
+usage = 'arg "<branches>" var=#true help="the branches to combine"'
 run = [
   "git worktree remove --force ../irgo-preview || true",
   "git worktree add --detach ../irgo-preview integration",
-  "git -C ../irgo-preview merge --no-edit {{arg(name='branches', var=true)}}",
+  "git -C ../irgo-preview merge --no-edit $usage_branches",
 ]
 
 [tasks."wf:preview:drop"]
@@ -435,10 +464,11 @@ run = "git push --follow-tags origin integration"
 # Plain semver, ahead of upstream, no prerelease suffix; CONTRIBUTING.md says
 # why the hyphenated tags this repository used to cut were actively harmful.
 description = "Tag a release and let CI build the binaries — e.g. v0.20.1"
+usage = 'arg "<version>" help="the release version, e.g. v0.20.1"'
 depends = ["check"]
 run = [
-  "git tag --annotate --message=release {{arg(name='version')}}",
-  "git push origin {{arg(name='version')}}",
+  "git tag --annotate --message=release \"$usage_version\"",
+  "git push origin \"$usage_version\"",
 ]
 
 [tasks."wf:setup"]
@@ -446,9 +476,23 @@ run = [
 # merging; letting a rebase tool rewrite it would replace that history with a
 # replayed copy. A task that ran `git-stack --pull --stack all` here tried
 # exactly that and was only stopped by a conflict.
-description = "Protect main, integration, and stop pushes to upstream — once per clone"
+# set-default is what lets every other task drop `--repo`.
+#
+# gh resolves to the upstream remote when a clone has one, so `wf:pr` and
+# `wf:land` used to name joeblew999/irgo outright. That worked here and only
+# here: a second fork copying this file got tasks that opened pull requests
+# into somebody else's repository, and `wf:land` — which finds a pull request
+# by branch name — would have armed auto-merge on whatever this repository had
+# under the same name.
+#
+# Derived from the clone's own origin rather than written down, and stored in
+# .git/config, which is per clone and untracked. That is where a fact that
+# differs per fork belongs; a tracked file can only ever hold one fork's answer.
+# The same mise.toml now drives every fork, and upstream, unchanged.
+description = "Protect main, point gh at this fork, stop pushes to upstream — once per clone"
 run = [
   "git-stack --protect integration",
   "git remote set-url --push upstream DO-NOT-PUSH-TO-UPSTREAM",
+  "gh repo set-default \"$(git remote get-url origin)\"",
   "cp mise.toml mise.local.toml",
 ]
