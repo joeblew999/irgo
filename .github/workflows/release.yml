@@ -1,0 +1,104 @@
+# A tag becomes downloadable binaries.
+#
+# `ci.yml` proves the code works; this is what makes it obtainable by someone
+# who does not have Go and should not need it in order to decide whether they
+# want it.
+#
+# The only workflow here that uses mise. That is deliberate and not a drift
+# from "CI does not need mise" — contributing still does not: `ci.yml` installs
+# Go and runs `go test`, and nothing in this file runs on a pull request. What
+# a release needs, and a test run does not, is a pinned copy of a tool that is
+# not part of the Go toolchain. mise is where this repository pins tools, so
+# this is where it is used, and the payoff is that the released binaries are
+# built by the same `mise run dist:publish` a maintainer can run by hand.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Builds the matrix and uploads nothing — see the two steps below. This is
+  # how the six builds and the archive names get checked without cutting a
+  # tag, which is the only honest way to change a release pipeline: the
+  # alternative is finding out it was broken at the point where the tag already
+  # exists.
+  #
+  # It does not cover the release notes. Snapshot mode disables the changelog
+  # pipe, so that part is rehearsed locally against an unpushed tag instead —
+  # `.goreleaser.yaml` has the command under `changelog`.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the CLI binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history, tags included, because the version the binary
+          # reports comes from it.
+          #
+          # Nothing stamps the version in: `main.go` resolves it from the build
+          # info, where Go records the VCS tag of a clean checkout. That is the
+          # same mechanism `go install ...@v0.20.1` uses, which is why the two
+          # ways of installing irgo cannot report different numbers. A shallow
+          # checkout without the tag would produce `devel-<sha>` binaries, and
+          # they would look fine until someone ran `irgo version`.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # Installs what [tools] pins — here, goreleaser at the version this
+      # commit names, not whatever is newest on the day of the release.
+      #
+      # The token is not optional. Every tool in [tools] comes from a GitHub
+      # release, and unauthenticated API calls from Actions runners are rate
+      # limited against a pool shared with every other runner — so this step
+      # fails intermittently, on somebody else's traffic, without it. That is
+      # an unpleasant failure anywhere and a particularly unpleasant one here,
+      # where the tag already exists by the time the workflow runs.
+      - uses: jdx/mise-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release is the one build nobody gets to fix afterwards: the tag is
+      # public and the binaries are downloaded. `ci.yml` has already run on the
+      # pull request that produced this commit, so this is a second look rather
+      # than the only one — cheap, and it is the difference between a bad
+      # release and a failed workflow.
+      - run: mise run check
+
+      # One target and one artifact per run, chosen by what triggered it.
+      # Publishing on workflow_dispatch would let a release be created from any
+      # branch by anyone who can press the button; a snapshot cannot.
+      - name: Build every platform, publish nothing
+        if: github.event_name == 'workflow_dispatch'
+        run: mise run dist
+
+      - name: Build every platform and attach them to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: mise run dist:publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # So a dispatch run has something to show for itself. Without this the
+      # rehearsal proves the build succeeded but not what it produced, and the
+      # filenames are the part that has to be right — `mise use -g
+      # ubi:joeblew999/irgo` finds the asset by reading os and arch out of them.
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: irgo-snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
