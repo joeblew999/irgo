@@ -70,12 +70,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # A release is the one build nobody gets to fix afterwards: the tag is
-      # public and the binaries are downloaded. `ci.yml` has already run on the
-      # pull request that produced this commit, so this is a second look rather
-      # than the only one — cheap, and it is the difference between a bad
-      # release and a failed workflow.
-      - run: mise run check
+      # There is deliberately no `mise run check` here, and the reason is the
+      # step above rather than any doubt about the tests.
+      #
+      # mise-action puts mise's shim directory on PATH for the whole job. The
+      # test suite includes TestScaffoldedProjectBuilds, which generates a
+      # project and runs `irgo project assets` inside it — and that shells out
+      # to templ. With shims on PATH, templ resolves to one of them:
+      #
+      #   Generating templ files...
+      #   mise ERROR No version is set for shim: templ
+      #   --- FAIL: TestScaffoldedProjectBuilds
+      #
+      # A templ shim exists even though nothing here pins templ, because
+      # `irgo tools install` asks mise for it first (tools_mise.go) and then
+      # deliberately does not run `mise use -g`, since that would rewrite the
+      # developer's own config. So mise has templ installed with no version
+      # *selected* — harmless until its shims are on PATH, at which point the
+      # shim shadows the binary irgo resolved and cannot answer for itself.
+      #
+      # Nothing was wrong with the commit. The same tests pass in ci.yml on the
+      # same tree; they fail here only because mise is on PATH, which is exactly
+      # the separation the top of mise.toml insists on — mise carries what a
+      # *contributor* uses, `irgo tools install` provisions what a *build*
+      # needs, and CI does not mix them. This workflow is the one place mise is
+      # installed at all, so it is the one place that invariant can break, and
+      # it broke on the first rehearsal.
+      #
+      # Nothing is lost by removing it. These tests run three times already:
+      # on the pull request, again on the push to integration, and a third time
+      # on the maintainer's machine, because `wf:release` has check as a
+      # dependency and cannot create the tag without it. A fourth run, in the
+      # single environment configured differently from all the others, tested
+      # the environment rather than the code.
 
       # One target and one artifact per run, chosen by what triggered it.
       # Publishing on workflow_dispatch would let a release be created from any
