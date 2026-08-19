@@ -127,17 +127,40 @@ says so plainly. Android Studio is *not* required.
 
 ### Install Irgo CLI
 
+A prebuilt binary, on macOS, Linux or Windows, without a Go toolchain:
+
 ```bash
-go install github.com/stukennedy/irgo/cmd/irgo@latest
+mise use -g ubi:joeblew999/irgo
 ```
 
-Or build from source:
+Or take it straight from the [releases
+page](https://github.com/joeblew999/irgo/releases) — one archive per platform,
+containing a single self-contained `irgo`. The templates it scaffolds from are
+compiled into it, so there is nothing to install beside it.
+
+Or from source:
 
 ```bash
-git clone https://github.com/stukennedy/irgo.git
+git clone https://github.com/joeblew999/irgo.git
 cd irgo/cmd/irgo
 go install .
 ```
+
+Note that `go install` **cannot** fetch this CLI by path. The module keeps
+upstream's name — `module github.com/stukennedy/irgo` — which is what lets a
+project depend on this fork through a `replace`, and the price is that
+
+```bash
+go install github.com/joeblew999/irgo/cmd/irgo@latest   # does not work
+```
+
+fails with `module declares its path as: github.com/stukennedy/irgo`, while the
+`stukennedy` path installs upstream's CLI, which is a different and much older
+program. The releases above are the only one-step way to get *this* one.
+
+Whichever route, `irgo version` reports the same thing, because none of them
+stamps a number in: it is read back out of the build, so a binary cannot claim
+to be a release it was not built from.
 
 ### Create a New Project
 
