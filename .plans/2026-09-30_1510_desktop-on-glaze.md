@@ -68,7 +68,28 @@ instead of the loopback server + secret). Blocked in part by glaze's Windows `ap
 4. Same irgo-demo desktop `.exe` on Windows 11 ARM via irgo-windows-vm: same checks.
 5. `irgo build desktop` produces a working app without a C compiler (run with `CC=false` to prove it).
 
-## Upstream
+## Upstream and validation (how it gets into stukennedy/irgo and stays proven)
 
-PR to stukennedy/irgo from `feat/desktop-glaze`, referencing #16; after merge, comment on #16 with
-the results and close it. irgo-demo regenerated with `irgo project upgrade` if templates change.
+Facts (2026-09-30): upstream CI (`ci.yml`) runs `ubuntu-latest` + `macos-latest` only — **no
+Windows at all**. Stu has not replied on #16 yet (he approved Morpheus in #35).
+
+1. **Buy-in before the PR.** Comment on #16 with the evidence: one-file swap, `CGO_ENABLED=0`
+   cross-compile for every desktop target, glaze's full test suite + probes green on Windows 11 ARM
+   (irgo-windows-vm). Ask before replacing a core dependency.
+2. **One small PR** from `feat/desktop-glaze` (branched from `upstream/main`, not the WIP branch):
+   the swap, `LockOSThread`, `CGO_ENABLED=0` desktop builds, docs.
+3. **Windows in upstream CI, same PR.** Add `windows-latest` to `ci.yml` with a desktop build + a
+   smoke test (window opens, page loads, a `Bind` round-trips, then exits). windows-latest ships
+   WebView2 and glaze's own CI runs its GUI tests there. This is how upstream validates without us.
+4. **Our tools, as an optional layer.** CI covers x64 Windows/macOS/Linux. What only irgo-winvm
+   covers: Windows on ARM, real GUI and native-plugin probes, long-lived-VM failures (expired
+   password, stale WebView2 → glaze#34). It needs an Apple Silicon Mac + UTM, so it cannot run in
+   hosted CI. Offer it as a one-page "validate on Windows from your Mac" section in irgo's desktop
+   docs (`go install …/irgo-winvm@latest`, `vm-create -install`, `app-create -gui app.exe`, MCP for
+   agents), linked from the PR as the evidence. irgo does not depend on it.
+5. After merge: comment on #16 with the CI + irgo-winvm results and close it; regenerate irgo-demo
+   with `irgo project upgrade` if templates change.
+
+Risks: Stu may prefer webview_go (hence step 1); glaze is effectively one maintainer (the API is
+small, so a switch back is cheap); phase 2 (stable origin) is separate and partly blocked by
+glaze's Windows `app://` limitation.
