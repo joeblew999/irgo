@@ -102,10 +102,20 @@
 #
 #   mise run offer <name>   start a branch to send upstream, cut from main
 #
-# setup copies this file to mise.local.toml, which is gitignored. Branches cut
-# from main do not carry mise.toml — main mirrors upstream, which has not taken
-# it yet — so without the copy the tasks vanish the moment you start work. The
-# local copy is untracked, so it survives every branch switch.
+# setup no longer copies this file to mise.local.toml, and if you have one from
+# an older clone, delete it.
+#
+# The copy existed because `wf:offer` switched the checkout onto upstream/main,
+# which has no mise.toml, so every task vanished mid-offer. It solved that and
+# introduced something worse: a local config takes precedence over this one and
+# never refreshed, so a clone that ran setup once was frozen at that moment.
+# Eight of the eleven tasks here were being served from a copy eight days old,
+# with no warning — improvements to this file simply had no effect.
+#
+# `wf:offer` assembles its branch in a worktree now, so the checkout never
+# leaves integration and this file is always present and always current. One
+# definition, which is the only way every fork can be said to run the same
+# workflow.
 #
 # setup also points upstream's push URL at nothing, so `git push upstream`
 # fails instead of landing commits in someone else's repository. Fetching still
@@ -235,13 +245,40 @@ run = "gh pr checks \"$(git branch --show-current)\""
 # the repository owner's agreement. Seven were once opened without it and all
 # seven were withdrawn.
 #
-#   mise run offer fix/some-bug <sha>...
+#   mise run wf:offer fix/some-bug <sha>...
+#
+# In a worktree, which is what let mise.local.toml be deleted.
+#
+# This used to switch the checkout itself onto upstream/main. upstream has no
+# mise.toml — it has never taken this file — so the moment the switch happened
+# every task vanished, mid-offer, including the ones needed to finish. The fix
+# for that was a gitignored copy of mise.toml made once by `wf:setup`, and it
+# worked, at a price nobody had priced: the copy took precedence over the real
+# file and never refreshed. Eight of eleven tasks in this repository were being
+# served from one frozen eight days earlier, silently.
+#
+# The whole problem is that the checkout moved. So it does not move any more.
+# Your checkout stays on integration with mise.toml present and current, and
+# the offer is assembled next door — the same trick `wf:preview` uses, for the
+# same reason, and a sibling rather than a subdirectory for the same go.work
+# reason documented there.
 description = "Cut a pull-request branch from main with only the commits you name"
 usage = """
 arg "<branch>" help="name for the pull-request branch"
 arg "<commits>" var=#true help="the commits to replay onto it"
 """
-run = "git fetch --quiet upstream && git switch --detach upstream/main && git switch --create \"$usage_branch\" && git cherry-pick $usage_commits && git push --set-upstream origin HEAD"
+run = [
+  "git fetch --quiet upstream",
+  "git worktree remove --force ../irgo-offer || true",
+  "git worktree add --detach ../irgo-offer upstream/main",
+  "git -C ../irgo-offer switch --create \"$usage_branch\"",
+  "git -C ../irgo-offer cherry-pick $usage_commits",
+  "git -C ../irgo-offer push --set-upstream origin HEAD",
+]
+
+[tasks."wf:offer:drop"]
+description = "Delete the offer worktree"
+run = "git worktree remove --force ../irgo-offer"
 
 # check and verify are deliberately not namespaced. They are about the code —
 # does it compile, do the tests pass, does every target still build — and you
@@ -494,5 +531,4 @@ run = [
   "git-stack --protect integration",
   "git remote set-url --push upstream DO-NOT-PUSH-TO-UPSTREAM",
   "gh repo set-default \"$(git remote get-url origin)\"",
-  "cp mise.toml mise.local.toml",
 ]
