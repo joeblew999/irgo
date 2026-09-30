@@ -28,6 +28,14 @@ cross-compiled from one Mac. Mobile is unaffected (gomobile), and glaze stays de
 - Branch: irgo's working branch is `feat/fork-portable-workflow`; `upstream` = stukennedy/irgo
   (write access; PRs merged there). This change branches from `upstream/main`.
 
+## Branches
+
+- **`feat/desktop-glaze`** (from `upstream/main`, on the fork): all work AND this plan live here.
+- **The PR to stukennedy/irgo** goes from `pr/desktop-glaze`: `feat/desktop-glaze` plus one commit
+  `git rm -r .plans`, so the PR diff against `upstream/main` contains no plans (they are our notes,
+  not Stu's).
+- `feat/fork-portable-workflow` is unrelated WIP; plans are not kept there.
+
 ## Change (phase 1: swap only, same behaviour)
 
 1. `go.mod`: add `github.com/crgimenes/glaze v0.0.61`; remove `github.com/webview/webview_go`.
