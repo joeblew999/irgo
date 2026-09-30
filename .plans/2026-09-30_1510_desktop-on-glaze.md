@@ -78,16 +78,25 @@ Windows at all**. Stu has not replied on #16 yet (he approved Morpheus in #35).
    (irgo-windows-vm). Ask before replacing a core dependency.
 2. **One small PR** from `feat/desktop-glaze` (branched from `upstream/main`, not the WIP branch):
    the swap, `LockOSThread`, `CGO_ENABLED=0` desktop builds, docs.
-3. **Windows in upstream CI, same PR.** Add `windows-latest` to `ci.yml` with a desktop build + a
+3. **CI on mise, same PR.** Upstream CI uses `actions/setup-go` + `oven-sh/setup-bun` and upstream
+   has no `mise.toml`; the fork's `mise.toml` (on `feat/fork-portable-workflow`) currently says
+   *"Nobody is required to run `mise install` to contribute, and CI does not."* — that decision
+   changes: irgo's own CI installs through a commit-pinned `jdx/mise-action`, Go from go.mod's
+   `toolchain` line (`idiomatic_version_file_enable_tools = ["go"]`), bun pinned in `mise.toml`.
+   Raise it in the #16 buy-in. The **generated project templates**
+   (`cmd/irgo/templates/github/workflows/build.yml`, `release.yml`) are a separate proposal/issue
+   after this lands — mise there makes every irgo app depend on mise and overlaps
+   `irgo tools install` — and it is the proper way to get irgo-demo's CI onto mise.
+4. **Windows in upstream CI, same PR.** Add `windows-latest` to `ci.yml` with a desktop build + a
    smoke test (window opens, page loads, a `Bind` round-trips, then exits). windows-latest ships
    WebView2 and glaze's own CI runs its GUI tests there. This is how upstream validates without us.
-4. **Our tools, as an optional layer.** CI covers x64 Windows/macOS/Linux. What only irgo-winvm
+5. **Our tools, as an optional layer.** CI covers x64 Windows/macOS/Linux. What only irgo-winvm
    covers: Windows on ARM, real GUI and native-plugin probes, long-lived-VM failures (expired
    password, stale WebView2 → glaze#34). It needs an Apple Silicon Mac + UTM, so it cannot run in
    hosted CI. Offer it as a one-page "validate on Windows from your Mac" section in irgo's desktop
    docs (`go install …/irgo-winvm@latest`, `vm-create -install`, `app-create -gui app.exe`, MCP for
    agents), linked from the PR as the evidence. irgo does not depend on it.
-5. After merge: comment on #16 with the CI + irgo-winvm results and close it; regenerate irgo-demo
+6. After merge: comment on #16 with the CI + irgo-winvm results and close it; regenerate irgo-demo
    with `irgo project upgrade` if templates change.
 
 Risks: Stu may prefer webview_go (hence step 1); glaze is effectively one maintainer (the API is
